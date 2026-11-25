@@ -47,10 +47,11 @@ private val WidgetSurfaceElevated = Color(0xFF1C1C21)
 private val WidgetHairline = Color(0xFF27272A)
 private val WidgetTextPrimary = Color(0xFFF4F4F5)
 private val WidgetTextSecondary = Color(0xFFA1A1AA)
-private val WidgetTextMuted = Color(0xFF52525B)
-private val WidgetAccentOrange = Color(0xFFFF4D00)
-private val WidgetPriorityHigh = Color(0xFFF59E0B)
-private val WidgetPriorityMedium = Color(0xFF3B82F6)
+private val WidgetTextMuted = Color(0xFF63636B)
+private val WidgetAccent = Color(0xFF7B9CC2)
+private val WidgetPriorityUrgent = Color(0xFFD66A6A)
+private val WidgetPriorityHigh = Color(0xFFCFA052)
+private val WidgetPriorityMedium = Color(0xFF7B9CC2)
 
 private val PARAM_TASK_ID = ActionParameters.Key<String>("zero_widget_task_id")
 
@@ -109,7 +110,7 @@ private fun TodayTasksWidgetContent(
             Box(
                 modifier = GlanceModifier
                     .size(7.dp)
-                    .background(WidgetAccentOrange)
+                    .background(WidgetAccent)
                     .cornerRadius(4.dp)
             ) {}
             Spacer(modifier = GlanceModifier.width(8.dp))
@@ -125,7 +126,7 @@ private fun TodayTasksWidgetContent(
             Text(
                 text = tasks.size.toString().padStart(2, '0'),
                 style = TextStyle(
-                    color = ColorProvider(WidgetAccentOrange),
+                    color = ColorProvider(WidgetAccent),
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Medium
                 )
@@ -142,7 +143,7 @@ private fun TodayTasksWidgetContent(
                 Text(
                     text = "+",
                     style = TextStyle(
-                        color = ColorProvider(WidgetAccentOrange),
+                        color = ColorProvider(WidgetAccent),
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Medium
                     )
@@ -220,7 +221,7 @@ private fun WidgetTaskRow(
     }
 
     val indicatorColor = when (task.priority) {
-        1 -> WidgetAccentOrange
+        1 -> WidgetPriorityUrgent
         2 -> WidgetPriorityHigh
         3 -> WidgetPriorityMedium
         else -> WidgetTextMuted

@@ -224,20 +224,20 @@ class MainViewModelStateTest {
         val collectJob = launch(Dispatchers.Default) { vm.uiState.collect {} }
 
         vm.setDarkTheme(false)
-        vm.setAccent(ZeroAccent.CyberCyan)
+        vm.setAccent(ZeroAccent.Sage)
         vm.setAntiMisclickMode(AntiMisclickMode.SWIPE_DAMPED)
         vm.setHapticsEnabled(false)
 
         val updated = withTimeout(5_000L) {
             vm.uiState.first {
                 !it.isDarkTheme &&
-                    it.activeAccent == ZeroAccent.CyberCyan &&
+                    it.activeAccent == ZeroAccent.Sage &&
                     it.antiMisclickMode == AntiMisclickMode.SWIPE_DAMPED &&
                     !it.hapticsEnabled
             }
         }
         assertFalse(updated.isDarkTheme)
-        assertEquals(ZeroAccent.CyberCyan, updated.activeAccent)
+        assertEquals(ZeroAccent.Sage, updated.activeAccent)
         assertEquals(AntiMisclickMode.SWIPE_DAMPED, updated.antiMisclickMode)
         assertFalse(updated.hapticsEnabled)
         collectJob.cancel()

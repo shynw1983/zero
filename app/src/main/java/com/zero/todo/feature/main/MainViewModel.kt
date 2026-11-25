@@ -69,7 +69,7 @@ data class MainUiState(
     val continuousEntryEnabled: Boolean = true,
     val undoBanner: UndoBannerState? = null,
     val isDarkTheme: Boolean = true,
-    val activeAccent: ZeroAccent = ZeroAccent.SignalOrange,
+    val activeAccent: ZeroAccent = ZeroAccent.SlateBlue,
     val antiMisclickMode: AntiMisclickMode = AntiMisclickMode.BOTH,
     val hapticsEnabled: Boolean = true,
     val appLanguage: AppLanguage = AppLanguage.SYSTEM,
@@ -422,8 +422,7 @@ class MainViewModel @Inject constructor(
 
     fun toggleAccent() {
         val current = userPreferencesRepository.preferences.value.accent
-        val next = if (current == ZeroAccent.SignalOrange) ZeroAccent.CyberCyan else ZeroAccent.SignalOrange
-        userPreferencesRepository.setAccent(next)
+        userPreferencesRepository.setAccent(current.next())
     }
 
     fun setAntiMisclickMode(mode: AntiMisclickMode) {
@@ -514,6 +513,21 @@ class MainViewModel @Inject constructor(
     fun setFolderExpanded(folderId: String, isExpanded: Boolean) {
         viewModelScope.launch {
             folderRepository.setFolderExpanded(folderId, isExpanded)
+        }
+    }
+
+    fun renameFolder(folderId: String, newName: String) {
+        val trimmed = newName.trim()
+        if (trimmed.isEmpty()) return
+        viewModelScope.launch {
+            folderRepository.renameFolder(folderId, trimmed)
+        }
+    }
+
+    fun moveTaskToFolder(taskId: String, targetFolderId: String?) {
+        viewModelScope.launch {
+            taskRepository.moveTaskToFolder(taskId, targetFolderId)
+            widgetRefresher.refreshAll()
         }
     }
 

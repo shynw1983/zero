@@ -277,34 +277,30 @@ fun SettingsOverlay(
                     }
                 }
 
-                // 2. Functional Accent Color
+                // 2. Functional Accent Color (Calm, non-sci-fi 2x2 minimalist palette)
                 SettingsSectionCard(title = stringResource(R.string.settings_section_accent)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        AccentChoiceTile(
-                            label = stringResource(R.string.settings_accent_orange),
-                            hex = "#FF4D00",
-                            accent = ZeroAccent.SignalOrange,
-                            selected = activeAccent == ZeroAccent.SignalOrange,
-                            onClick = {
-                                haptics.reorderTick()
-                                onSetAccent(ZeroAccent.SignalOrange)
-                            },
-                            modifier = Modifier.weight(1f)
-                        )
-                        AccentChoiceTile(
-                            label = stringResource(R.string.settings_accent_cyan),
-                            hex = "#00E5FF",
-                            accent = ZeroAccent.CyberCyan,
-                            selected = activeAccent == ZeroAccent.CyberCyan,
-                            onClick = {
-                                haptics.reorderTick()
-                                onSetAccent(ZeroAccent.CyberCyan)
-                            },
-                            modifier = Modifier.weight(1f)
-                        )
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        ZeroAccent.entries.chunked(2).forEach { rowAccents ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                rowAccents.forEach { accentOption ->
+                                    AccentChoiceTile(
+                                        label = stringResource(accentOption.labelRes),
+                                        hex = accentOption.darkHexLabel,
+                                        accent = accentOption,
+                                        isDarkTheme = isDarkTheme,
+                                        selected = activeAccent == accentOption,
+                                        onClick = {
+                                            haptics.reorderTick()
+                                            onSetAccent(accentOption)
+                                        },
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
 
@@ -527,19 +523,21 @@ private fun AccentChoiceTile(
     label: String,
     hex: String,
     accent: ZeroAccent,
+    isDarkTheme: Boolean,
     selected: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val colors = ZeroTheme.colors
     val tabular = ZeroTheme.tabularTypography
+    val swatchColor = accent.colorFor(isDarkTheme)
     Row(
         modifier = modifier
             .clip(ZeroSmallShape)
-            .background(if (selected) accent.color.copy(alpha = 0.14f) else colors.background)
+            .background(if (selected) swatchColor.copy(alpha = 0.14f) else colors.background)
             .hairlineBorder(
                 shape = ZeroSmallShape,
-                color = if (selected) accent.color else colors.hairlineBorder
+                color = if (selected) swatchColor else colors.hairlineBorder
             )
             .clickable(onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 10.dp),
@@ -550,13 +548,13 @@ private fun AccentChoiceTile(
             modifier = Modifier
                 .size(14.dp)
                 .clip(CircleShape)
-                .background(accent.color)
+                .background(swatchColor)
         )
         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(
                 text = label,
                 style = MaterialTheme.typography.titleSmall,
-                color = if (selected) accent.color else colors.textPrimary
+                color = if (selected) swatchColor else colors.textPrimary
             )
             Text(
                 text = hex,

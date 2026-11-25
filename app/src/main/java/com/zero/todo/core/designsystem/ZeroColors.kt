@@ -1,35 +1,76 @@
 package com.zero.todo.core.designsystem
 
+import androidx.annotation.StringRes
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
+import com.zero.todo.R
 
 /**
- * Functional single-accent options defined by the ZERO Near-Future Minimalism spec.
- * Strictly reserved for active focus state, Pomodoro progress, P1 priority indicator,
- * and active input cursor.
+ * Calm, understated architectural accent options for ZERO.
+ * Adapts subtly between Dark and Light modes for serene, non-sci-fi visual clarity.
  */
 enum class ZeroAccent(
-    val color: Color,
-    val onAccent: Color,
-    val subtleContainerDark: Color,
-    val subtleContainerLight: Color
+    val darkColor: Color,
+    val onDarkAccent: Color,
+    val lightColor: Color,
+    val onLightAccent: Color,
+    val darkHexLabel: String,
+    @StringRes val labelRes: Int
 ) {
-    SignalOrange(
-        color = Color(0xFFFF4D00),
-        onAccent = Color(0xFFFFFFFF),
-        subtleContainerDark = Color(0x26FF4D00),
-        subtleContainerLight = Color(0x1AFF4D00)
+    SlateBlue(
+        darkColor = Color(0xFF7B9CC2),
+        onDarkAccent = Color(0xFF09090B),
+        lightColor = Color(0xFF3B5B82),
+        onLightAccent = Color(0xFFFFFFFF),
+        darkHexLabel = "#7B9CC2",
+        labelRes = R.string.settings_accent_slate
     ),
-    CyberCyan(
-        color = Color(0xFF00E5FF),
-        onAccent = Color(0xFF09090B),
-        subtleContainerDark = Color(0x2600E5FF),
-        subtleContainerLight = Color(0x1F00E5FF)
-    )
+    Monochrome(
+        darkColor = Color(0xFFE4E4E7),
+        onDarkAccent = Color(0xFF09090B),
+        lightColor = Color(0xFF18181B),
+        onLightAccent = Color(0xFFFFFFFF),
+        darkHexLabel = "#E4E4E7",
+        labelRes = R.string.settings_accent_monochrome
+    ),
+    Sage(
+        darkColor = Color(0xFF7AA38D),
+        onDarkAccent = Color(0xFF09090B),
+        lightColor = Color(0xFF3E6B54),
+        onLightAccent = Color(0xFFFFFFFF),
+        darkHexLabel = "#7AA38D",
+        labelRes = R.string.settings_accent_sage
+    ),
+    WarmClay(
+        darkColor = Color(0xFFC98365),
+        onDarkAccent = Color(0xFF09090B),
+        lightColor = Color(0xFFA85A3B),
+        onLightAccent = Color(0xFFFFFFFF),
+        darkHexLabel = "#C98365",
+        labelRes = R.string.settings_accent_clay
+    );
+
+    fun colorFor(isDark: Boolean): Color = if (isDark) darkColor else lightColor
+    fun onAccentFor(isDark: Boolean): Color = if (isDark) onDarkAccent else onLightAccent
+    fun subtleContainerFor(isDark: Boolean): Color =
+        colorFor(isDark).copy(alpha = if (isDark) 0.16f else 0.11f)
+
+    fun next(): ZeroAccent {
+        val list = entries
+        return list[(ordinal + 1) % list.size]
+    }
+
+    companion object {
+        fun fromStorage(raw: String?): ZeroAccent = when (raw) {
+            "SignalOrange" -> WarmClay
+            "CyberCyan" -> SlateBlue
+            else -> entries.firstOrNull { it.name == raw } ?: SlateBlue
+        }
+    }
 }
 
 object ZeroPaletteTokens {
@@ -40,7 +81,7 @@ object ZeroPaletteTokens {
     val DarkHairlineBorder = Color(0xFF27272A)
     val DarkTextPrimary = Color(0xFFF4F4F5)
     val DarkTextSecondary = Color(0xFFA1A1AA)
-    val DarkTextMuted = Color(0xFF52525B)
+    val DarkTextMuted = Color(0xFF63636B)
 
     // Light Mode
     val LightBackground = Color(0xFFF7F7F9) // Cool Paper
@@ -51,9 +92,13 @@ object ZeroPaletteTokens {
     val LightTextSecondary = Color(0xFF71717A)
     val LightTextMuted = Color(0xFFA1A1AA)
 
-    // Priority accents (restrained, functional)
-    val PriorityHigh = Color(0xFFF59E0B)
-    val PriorityMedium = Color(0xFF3B82F6)
+    // Restrained, editorial priority tones (zero neon glare)
+    val PriorityUrgentDark = Color(0xFFD66A6A)
+    val PriorityUrgentLight = Color(0xFFB84343)
+    val PriorityHighDark = Color(0xFFCFA052)
+    val PriorityHighLight = Color(0xFFAE7B24)
+    val PriorityMediumDark = Color(0xFF7B9CC2)
+    val PriorityMediumLight = Color(0xFF3B5B82)
 }
 
 @Immutable
@@ -75,7 +120,7 @@ data class ZeroColorPalette(
     val priorityNone: Color
 )
 
-fun zeroDarkPalette(accent: ZeroAccent = ZeroAccent.SignalOrange): ZeroColorPalette =
+fun zeroDarkPalette(accent: ZeroAccent = ZeroAccent.SlateBlue): ZeroColorPalette =
     ZeroColorPalette(
         isDark = true,
         background = ZeroPaletteTokens.DarkBackground,
@@ -85,16 +130,16 @@ fun zeroDarkPalette(accent: ZeroAccent = ZeroAccent.SignalOrange): ZeroColorPale
         textPrimary = ZeroPaletteTokens.DarkTextPrimary,
         textSecondary = ZeroPaletteTokens.DarkTextSecondary,
         textMuted = ZeroPaletteTokens.DarkTextMuted,
-        accent = accent.color,
-        onAccent = accent.onAccent,
-        accentSubtle = accent.subtleContainerDark,
-        priorityUrgent = accent.color,
-        priorityHigh = ZeroPaletteTokens.PriorityHigh,
-        priorityMedium = ZeroPaletteTokens.PriorityMedium,
+        accent = accent.colorFor(isDark = true),
+        onAccent = accent.onAccentFor(isDark = true),
+        accentSubtle = accent.subtleContainerFor(isDark = true),
+        priorityUrgent = ZeroPaletteTokens.PriorityUrgentDark,
+        priorityHigh = ZeroPaletteTokens.PriorityHighDark,
+        priorityMedium = ZeroPaletteTokens.PriorityMediumDark,
         priorityNone = ZeroPaletteTokens.DarkTextMuted
     )
 
-fun zeroLightPalette(accent: ZeroAccent = ZeroAccent.SignalOrange): ZeroColorPalette =
+fun zeroLightPalette(accent: ZeroAccent = ZeroAccent.SlateBlue): ZeroColorPalette =
     ZeroColorPalette(
         isDark = false,
         background = ZeroPaletteTokens.LightBackground,
@@ -104,12 +149,12 @@ fun zeroLightPalette(accent: ZeroAccent = ZeroAccent.SignalOrange): ZeroColorPal
         textPrimary = ZeroPaletteTokens.LightTextPrimary,
         textSecondary = ZeroPaletteTokens.LightTextSecondary,
         textMuted = ZeroPaletteTokens.LightTextMuted,
-        accent = accent.color,
-        onAccent = accent.onAccent,
-        accentSubtle = accent.subtleContainerLight,
-        priorityUrgent = accent.color,
-        priorityHigh = ZeroPaletteTokens.PriorityHigh,
-        priorityMedium = ZeroPaletteTokens.PriorityMedium,
+        accent = accent.colorFor(isDark = false),
+        onAccent = accent.onAccentFor(isDark = false),
+        accentSubtle = accent.subtleContainerFor(isDark = false),
+        priorityUrgent = ZeroPaletteTokens.PriorityUrgentLight,
+        priorityHigh = ZeroPaletteTokens.PriorityHighLight,
+        priorityMedium = ZeroPaletteTokens.PriorityMediumLight,
         priorityNone = ZeroPaletteTokens.LightTextMuted
     )
 
@@ -138,7 +183,7 @@ fun ZeroColorPalette.toMaterialColorScheme(): ColorScheme = if (isDark) {
         surfaceContainerHighest = surfaceElevated,
         outline = hairlineBorder,
         outlineVariant = hairlineBorder,
-        error = accent,
+        error = priorityUrgent,
         onError = onAccent
     )
 } else {
@@ -166,7 +211,7 @@ fun ZeroColorPalette.toMaterialColorScheme(): ColorScheme = if (isDark) {
         surfaceContainerHighest = surfaceElevated,
         outline = hairlineBorder,
         outlineVariant = hairlineBorder,
-        error = accent,
+        error = priorityUrgent,
         onError = onAccent
     )
 }
@@ -176,5 +221,5 @@ val LocalZeroColors = staticCompositionLocalOf<ZeroColorPalette> {
 }
 
 val LocalZeroAccent = staticCompositionLocalOf {
-    ZeroAccent.SignalOrange
+    ZeroAccent.SlateBlue
 }

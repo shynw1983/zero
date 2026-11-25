@@ -27,6 +27,7 @@ import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material.icons.rounded.CreateNewFolder
 import androidx.compose.material.icons.rounded.DarkMode
 import androidx.compose.material.icons.rounded.DeleteOutline
+import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Folder
 import androidx.compose.material.icons.rounded.FolderOpen
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
@@ -74,6 +75,7 @@ fun FolderTreePanel(
     onSelectDestination: (NavigationDestination) -> Unit,
     onToggleFolderExpanded: (folderId: String, isExpanded: Boolean) -> Unit,
     onRequestCreateFolder: (parentFolder: Folder?) -> Unit,
+    onRequestRenameFolder: (folder: Folder) -> Unit,
     onDeleteFolder: (folderId: String) -> Unit,
     onToggleIncludeSubfolders: () -> Unit,
     onToggleTheme: () -> Unit,
@@ -131,7 +133,7 @@ fun FolderTreePanel(
                         modifier = Modifier
                             .size(10.dp)
                             .clip(CircleShape)
-                            .background(activeAccent.color)
+                            .background(activeAccent.colorFor(isDarkTheme))
                     )
                 }
 
@@ -284,6 +286,7 @@ fun FolderTreePanel(
                             onToggleFolderExpanded(node.folder.id, !node.folder.isExpanded)
                         },
                         onCreateSubfolder = { onRequestCreateFolder(node.folder) },
+                        onRename = { onRequestRenameFolder(node.folder) },
                         onDelete = { onDeleteFolder(node.folder.id) }
                     )
                 }
@@ -400,6 +403,7 @@ private fun FolderTreeRow(
     onSelect: () -> Unit,
     onToggleExpand: () -> Unit,
     onCreateSubfolder: () -> Unit,
+    onRename: () -> Unit,
     onDelete: () -> Unit
 ) {
     val colors = ZeroTheme.colors
@@ -523,6 +527,20 @@ private fun FolderTreeRow(
         }
 
         if (isSelected) {
+            Box(
+                modifier = Modifier
+                    .size(24.dp)
+                    .clip(ZeroSmallShape)
+                    .clickable(onClick = onRename),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Edit,
+                    contentDescription = stringResource(R.string.dialog_rename_folder_title),
+                    tint = colors.textMuted,
+                    modifier = Modifier.size(13.dp)
+                )
+            }
             Box(
                 modifier = Modifier
                     .size(24.dp)

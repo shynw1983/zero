@@ -23,7 +23,7 @@ val ZeroShapes = Shapes(
 @Composable
 fun ZeroTheme(
     darkTheme: Boolean = true,
-    accent: ZeroAccent = ZeroAccent.SignalOrange,
+    accent: ZeroAccent = ZeroAccent.SlateBlue,
     hapticsEnabled: Boolean = true,
     content: @Composable () -> Unit
 ) {

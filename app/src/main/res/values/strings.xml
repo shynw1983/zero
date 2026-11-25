@@ -39,9 +39,12 @@
     <string name="cd_enter_focus">Enter single-task focus mode</string>
     <string name="dialog_create_folder_title">New Folder</string>
     <string name="dialog_create_subfolder_title">New sub-folder in \"%1$s\"</string>
+    <string name="dialog_rename_folder_title">Rename Folder</string>
+    <string name="dialog_move_to_folder_title">Move to Folder</string>
     <string name="dialog_folder_name_placeholder">Folder name…</string>
     <string name="action_cancel">Cancel</string>
     <string name="action_create">Create</string>
+    <string name="action_save">Save</string>
     <string name="action_apply">Apply</string>
     <string name="action_undo">Undo</string>
     <string name="action_done">Done</string>
@@ -50,6 +53,7 @@
 
     <!-- Task List, Anti-Misclick & Quick Input -->
     <string name="empty_tasks_hint">Clear your mind. Capture below anytime.</string>
+    <string name="section_completed_tasks">Completed</string>
     <string name="swipe_release_complete">Release to complete</string>
     <string name="swipe_release_restore">Release to restore</string>
     <string name="cd_drag_reorder">Drag to reorder</string>
@@ -81,6 +85,8 @@
     <string name="quick_next_monday">Next Mon</string>
     <string name="quick_minus_day">-1d</string>
     <string name="quick_plus_day">+1d</string>
+    <string name="detail_pick_calendar">Calendar</string>
+    <string name="picker_select_date_title">Select Date</string>
     <string name="detail_recurrence">Repeat</string>
     <string name="recur_none">None</string>
     <string name="recur_daily">Daily</string>
@@ -165,9 +171,11 @@
     <string name="settings_section_theme">Appearance</string>
     <string name="settings_theme_dark">Dark · Obsidian</string>
     <string name="settings_theme_light">Light · Cool Paper</string>
-    <string name="settings_section_accent">Functional Accent</string>
-    <string name="settings_accent_orange">Signal Orange</string>
-    <string name="settings_accent_cyan">Cyber Cyan</string>
+    <string name="settings_section_accent">Accent Tone</string>
+    <string name="settings_accent_slate">Slate Blue</string>
+    <string name="settings_accent_monochrome">Monochrome Ink</string>
+    <string name="settings_accent_sage">Sage</string>
+    <string name="settings_accent_clay">Warm Clay</string>
     <string name="settings_section_antimisclick">Anti-Misclick Mode</string>
     <string name="settings_section_haptics">Tactile &amp; Motion</string>
     <string name="settings_haptics_title">Linear Motor Haptics</string>

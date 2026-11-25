@@ -1,5 +1,6 @@
 package com.zero.todo.feature.tasklist
 
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -20,6 +21,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.rounded.ViewSidebar
 import androidx.compose.material.icons.rounded.CreateNewFolder
 import androidx.compose.material.icons.rounded.Menu
@@ -33,9 +35,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
@@ -43,7 +48,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import com.zero.todo.R
 import com.zero.todo.core.designsystem.ZeroMotion
+import com.zero.todo.core.designsystem.ZeroSmallShape
 import com.zero.todo.core.designsystem.ZeroTheme
+import com.zero.todo.core.designsystem.hairlineBorder
 import com.zero.todo.core.designsystem.hairlineDividerBottom
 import com.zero.todo.core.designsystem.rememberZeroHaptics
 import com.zero.todo.core.nlp.ParsedQuickInput
@@ -96,8 +103,11 @@ fun TaskListPane(
 
     var draggingTaskId by remember { mutableStateOf<String?>(null) }
     var draggingOffsetY by remember { mutableFloatStateOf(0f) }
+    var showCompletedSection by rememberSaveable { mutableStateOf(false) }
 
-    val incompleteCount = remember(tasks) { tasks.count { !it.isCompleted } }
+    val activeTasks = remember(tasks) { tasks.filterNot { it.isCompleted } }
+    val completedTasks = remember(tasks) { tasks.filter { it.isCompleted } }
+    val incompleteCount = activeTasks.size
 
     Box(
         modifier = modifier
@@ -260,7 +270,7 @@ fun TaskListPane(
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     itemsIndexed(
-                        items = tasks,
+                        items = activeTasks,
                         key = { _, task -> task.id }
                     ) { index, task ->
                         val isDragging = draggingTaskId == task.id
@@ -285,7 +295,7 @@ fun TaskListPane(
                                 if (draggingTaskId == task.id) {
                                     draggingOffsetY += deltaY
                                     val stepPx = 140f
-                                    if (draggingOffsetY > stepPx && index < tasks.lastIndex) {
+                                    if (draggingOffsetY > stepPx && index < activeTasks.lastIndex) {
                                         draggingOffsetY -= stepPx
                                         haptics.reorderTick()
                                         onReorderTask(task.id, index + 1)
@@ -304,6 +314,81 @@ fun TaskListPane(
                                 .animateItem(placementSpec = ZeroMotion.IntOffsetSpring)
                                 .zIndex(if (isDragging) 10f else 0f)
                         )
+                    }
+
+                    // Collapsible Completed Tasks Section for calm OCD visual order
+                    if (completedTasks.isNotEmpty()) {
+                        item(key = "completed_section_header") {
+                            val arrowRot by animateFloatAsState(
+                                targetValue = if (showCompletedSection) 90f else 0f,
+                                animationSpec = ZeroMotion.FloatSpring,
+                                label = "completed_chevron"
+                            )
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 8.dp)
+                                    .clip(ZeroSmallShape)
+                                    .background(colors.surface)
+                                    .hairlineBorder(shape = ZeroSmallShape)
+                                    .clickable {
+                                        haptics.reorderTick()
+                                        showCompletedSection = !showCompletedSection
+                                    }
+                                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
+                                        contentDescription = null,
+                                        tint = colors.textMuted,
+                                        modifier = Modifier
+                                            .size(16.dp)
+                                            .rotate(arrowRot)
+                                    )
+                                    Text(
+                                        text = stringResource(R.string.section_completed_tasks),
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = colors.textSecondary
+                                    )
+                                }
+                                Text(
+                                    text = completedTasks.size.toString().padStart(2, '0'),
+                                    style = tabular.counter,
+                                    color = colors.textMuted
+                                )
+                            }
+                        }
+
+                        if (showCompletedSection) {
+                            itemsIndexed(
+                                items = completedTasks,
+                                key = { _, task -> task.id }
+                            ) { _, task ->
+                                val showFolderBadge = selectedDestination !is NavigationDestination.FolderView ||
+                                    (includeSubfolders && task.folderId != selectedDestination.folderId)
+                                AntiMisclickTaskCard(
+                                    task = task,
+                                    isSelected = task.id == selectedTaskId,
+                                    isListScrolling = lazyListState.isScrollInProgress,
+                                    isDragging = false,
+                                    dragOffsetY = 0f,
+                                    folderBadgeName = if (showFolderBadge) task.folderId?.let { folderNameById[it] } else null,
+                                    antiMisclickMode = antiMisclickMode,
+                                    onToggleComplete = onToggleTaskComplete,
+                                    onSelectTask = onSelectTask,
+                                    onReorderDragStart = {},
+                                    onReorderDragDelta = {},
+                                    onReorderDragEnd = {},
+                                    modifier = Modifier.animateItem(placementSpec = ZeroMotion.IntOffsetSpring)
+                                )
+                            }
+                        }
                     }
                 }
             }

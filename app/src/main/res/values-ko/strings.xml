@@ -39,9 +39,12 @@
     <string name="cd_enter_focus">단일 작업 집중 모드</string>
     <string name="dialog_create_folder_title">새 폴더</string>
     <string name="dialog_create_subfolder_title">「%1$s」 아래에 하위 폴더 만들기</string>
+    <string name="dialog_rename_folder_title">폴더 이름 변경</string>
+    <string name="dialog_move_to_folder_title">폴더로 이동</string>
     <string name="dialog_folder_name_placeholder">폴더 이름 입력…</string>
     <string name="action_cancel">취소</string>
     <string name="action_create">만들기</string>
+    <string name="action_save">저장</string>
     <string name="action_apply">적용</string>
     <string name="action_undo">실행 취소</string>
     <string name="action_done">완료</string>
@@ -50,6 +53,7 @@
 
     <!-- Task List, Anti-Misclick & Quick Input -->
     <string name="empty_tasks_hint">머릿속을 비우고 아래 캡슐에 바로 기록하세요</string>
+    <string name="section_completed_tasks">완료됨</string>
     <string name="swipe_release_complete">놓아서 완료</string>
     <string name="swipe_release_restore">놓아서 복원</string>
     <string name="cd_drag_reorder">드래그하여 정렬</string>
@@ -81,6 +85,8 @@
     <string name="quick_next_monday">다음 월요일</string>
     <string name="quick_minus_day">-1일</string>
     <string name="quick_plus_day">+1일</string>
+    <string name="detail_pick_calendar">달력</string>
+    <string name="picker_select_date_title">날짜 선택</string>
     <string name="detail_recurrence">반복 규칙</string>
     <string name="recur_none">반복 안 함</string>
     <string name="recur_daily">매일</string>
@@ -165,9 +171,11 @@
     <string name="settings_section_theme">테마</string>
     <string name="settings_theme_dark">다크 · 옵시디언</string>
     <string name="settings_theme_light">라이트 · 쿨 페이퍼</string>
-    <string name="settings_section_accent">강조 색상</string>
-    <string name="settings_accent_orange">시그널 오렌지</string>
-    <string name="settings_accent_cyan">사이버 시안</string>
+    <string name="settings_section_accent">포인트 색상</string>
+    <string name="settings_accent_slate">슬레이트 블루</string>
+    <string name="settings_accent_monochrome">모노크롬</string>
+    <string name="settings_accent_sage">세이지 그린</string>
+    <string name="settings_accent_clay">웜 클레이</string>
     <string name="settings_section_antimisclick">오터치 방지 모드</string>
     <string name="settings_section_haptics">촉각 피드백</string>
     <string name="settings_haptics_title">리니어 모터 진동</string>

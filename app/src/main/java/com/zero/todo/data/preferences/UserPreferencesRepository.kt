@@ -14,7 +14,7 @@ import javax.inject.Singleton
 
 data class UserPreferences(
     val isDarkTheme: Boolean = true,
-    val accent: ZeroAccent = ZeroAccent.SignalOrange,
+    val accent: ZeroAccent = ZeroAccent.SlateBlue,
     val antiMisclickMode: AntiMisclickMode = AntiMisclickMode.BOTH,
     val hapticsEnabled: Boolean = true,
     val appLanguage: AppLanguage = AppLanguage.SYSTEM
@@ -67,8 +67,8 @@ class SharedPrefsUserPreferencesRepository @Inject constructor(
 
     private fun loadInitial(): UserPreferences {
         val isDark = prefs.getBoolean(KEY_DARK_THEME, true)
-        val accentName = prefs.getString(KEY_ACCENT, ZeroAccent.SignalOrange.name)
-        val accent = ZeroAccent.entries.firstOrNull { it.name == accentName } ?: ZeroAccent.SignalOrange
+        val accentName = prefs.getString(KEY_ACCENT, ZeroAccent.SlateBlue.name)
+        val accent = ZeroAccent.fromStorage(accentName)
         val antiMisclickMode = AntiMisclickMode.fromStorage(
             prefs.getString(KEY_ANTI_MISCLICK_MODE, AntiMisclickMode.BOTH.name)
         )

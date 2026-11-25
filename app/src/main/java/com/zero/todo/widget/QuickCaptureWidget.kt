@@ -31,7 +31,7 @@ import com.zero.todo.feature.folder.NavigationDestination
 
 private val CapsuleObsidian = Color(0xFF09090B)
 private val CapsuleSurface = Color(0xFF141417)
-private val CapsuleAccent = Color(0xFFFF4D00)
+private val CapsuleAccent = Color(0xFF7B9CC2)
 private val CapsuleText = Color(0xFFF4F4F5)
 
 /**

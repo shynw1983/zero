@@ -39,9 +39,12 @@
     <string name="cd_enter_focus">単一タスク集中モードへ</string>
     <string name="dialog_create_folder_title">新規フォルダ</string>
     <string name="dialog_create_subfolder_title">「%1$s」内にサブフォルダを作成</string>
+    <string name="dialog_rename_folder_title">フォルダ名を変更</string>
+    <string name="dialog_move_to_folder_title">フォルダへ移動</string>
     <string name="dialog_folder_name_placeholder">フォルダ名を入力…</string>
     <string name="action_cancel">キャンセル</string>
     <string name="action_create">作成</string>
+    <string name="action_save">保存</string>
     <string name="action_apply">適用</string>
     <string name="action_undo">元に戻す</string>
     <string name="action_done">完了</string>
@@ -50,6 +53,7 @@
 
     <!-- Task List, Anti-Misclick & Quick Input -->
     <string name="empty_tasks_hint">思考を空にして、下のカプセルからいつでも記録</string>
+    <string name="section_completed_tasks">完了済み</string>
     <string name="swipe_release_complete">離して完了</string>
     <string name="swipe_release_restore">離して復元</string>
     <string name="cd_drag_reorder">ドラッグして並べ替え</string>
@@ -81,6 +85,8 @@
     <string name="quick_next_monday">来週月曜</string>
     <string name="quick_minus_day">-1日</string>
     <string name="quick_plus_day">+1日</string>
+    <string name="detail_pick_calendar">カレンダー</string>
+    <string name="picker_select_date_title">日付を選択</string>
     <string name="detail_recurrence">繰り返し</string>
     <string name="recur_none">なし</string>
     <string name="recur_daily">毎日</string>
@@ -166,8 +172,10 @@
     <string name="settings_theme_dark">ダーク · オブシディアン</string>
     <string name="settings_theme_light">ライト · クールペーパー</string>
     <string name="settings_section_accent">アクセントカラー</string>
-    <string name="settings_accent_orange">シグナルオレンジ</string>
-    <string name="settings_accent_cyan">サイバーシアン</string>
+    <string name="settings_accent_slate">スレートブルー</string>
+    <string name="settings_accent_monochrome">モノクローム</string>
+    <string name="settings_accent_sage">セージグリーン</string>
+    <string name="settings_accent_clay">ウォームクレイ</string>
     <string name="settings_section_antimisclick">誤タップ防止モード</string>
     <string name="settings_section_haptics">触覚フィードバック</string>
     <string name="settings_haptics_title">リニアモーター振動</string>

@@ -28,6 +28,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AllInclusive
 import androidx.compose.material.icons.rounded.ArrowUpward
+import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material.icons.rounded.Flag
 import androidx.compose.material.icons.rounded.Folder
 import androidx.compose.material.icons.rounded.Mic
@@ -74,6 +75,9 @@ import com.zero.todo.core.designsystem.rememberZeroHaptics
 import com.zero.todo.core.nlp.ParsedQuickInput
 import com.zero.todo.core.nlp.QuickInputTokenType
 import com.zero.todo.domain.model.TaskPriority
+import com.zero.todo.feature.calendar.ZeroMiniCalendarDialog
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
 
 data class FolderPathSuggestion(
     val folderId: String,
@@ -113,7 +117,15 @@ fun QuickInputCapsule(
     val voiceUnavailableText = stringResource(R.string.quick_input_voice_unavailable)
 
     var isFocused by remember { mutableStateOf(false) }
+    var showDatePickerDialog by remember { mutableStateOf(false) }
     var voiceStatusNotice by remember { mutableStateOf<String?>(null) }
+
+    fun appendToken(token: String) {
+        val current = text.trimEnd()
+        val updated = if (current.isEmpty()) "$token " else "$current $token "
+        onTextChange(updated)
+        focusRequester.requestFocus()
+    }
 
     val speechLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
@@ -408,7 +420,109 @@ fun QuickInputCapsule(
                     }
                 }
             }
+
+            // Intuitive 1-Tap Quick-Insert Toolbar when focused (no syntax memorization required)
+            AnimatedVisibility(visible = isFocused) {
+                val today = remember { LocalDate.now() }
+                val tomorrow = remember(today) { today.plusDays(1) }
+                val isoFmt = remember { DateTimeFormatter.ISO_LOCAL_DATE }
+                Column {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        QuickHelperChip(
+                            label = "${stringResource(R.string.quick_today)} ${ZeroDateFormatter.formatMonthDayWeekday(today, activeLocale)}",
+                            onClick = {
+                                haptics.reorderTick()
+                                appendToken(today.format(isoFmt))
+                            }
+                        )
+                        QuickHelperChip(
+                            label = "${stringResource(R.string.quick_tomorrow)} ${ZeroDateFormatter.formatMonthDayWeekday(tomorrow, activeLocale)}",
+                            onClick = {
+                                haptics.reorderTick()
+                                appendToken(tomorrow.format(isoFmt))
+                            }
+                        )
+                        QuickHelperChip(
+                            icon = Icons.Rounded.CalendarMonth,
+                            label = stringResource(R.string.detail_pick_calendar),
+                            onClick = {
+                                haptics.reorderTick()
+                                showDatePickerDialog = true
+                            }
+                        )
+                        QuickHelperChip(
+                            icon = Icons.Rounded.Flag,
+                            label = "!1",
+                            onClick = {
+                                haptics.reorderTick()
+                                appendToken("!1")
+                            }
+                        )
+                        QuickHelperChip(
+                            icon = Icons.Rounded.Folder,
+                            label = "/",
+                            onClick = {
+                                haptics.reorderTick()
+                                val base = text.trimEnd()
+                                onTextChange(if (base.isEmpty()) "/" else "$base /")
+                                focusRequester.requestFocus()
+                            }
+                        )
+                    }
+                }
+            }
         }
+    }
+
+    if (showDatePickerDialog) {
+        ZeroMiniCalendarDialog(
+            selectedDate = null,
+            onSelectDate = { picked ->
+                appendToken(picked.format(DateTimeFormatter.ISO_LOCAL_DATE))
+            },
+            onDismiss = { showDatePickerDialog = false }
+        )
+    }
+}
+
+@Composable
+private fun QuickHelperChip(
+    label: String,
+    icon: ImageVector? = null,
+    onClick: () -> Unit
+) {
+    val colors = ZeroTheme.colors
+    val tabular = ZeroTheme.tabularTypography
+    Row(
+        modifier = Modifier
+            .clip(ZeroSmallShape)
+            .background(colors.surface)
+            .hairlineBorder(shape = ZeroSmallShape)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 8.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        if (icon != null) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = colors.textSecondary,
+                modifier = Modifier.size(12.dp)
+            )
+        }
+        Text(
+            text = label,
+            style = tabular.dateCompact,
+            color = colors.textSecondary
+        )
     }
 }
 

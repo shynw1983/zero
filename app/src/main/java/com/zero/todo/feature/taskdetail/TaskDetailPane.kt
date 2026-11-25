@@ -1,6 +1,10 @@
 package com.zero.todo.feature.taskdetail
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -25,10 +29,12 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.Folder
+import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.NorthWest
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Repeat
@@ -60,6 +66,7 @@ import com.zero.todo.core.common.RecurrenceRule
 import com.zero.todo.core.common.ZeroDateFormatter
 import com.zero.todo.core.designsystem.ZeroCardShape
 import com.zero.todo.core.designsystem.ZeroDimens
+import com.zero.todo.core.designsystem.ZeroMotion
 import com.zero.todo.core.designsystem.ZeroSmallShape
 import com.zero.todo.core.designsystem.ZeroTheme
 import com.zero.todo.core.designsystem.hairlineBorder
@@ -67,8 +74,11 @@ import com.zero.todo.core.designsystem.hairlineDividerBottom
 import com.zero.todo.core.designsystem.hairlineDividerTop
 import com.zero.todo.core.designsystem.rememberZeroHaptics
 import com.zero.todo.domain.model.FocusMode
+import com.zero.todo.domain.model.FolderNode
 import com.zero.todo.domain.model.TaskItem
 import com.zero.todo.domain.model.TaskPriority
+import com.zero.todo.feature.calendar.ZeroMiniCalendar
+import com.zero.todo.feature.folder.FolderPickerDialog
 import java.time.DayOfWeek
 import java.time.Instant
 import java.time.LocalDate
@@ -108,11 +118,13 @@ private fun buildFlattenedSubtasks(rootTaskId: String, descendants: List<TaskIte
 fun TaskDetailPane(
     task: TaskItem?,
     folderName: String?,
+    folderTree: List<FolderNode>,
     subtasks: List<TaskItem>,
     showBackButton: Boolean,
     onNavigateBack: () -> Unit,
     onToggleComplete: (TaskItem) -> Unit,
     onStartFocus: (task: TaskItem, initialMode: FocusMode) -> Unit,
+    onMoveTaskToFolder: (taskId: String, targetFolderId: String?) -> Unit,
     onUpdateTitleAndDescription: (task: TaskItem, title: String, description: String) -> Unit,
     onUpdatePriority: (task: TaskItem, priority: TaskPriority) -> Unit,
     onUpdateDueDate: (task: TaskItem, dueDateMillis: Long?, isAllDay: Boolean) -> Unit,
@@ -166,6 +178,8 @@ fun TaskDetailPane(
     var newTagDraft by rememberSaveable(task.id) { mutableStateOf("") }
     var showCustomRruleEditor by rememberSaveable(task.id) { mutableStateOf(false) }
     var customRruleDraft by rememberSaveable(task.id) { mutableStateOf(task.recurrenceRule ?: "FREQ=DAILY;INTERVAL=2") }
+    var showMiniCalendar by rememberSaveable(task.id) { mutableStateOf(false) }
+    var showFolderPicker by rememberSaveable(task.id) { mutableStateOf(false) }
 
     LaunchedEffect(task.id, task.title, task.description) {
         if (titleDraft != task.title) titleDraft = task.title
@@ -227,6 +241,10 @@ fun TaskDetailPane(
                         .clip(ZeroSmallShape)
                         .background(colors.surface)
                         .hairlineBorder(shape = ZeroSmallShape)
+                        .clickable {
+                            haptics.reorderTick()
+                            showFolderPicker = true
+                        }
                         .padding(horizontal = 8.dp, vertical = 4.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
@@ -243,6 +261,12 @@ fun TaskDetailPane(
                         color = colors.textSecondary,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
+                    )
+                    Icon(
+                        imageVector = Icons.Rounded.KeyboardArrowDown,
+                        contentDescription = stringResource(R.string.dialog_move_to_folder_title),
+                        tint = colors.textMuted,
+                        modifier = Modifier.size(14.dp)
                     )
                 }
             }
@@ -401,6 +425,14 @@ fun TaskDetailPane(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Row(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(ZeroSmallShape)
+                            .clickable {
+                                haptics.reorderTick()
+                                showMiniCalendar = !showMiniCalendar
+                            }
+                            .padding(vertical = 2.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
@@ -412,7 +444,7 @@ fun TaskDetailPane(
                         )
                         Text(
                             text = if (task.dueDate != null) {
-                                ZeroDateFormatter.formatDueDate(
+                                ZeroDateFormatter.formatDueDateWithContext(
                                     dueDateMillis = task.dueDate,
                                     isAllDay = task.isAllDay,
                                     locale = activeLocale
@@ -421,9 +453,13 @@ fun TaskDetailPane(
                                 stringResource(R.string.detail_no_due_date)
                             },
                             style = tabular.dateCompact,
-                            color = if (task.dueDate != null) colors.textPrimary else colors.textMuted
+                            color = if (task.dueDate != null) colors.textPrimary else colors.textMuted,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
+
+                    Spacer(modifier = Modifier.width(6.dp))
 
                     // Date-Only vs Specific Time toggle
                     Row(
@@ -456,39 +492,107 @@ fun TaskDetailPane(
                     }
                 }
 
-                // Quick Date Chips
+                // Quick Date Chips — each displays BOTH intuitive label AND exact MM/dd + weekday
+                val todayDate = remember { LocalDate.now() }
+                val tomorrowDate = remember(todayDate) { todayDate.plusDays(1) }
+                val dayAfterDate = remember(todayDate) { todayDate.plusDays(2) }
+                val nextMonDate = remember(todayDate) { todayDate.with(TemporalAdjusters.next(DayOfWeek.MONDAY)) }
+                val existingTime = currentDueDateTime?.toLocalTime()?.takeUnless { task.isAllDay }
+                val allDay = task.isAllDay || task.dueDate == null
+                val selectedLocalDate = currentDueDateTime?.toLocalDate()
+
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    val existingTime = currentDueDateTime?.toLocalTime()?.takeUnless { task.isAllDay }
-                    val allDay = task.isAllDay || task.dueDate == null
-                    QuickChip(stringResource(R.string.quick_today)) {
-                        updateDueDateTime(LocalDate.now(), existingTime, allDay)
+                    QuickDateOptionTile(
+                        title = stringResource(R.string.quick_today),
+                        dateHint = ZeroDateFormatter.formatMonthDayWeekday(todayDate, activeLocale),
+                        selected = selectedLocalDate == todayDate
+                    ) {
+                        haptics.reorderTick()
+                        updateDueDateTime(todayDate, existingTime, allDay)
                     }
-                    QuickChip(stringResource(R.string.quick_tomorrow)) {
-                        updateDueDateTime(LocalDate.now().plusDays(1), existingTime, allDay)
+                    QuickDateOptionTile(
+                        title = stringResource(R.string.quick_tomorrow),
+                        dateHint = ZeroDateFormatter.formatMonthDayWeekday(tomorrowDate, activeLocale),
+                        selected = selectedLocalDate == tomorrowDate
+                    ) {
+                        haptics.reorderTick()
+                        updateDueDateTime(tomorrowDate, existingTime, allDay)
                     }
-                    QuickChip(stringResource(R.string.quick_day_after)) {
-                        updateDueDateTime(LocalDate.now().plusDays(2), existingTime, allDay)
+                    QuickDateOptionTile(
+                        title = stringResource(R.string.quick_day_after),
+                        dateHint = ZeroDateFormatter.formatMonthDayWeekday(dayAfterDate, activeLocale),
+                        selected = selectedLocalDate == dayAfterDate
+                    ) {
+                        haptics.reorderTick()
+                        updateDueDateTime(dayAfterDate, existingTime, allDay)
                     }
-                    QuickChip(stringResource(R.string.quick_next_monday)) {
-                        val nextMon = LocalDate.now().with(TemporalAdjusters.next(DayOfWeek.MONDAY))
-                        updateDueDateTime(nextMon, existingTime, allDay)
+                    QuickDateOptionTile(
+                        title = stringResource(R.string.quick_next_monday),
+                        dateHint = ZeroDateFormatter.formatMonthDayWeekday(nextMonDate, activeLocale),
+                        selected = selectedLocalDate == nextMonDate
+                    ) {
+                        haptics.reorderTick()
+                        updateDueDateTime(nextMonDate, existingTime, allDay)
                     }
+
+                    // Mini Calendar Toggle Tile
+                    Column(
+                        modifier = Modifier
+                            .clip(ZeroSmallShape)
+                            .background(if (showMiniCalendar) colors.accentSubtle else colors.background)
+                            .hairlineBorder(
+                                shape = ZeroSmallShape,
+                                color = if (showMiniCalendar) colors.accent else colors.hairlineBorder
+                            )
+                            .clickable {
+                                haptics.reorderTick()
+                                showMiniCalendar = !showMiniCalendar
+                            }
+                            .padding(horizontal = 10.dp, vertical = 6.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(2.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.CalendarMonth,
+                            contentDescription = stringResource(R.string.picker_select_date_title),
+                            tint = if (showMiniCalendar) colors.accent else colors.textSecondary,
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Text(
+                            text = stringResource(R.string.detail_pick_calendar),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = if (showMiniCalendar) colors.accent else colors.textMuted
+                        )
+                    }
+
                     if (task.dueDate != null) {
-                        QuickChip(stringResource(R.string.quick_minus_day)) {
-                            updateDueDateTime(currentDueDateTime!!.toLocalDate().minusDays(1), existingTime, allDay)
-                        }
-                        QuickChip(stringResource(R.string.quick_plus_day)) {
-                            updateDueDateTime(currentDueDateTime!!.toLocalDate().plusDays(1), existingTime, allDay)
-                        }
                         QuickChip(stringResource(R.string.action_clear)) {
+                            haptics.reorderTick()
                             onUpdateDueDate(task, null, true)
                         }
                     }
+                }
+
+                // Inline Expandable Mini Calendar for picking any exact date & seeing weekdays
+                AnimatedVisibility(
+                    visible = showMiniCalendar,
+                    enter = expandVertically(animationSpec = ZeroMotion.IntSizeSpring) +
+                        fadeIn(animationSpec = ZeroMotion.FloatSpring),
+                    exit = shrinkVertically(animationSpec = ZeroMotion.IntSizeSpring) +
+                        fadeOut(animationSpec = ZeroMotion.FloatSpring)
+                ) {
+                    ZeroMiniCalendar(
+                        selectedDate = selectedLocalDate,
+                        onSelectDate = { pickedDate ->
+                            updateDueDateTime(pickedDate, existingTime, allDay)
+                        }
+                    )
                 }
 
                 // Specific Time Controls when not All-Day
@@ -1069,6 +1173,53 @@ fun TaskDetailPane(
 
             Spacer(modifier = Modifier.height(24.dp))
         }
+    }
+
+    if (showFolderPicker) {
+        FolderPickerDialog(
+            folderTree = folderTree,
+            currentFolderId = task.folderId,
+            onSelectFolder = { targetFolderId ->
+                haptics.confirm()
+                onMoveTaskToFolder(task.id, targetFolderId)
+            },
+            onDismiss = { showFolderPicker = false }
+        )
+    }
+}
+
+@Composable
+private fun QuickDateOptionTile(
+    title: String,
+    dateHint: String,
+    selected: Boolean,
+    onClick: () -> Unit
+) {
+    val colors = ZeroTheme.colors
+    val tabular = ZeroTheme.tabularTypography
+    Column(
+        modifier = Modifier
+            .clip(ZeroSmallShape)
+            .background(if (selected) colors.accentSubtle else colors.background)
+            .hairlineBorder(
+                shape = ZeroSmallShape,
+                color = if (selected) colors.accent else colors.hairlineBorder
+            )
+            .clickable(onClick = onClick)
+            .padding(horizontal = 9.dp, vertical = 5.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(1.dp)
+    ) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.labelSmall,
+            color = if (selected) colors.accent else colors.textPrimary
+        )
+        Text(
+            text = dateHint,
+            style = tabular.dateCompact,
+            color = if (selected) colors.accent else colors.textMuted
+        )
     }
 }
 

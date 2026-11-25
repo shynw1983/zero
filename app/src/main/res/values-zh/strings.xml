@@ -39,9 +39,12 @@
     <string name="cd_enter_focus">进入单任务专注模式</string>
     <string name="dialog_create_folder_title">新建文件夹</string>
     <string name="dialog_create_subfolder_title">在「%1$s」下新建子文件夹</string>
+    <string name="dialog_rename_folder_title">重命名文件夹</string>
+    <string name="dialog_move_to_folder_title">移动到文件夹</string>
     <string name="dialog_folder_name_placeholder">输入文件夹名称…</string>
     <string name="action_cancel">取消</string>
     <string name="action_create">创建</string>
+    <string name="action_save">保存</string>
     <string name="action_apply">应用</string>
     <string name="action_undo">撤销</string>
     <string name="action_done">完成</string>
@@ -50,6 +53,7 @@
 
     <!-- Task List, Anti-Misclick & Quick Input -->
     <string name="empty_tasks_hint">清空思绪，在下方胶囊随时捕捉</string>
+    <string name="section_completed_tasks">已完成</string>
     <string name="swipe_release_complete">松开完成</string>
     <string name="swipe_release_restore">松开恢复</string>
     <string name="cd_drag_reorder">拖拽排序</string>
@@ -81,6 +85,8 @@
     <string name="quick_next_monday">下周一</string>
     <string name="quick_minus_day">-1天</string>
     <string name="quick_plus_day">+1天</string>
+    <string name="detail_pick_calendar">选日期</string>
+    <string name="picker_select_date_title">选择日期</string>
     <string name="detail_recurrence">重复规则</string>
     <string name="recur_none">不重复</string>
     <string name="recur_daily">每天</string>
@@ -165,9 +171,11 @@
     <string name="settings_section_theme">外观主题</string>
     <string name="settings_theme_dark">深色 · 黑曜石</string>
     <string name="settings_theme_light">浅色 · 冷纸白</string>
-    <string name="settings_section_accent">功能强调色</string>
-    <string name="settings_accent_orange">信号橙</string>
-    <string name="settings_accent_cyan">电子青</string>
+    <string name="settings_section_accent">点缀色</string>
+    <string name="settings_accent_slate">雾蓝</string>
+    <string name="settings_accent_monochrome">极简黑白</string>
+    <string name="settings_accent_sage">鼠尾草绿</string>
+    <string name="settings_accent_clay">暖陶土</string>
     <string name="settings_section_antimisclick">防误触完成模式</string>
     <string name="settings_section_haptics">触觉与物理反馈</string>
     <string name="settings_haptics_title">线性马达震动反馈</string>

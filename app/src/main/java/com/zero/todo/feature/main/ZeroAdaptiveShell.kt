@@ -71,6 +71,7 @@ import com.zero.todo.feature.focus.SingleTaskFocusOverlay
 import com.zero.todo.feature.folder.CreateFolderDialog
 import com.zero.todo.feature.folder.FolderTreePanel
 import com.zero.todo.feature.folder.NavigationDestination
+import com.zero.todo.feature.folder.RenameFolderDialog
 import com.zero.todo.feature.folder.SmartViewCounts
 import com.zero.todo.feature.settings.BackupUiStatus
 import com.zero.todo.feature.settings.SettingsOverlay
@@ -90,8 +91,10 @@ data class ZeroShellCallbacks(
     val onToggleMediumTreeExpanded: () -> Unit = {},
     val onToggleFolderExpanded: (folderId: String, isExpanded: Boolean) -> Unit = { _, _ -> },
     val onCreateFolder: (name: String, parentId: String?) -> Unit = { _, _ -> },
+    val onRenameFolder: (folderId: String, newName: String) -> Unit = { _, _ -> },
     val onDeleteFolder: (folderId: String) -> Unit = {},
     val onToggleTaskComplete: (TaskItem) -> Unit = {},
+    val onMoveTaskToFolder: (taskId: String, targetFolderId: String?) -> Unit = { _, _ -> },
     val onReorderTask: (taskId: String, targetIndex: Int) -> Unit = { _, _ -> },
     val onUpdateTaskTitleAndDescription: (task: TaskItem, title: String, description: String) -> Unit = { _, _, _ -> },
     val onUpdateTaskPriority: (task: TaskItem, priority: TaskPriority) -> Unit = { _, _ -> },
@@ -148,6 +151,7 @@ fun ZeroAdaptiveShell(
     val quickInputFocusRequester = remember { FocusRequester() }
     var createFolderParent by remember { mutableStateOf<Folder?>(null) }
     var showCreateFolderDialog by remember { mutableStateOf(false) }
+    var renameTargetFolder by remember { mutableStateOf<Folder?>(null) }
 
     LaunchedEffect(uiState.quickInputFocusRequestTick) {
         if (uiState.quickInputFocusRequestTick > 0L) {
@@ -158,6 +162,10 @@ fun ZeroAdaptiveShell(
     val openCreateFolderDialog: (Folder?) -> Unit = { parent ->
         createFolderParent = parent
         showCreateFolderDialog = true
+    }
+
+    val openRenameFolderDialog: (Folder) -> Unit = { folder ->
+        renameTargetFolder = folder
     }
 
     // Tablet & Desktop external keyboard shortcuts (Ctrl/Cmd + N, Esc, Ctrl/Cmd + ',', Ctrl/Cmd + 1..5)
@@ -208,6 +216,10 @@ fun ZeroAdaptiveShell(
                             showCreateFolderDialog = false
                             true
                         }
+                        renameTargetFolder != null -> {
+                            renameTargetFolder = null
+                            true
+                        }
                         uiState.focusState.isActive -> {
                             callbacks.onExitFocus()
                             true
@@ -239,6 +251,7 @@ fun ZeroAdaptiveShell(
                     callbacks = callbacks,
                     quickInputFocusRequester = quickInputFocusRequester,
                     onRequestCreateFolder = openCreateFolderDialog,
+                    onRequestRenameFolder = openRenameFolderDialog,
                     modifier = contentSurfaceModifier
                 )
             }
@@ -249,6 +262,7 @@ fun ZeroAdaptiveShell(
                     callbacks = callbacks,
                     quickInputFocusRequester = quickInputFocusRequester,
                     onRequestCreateFolder = openCreateFolderDialog,
+                    onRequestRenameFolder = openRenameFolderDialog,
                     modifier = contentSurfaceModifier
                 )
             }
@@ -259,6 +273,7 @@ fun ZeroAdaptiveShell(
                     callbacks = callbacks,
                     quickInputFocusRequester = quickInputFocusRequester,
                     onRequestCreateFolder = openCreateFolderDialog,
+                    onRequestRenameFolder = openRenameFolderDialog,
                     modifier = contentSurfaceModifier
                 )
             }
@@ -321,6 +336,18 @@ fun ZeroAdaptiveShell(
             onConfirm = { name, parentId ->
                 showCreateFolderDialog = false
                 callbacks.onCreateFolder(name, parentId)
+            }
+        )
+    }
+
+    val folderToRename = renameTargetFolder
+    if (folderToRename != null) {
+        RenameFolderDialog(
+            folder = folderToRename,
+            onDismiss = { renameTargetFolder = null },
+            onConfirm = { folderId, newName ->
+                renameTargetFolder = null
+                callbacks.onRenameFolder(folderId, newName)
             }
         )
     }
@@ -427,11 +454,13 @@ private fun BoundTaskDetailPane(
     TaskDetailPane(
         task = uiState.selectedTask,
         folderName = uiState.selectedTask?.folderId?.let { uiState.folderNameById[it] },
+        folderTree = uiState.folderTree,
         subtasks = uiState.selectedTaskSubtasks,
         showBackButton = showBackButton,
         onNavigateBack = onNavigateBack,
         onToggleComplete = callbacks.onToggleTaskComplete,
         onStartFocus = { task, mode -> callbacks.onStartFocus(task, mode) },
+        onMoveTaskToFolder = callbacks.onMoveTaskToFolder,
         onUpdateTitleAndDescription = callbacks.onUpdateTaskTitleAndDescription,
         onUpdatePriority = callbacks.onUpdateTaskPriority,
         onUpdateDueDate = callbacks.onUpdateTaskDueDate,
@@ -454,6 +483,7 @@ private fun CompactSinglePaneLayout(
     callbacks: ZeroShellCallbacks,
     quickInputFocusRequester: FocusRequester,
     onRequestCreateFolder: (Folder?) -> Unit,
+    onRequestRenameFolder: (Folder) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val colors = ZeroTheme.colors
@@ -498,6 +528,7 @@ private fun CompactSinglePaneLayout(
                     },
                     onToggleFolderExpanded = callbacks.onToggleFolderExpanded,
                     onRequestCreateFolder = onRequestCreateFolder,
+                    onRequestRenameFolder = onRequestRenameFolder,
                     onDeleteFolder = callbacks.onDeleteFolder,
                     onToggleIncludeSubfolders = callbacks.onToggleIncludeSubfolders,
                     onToggleTheme = callbacks.onToggleTheme,
@@ -552,6 +583,7 @@ private fun MediumTwoPaneLayout(
     callbacks: ZeroShellCallbacks,
     quickInputFocusRequester: FocusRequester,
     onRequestCreateFolder: (Folder?) -> Unit,
+    onRequestRenameFolder: (Folder) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val baseDirective = calculatePaneScaffoldDirective(currentWindowAdaptiveInfo())
@@ -587,6 +619,7 @@ private fun MediumTwoPaneLayout(
                             onSelectDestination = callbacks.onSelectDestination,
                             onToggleFolderExpanded = callbacks.onToggleFolderExpanded,
                             onRequestCreateFolder = onRequestCreateFolder,
+                            onRequestRenameFolder = onRequestRenameFolder,
                             onDeleteFolder = callbacks.onDeleteFolder,
                             onToggleIncludeSubfolders = callbacks.onToggleIncludeSubfolders,
                             onToggleTheme = callbacks.onToggleTheme,
@@ -632,6 +665,7 @@ private fun ExpandedThreePaneLayout(
     callbacks: ZeroShellCallbacks,
     quickInputFocusRequester: FocusRequester,
     onRequestCreateFolder: (Folder?) -> Unit,
+    onRequestRenameFolder: (Folder) -> Unit,
     modifier: Modifier = Modifier
 ) {
     Row(modifier = modifier.fillMaxSize()) {
@@ -645,6 +679,7 @@ private fun ExpandedThreePaneLayout(
             onSelectDestination = callbacks.onSelectDestination,
             onToggleFolderExpanded = callbacks.onToggleFolderExpanded,
             onRequestCreateFolder = onRequestCreateFolder,
+            onRequestRenameFolder = onRequestRenameFolder,
             onDeleteFolder = callbacks.onDeleteFolder,
             onToggleIncludeSubfolders = callbacks.onToggleIncludeSubfolders,
             onToggleTheme = callbacks.onToggleTheme,
