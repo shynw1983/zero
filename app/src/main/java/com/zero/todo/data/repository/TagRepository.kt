@@ -18,5 +18,6 @@ interface TagRepository {
     suspend fun getOrCreateTag(name: String, colorHex: String? = null): TagItem
     suspend fun attachTagToTask(taskId: String, tagId: String)
     suspend fun detachTagFromTask(taskId: String, tagId: String)
+    suspend fun renameTag(tagId: String, newName: String)
     suspend fun softDeleteTag(tagId: String)
 }

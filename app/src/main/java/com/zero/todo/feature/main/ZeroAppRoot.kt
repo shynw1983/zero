@@ -126,6 +126,20 @@ fun ZeroAppRoot(
 
     val callbacks = remember(viewModel) {
         ZeroShellCallbacks(
+            onSetWorkspaceMode = viewModel::setWorkspaceMode,
+            onSetDailyCapacityMinutes = viewModel::setDailyCapacityMinutes,
+            onOpenTriage = viewModel::openTriage,
+            onCloseTriage = viewModel::closeTriage,
+            onSkipRunwayTask = viewModel::skipTaskInRunway,
+            onOpenTaskDetailFromNow = viewModel::openTaskDetailFromNow,
+            onUpdateTaskFirstStep = viewModel::updateTaskFirstStep,
+            onCompleteFirstStepAndStartFlow = viewModel::completeFirstStepAndStartFlow,
+            onUpdateTaskEffort = viewModel::updateTaskEffort,
+            onTriageScheduleToday = viewModel::triageScheduleToday,
+            onTriageDeferTomorrow = viewModel::triageDeferTomorrow,
+            onTriageMoveToFolder = viewModel::triageMoveToFolder,
+            onRenameTag = viewModel::renameTag,
+            onDeleteTag = viewModel::deleteTag,
             onSelectDestination = viewModel::selectDestination,
             onSelectCalendarDate = viewModel::selectCalendarDate,
             onSelectCalendarViewMode = viewModel::selectCalendarViewMode,

@@ -260,4 +260,47 @@
     <string name="webdav_status_test_ok">WebDAV 연결이 확인되었습니다</string>
     <string name="webdav_status_push_ok">WebDAV에 백업을 업로드했습니다</string>
     <string name="shortcut_search">전체 검색 열기 / 닫기</string>
+
+    <!-- v2.0.0: NOW/VAULT 듀얼 모드, 첫 단계 모멘텀, 일일 용량 눈금자, 30초 트리아지, 태그 관리 -->
+    <string name="mode_now">실행</string>
+    <string name="mode_vault">정리함</string>
+    <string name="effort_micro">가벼움</string>
+    <string name="effort_medium">집중</string>
+    <string name="effort_heavy">깊음</string>
+    <string name="capacity_title">오늘 에너지 용량</string>
+    <string name="capacity_overloaded_hint">용량 초과 · 가벼운 일을 내일로 미뤄보세요</string>
+    <string name="now_header_title">NOW · 실행 런웨이</string>
+    <string name="now_triage_pill">정리 · %1$d</string>
+    <string name="now_empty_title">런웨이가 비었습니다</string>
+    <string name="now_empty_desc">지금 마음을 짓누르는 일이 없습니다. 아래에서 기록하거나 정리함에서 선택하세요.</string>
+    <string name="now_start_triage">30초 정리</string>
+    <string name="now_open_vault">정리함 열기</string>
+    <string name="now_up_next">다음</string>
+    <string name="cd_open_task_detail">상세 보기</string>
+    <string name="now_first_step_label">첫 번째 아주 작은 행동</string>
+    <string name="now_first_step_flow_hint">탭하여 완료하고 바로 몰입 타이머 시작</string>
+    <string name="now_first_step_placeholder">30초 만에 시작할 행동 입력 (예: 문서 열기)…</string>
+    <string name="now_first_step_done_hint">첫 단계 완료 · 필요하면 다음 작은 행동 추가</string>
+    <string name="now_skip_card">다음 카드</string>
+    <string name="now_hold_complete">길게 완료</string>
+    <string name="triage_title">30초 카드 정리</string>
+    <string name="triage_all_clear_title">모든 밀린 일 정리 완료</string>
+    <string name="triage_all_clear_desc">혼란도 죄책감도 0. 이제 실행 런웨이만 남았습니다.</string>
+    <string name="triage_enter_now">NOW로 이동</string>
+    <string name="triage_action_today">오늘</string>
+    <string name="triage_action_tomorrow">내일</string>
+    <string name="triage_action_let_go">비우기</string>
+    <string name="triage_gesture_hint">위로 오늘 · 오른쪽 내일 · 왼쪽 비우기 · 아래 폴더 분류</string>
+    <string name="triage_file_to_folder">폴더로 원탭 분류</string>
+    <string name="triage_banner_prompt">정리할 항목 %1$d개 (30초 트리아지)</string>
+    <string name="triage_start_short">정리</string>
+    <string name="dialog_rename_tag_title">태그 이름 변경</string>
+    <string name="action_delete_tag">태그 삭제</string>
+    <string name="dialog_delete_tag_title">\"#%1$s\" 태그를 삭제할까요?</string>
+    <string name="dialog_delete_tag_message">사이드바에서 태그를 제거하고 연결을 해제합니다. 할 일은 삭제되지 않습니다.</string>
+    <string name="cd_tag_options">태그 옵션</string>
+    <string name="cd_folder_options">폴더 옵션</string>
+    <string name="detail_effort">부하</string>
+    <string name="settings_section_capacity">일일 에너지 용량 상한</string>
+    <string name="settings_capacity_desc">일일 용량 눈금자의 기준 시간을 설정해 무리한 일정 배치를 방지합니다</string>
 </resources>

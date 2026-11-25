@@ -37,6 +37,9 @@ data class TaskEntity(
     val isAllDay: Boolean = true, // Lightweight "date only" mode
     val reminderAt: Long? = null,
     val recurrenceRule: String? = null, // RFC 5545 RRULE string
+    val firstStep: String? = null, // Ultra-light <=20 char icebreaker action
+    val firstStepCompleted: Boolean = false,
+    val estimatedMinutes: Int? = null, // Effort tier (5m / 25m / 60m) for Day Budget ruler
     val sortOrder: Double = 0.0,
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis(),

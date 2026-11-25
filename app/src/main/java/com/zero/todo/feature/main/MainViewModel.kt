@@ -21,12 +21,14 @@ import com.zero.todo.data.repository.TagWithCount
 import com.zero.todo.data.repository.TaskRepository
 import com.zero.todo.domain.model.AntiMisclickMode
 import com.zero.todo.domain.model.AppLanguage
+import com.zero.todo.domain.model.EffortTier
 import com.zero.todo.domain.model.FocusMode
 import com.zero.todo.domain.model.Folder
 import com.zero.todo.domain.model.FolderNode
 import com.zero.todo.domain.model.TaskItem
 import com.zero.todo.domain.model.TaskPriority
 import com.zero.todo.domain.model.TaskSortMode
+import com.zero.todo.domain.model.WorkspaceMode
 import com.zero.todo.domain.usecase.GetFolderTreeUseCase
 import com.zero.todo.feature.calendar.CalendarViewMode
 import com.zero.todo.feature.focus.FocusTimerController
@@ -58,6 +60,13 @@ import javax.inject.Inject
 
 data class MainUiState(
     val currentDate: LocalDate = LocalDate.now(),
+    val workspaceMode: WorkspaceMode = WorkspaceMode.NOW,
+    val dailyCapacityMinutes: Int = 240,
+    val scheduledTodayMinutes: Int = 0,
+    val runwayQueue: List<TaskItem> = emptyList(),
+    val triageQueue: List<TaskItem> = emptyList(),
+    val quickFolders: List<Folder> = emptyList(),
+    val isTriageOpen: Boolean = false,
     val selectedDestination: NavigationDestination = NavigationDestination.Inbox,
     val destinationTitle: String = "收集箱",
     val breadcrumbs: List<Folder> = emptyList(),
@@ -161,6 +170,8 @@ class MainViewModel @Inject constructor(
     private val backupStatusFlow = MutableStateFlow<BackupUiStatus?>(null)
     private val webDavStatusFlow = MutableStateFlow<WebDavUiStatus?>(null)
     private val quickInputFocusRequestTickFlow = MutableStateFlow(0L)
+    private val triageOpenFlow = MutableStateFlow(false)
+    private val skippedRunwayIdsFlow = MutableStateFlow<List<String>>(emptyList())
 
     private val folderTreeFlow = getFolderTreeUseCase()
     private val activeFoldersFlow = folderRepository.observeActiveFolders()
@@ -292,7 +303,9 @@ class MainViewModel @Inject constructor(
         val searchQuery: String,
         val isSearchOpen: Boolean,
         val deletedTasks: List<TaskItem>,
-        val webDavStatus: WebDavUiStatus?
+        val webDavStatus: WebDavUiStatus?,
+        val isTriageOpen: Boolean,
+        val skippedRunwayIds: List<String>
     )
 
     private data class InputAndUiBundle(
@@ -350,9 +363,19 @@ class MainViewModel @Inject constructor(
         searchQueryFlow,
         searchOpenFlow,
         deletedTasksFlow,
-        webDavStatusFlow
-    ) { query, isOpen, deleted, webDavStatus ->
-        SearchAndTrashBundle(query, isOpen, deleted, webDavStatus)
+        webDavStatusFlow,
+        triageOpenFlow,
+        skippedRunwayIdsFlow
+    ) { values ->
+        val query = values[0] as String
+        val isOpen = values[1] as Boolean
+        @Suppress("UNCHECKED_CAST")
+        val deleted = values[2] as List<TaskItem>
+        val webDavStatus = values[3] as WebDavUiStatus?
+        val isTriageOpen = values[4] as Boolean
+        @Suppress("UNCHECKED_CAST")
+        val skippedIds = values[5] as List<String>
+        SearchAndTrashBundle(query, isOpen, deleted, webDavStatus, isTriageOpen, skippedIds)
     }
 
     private val inputAndUiBundleFlow: Flow<InputAndUiBundle> = combine(
@@ -450,8 +473,46 @@ class MainViewModel @Inject constructor(
         val parsed = QuickInputParser.parse(ui.quickInputText)
         val suggestions = buildFolderSuggestions(nav.folderTree, parsed.activeFolderQuery)
 
+        // ZERO 2.0: Compute NOW Runway Queue, Day Budget Scheduled Minutes, and Lightning Triage Queue
+        val todayStart = ZeroDateFormatter.startOfDayMillis(nav.currentDate)
+        val tomorrowStart = ZeroDateFormatter.startOfDayMillis(nav.currentDate.plusDays(1))
+        val activeIncomplete = allTasks.filterNot { it.isCompleted }
+        val todayAndOverdue = activeIncomplete.filter { task ->
+            val due = task.dueDate
+            due != null && due < tomorrowStart
+        }
+        val scheduledTodayMinutes = todayAndOverdue.sumOf { task ->
+            task.estimatedMinutes ?: EffortTier.DEFAULT_UNSET_MINUTES
+        }
+        val baseRunwayCandidates = if (todayAndOverdue.isNotEmpty()) {
+            todayAndOverdue
+        } else {
+            activeIncomplete.filter { it.folderId == null }
+        }
+        val skippedRank = searchTrash.skippedRunwayIds.withIndex().associate { (idx, id) -> id to (idx + 1) }
+        val runwayQueue = baseRunwayCandidates.sortedWith(
+            compareBy<TaskItem>(
+                { skippedRank[it.id] ?: 0 },
+                { it.priority.value },
+                { it.dueDate ?: Long.MAX_VALUE },
+                { it.sortOrder }
+            )
+        )
+        val triageQueue = activeIncomplete.filter { task ->
+            val isOverdue = task.dueDate != null && task.dueDate < todayStart
+            val isUnfiledInbox = task.folderId == null && task.dueDate == null
+            isOverdue || isUnfiledInbox
+        }.sortedWith(compareBy<TaskItem>({ it.dueDate ?: Long.MAX_VALUE }, { it.createdAt }))
+
         MainUiState(
             currentDate = nav.currentDate,
+            workspaceMode = ui.preferences.workspaceMode,
+            dailyCapacityMinutes = ui.preferences.dailyCapacityMinutes,
+            scheduledTodayMinutes = scheduledTodayMinutes,
+            runwayQueue = runwayQueue,
+            triageQueue = triageQueue,
+            quickFolders = nav.activeFolders.take(10),
+            isTriageOpen = searchTrash.isTriageOpen,
             selectedDestination = nav.destination,
             destinationTitle = destinationTitle,
             breadcrumbs = breadcrumbs,
@@ -611,6 +672,106 @@ class MainViewModel @Inject constructor(
     fun setAppLanguage(language: AppLanguage) {
         userPreferencesRepository.setAppLanguage(language)
         viewModelScope.launch { widgetRefresher.refreshAll() }
+    }
+
+    fun setWorkspaceMode(mode: WorkspaceMode) {
+        userPreferencesRepository.setWorkspaceMode(mode)
+    }
+
+    fun setDailyCapacityMinutes(minutes: Int) {
+        userPreferencesRepository.setDailyCapacityMinutes(minutes)
+    }
+
+    fun openTriage() {
+        triageOpenFlow.value = true
+    }
+
+    fun closeTriage() {
+        triageOpenFlow.value = false
+    }
+
+    fun skipTaskInRunway(task: TaskItem) {
+        skippedRunwayIdsFlow.value = skippedRunwayIdsFlow.value.filterNot { it == task.id } + task.id
+    }
+
+    fun openTaskDetailFromNow(task: TaskItem) {
+        selectTask(task.id)
+        userPreferencesRepository.setWorkspaceMode(WorkspaceMode.VAULT)
+    }
+
+    fun updateTaskFirstStep(task: TaskItem, firstStep: String?) {
+        val clean = firstStep?.trim()?.ifBlank { null }
+        viewModelScope.launch {
+            taskRepository.updateTask(
+                task.copy(
+                    firstStep = clean,
+                    firstStepCompleted = if (clean != task.firstStep) false else task.firstStepCompleted
+                )
+            )
+        }
+    }
+
+    /**
+     * Marks the lightweight First Tiny Step done and smoothly launches Forward Momentum (Stopwatch)
+     * flow mode so the user rides dopamine straight into execution without countdown stress.
+     */
+    fun completeFirstStepAndStartFlow(task: TaskItem) {
+        viewModelScope.launch {
+            val updated = task.copy(firstStepCompleted = true)
+            taskRepository.updateTask(updated)
+            focusController.openFocus(
+                task = updated,
+                initialMode = FocusMode.STOPWATCH,
+                autoStart = true
+            )
+        }
+    }
+
+    fun updateTaskEffort(task: TaskItem, estimatedMinutes: Int?) {
+        viewModelScope.launch {
+            taskRepository.updateTask(task.copy(estimatedMinutes = estimatedMinutes))
+        }
+    }
+
+    fun triageScheduleToday(task: TaskItem) {
+        val today = currentDateFlow.value
+        viewModelScope.launch {
+            taskRepository.rescheduleTasksToDate(listOf(task.id), today)
+            taskRepository.getTaskById(task.id)?.let { syncTaskReminder(it) }
+            widgetRefresher.refreshAll()
+        }
+    }
+
+    fun triageDeferTomorrow(task: TaskItem) {
+        val tomorrow = currentDateFlow.value.plusDays(1)
+        viewModelScope.launch {
+            taskRepository.rescheduleTasksToDate(listOf(task.id), tomorrow)
+            taskRepository.getTaskById(task.id)?.let { syncTaskReminder(it) }
+            widgetRefresher.refreshAll()
+        }
+    }
+
+    fun triageMoveToFolder(task: TaskItem, folderId: String) {
+        viewModelScope.launch {
+            taskRepository.moveTaskToFolder(task.id, folderId)
+            widgetRefresher.refreshAll()
+        }
+    }
+
+    fun renameTag(tagId: String, newName: String) {
+        viewModelScope.launch {
+            tagRepository.renameTag(tagId, newName)
+        }
+    }
+
+    fun deleteTag(tagId: String) {
+        viewModelScope.launch {
+            tagRepository.softDeleteTag(tagId)
+            val currentDest = NavigationDestination.fromStorageKey(destinationKeyFlow.value)
+            if (currentDest is NavigationDestination.TagView && currentDest.tagId == tagId) {
+                selectDestination(NavigationDestination.Inbox)
+            }
+        }
     }
 
     fun updateWebDavConfig(config: WebDavConfig) {

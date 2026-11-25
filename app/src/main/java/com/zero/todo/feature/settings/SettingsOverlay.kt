@@ -93,6 +93,7 @@ fun SettingsOverlay(
     antiMisclickMode: AntiMisclickMode,
     hapticsEnabled: Boolean,
     appLanguage: AppLanguage,
+    dailyCapacityMinutes: Int,
     webDavConfig: WebDavConfig,
     webDavStatus: WebDavUiStatus?,
     backupStatus: BackupUiStatus?,
@@ -101,6 +102,7 @@ fun SettingsOverlay(
     onSetAntiMisclickMode: (AntiMisclickMode) -> Unit,
     onSetHapticsEnabled: (Boolean) -> Unit,
     onSetAppLanguage: (AppLanguage) -> Unit,
+    onSetDailyCapacityMinutes: (Int) -> Unit,
     onUpdateWebDavConfig: (WebDavConfig) -> Unit,
     onTestWebDav: () -> Unit,
     onPushWebDav: () -> Unit,
@@ -420,6 +422,47 @@ fun SettingsOverlay(
                                 selected = !hapticsEnabled
                             ) {
                                 onSetHapticsEnabled(false)
+                            }
+                        }
+                    }
+                }
+
+                // 4b. Daily Energy Capacity Budget (for Day Capacity Ruler)
+                SettingsSectionCard(title = stringResource(R.string.settings_section_capacity)) {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(
+                            text = stringResource(R.string.settings_capacity_desc),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = colors.textSecondary
+                        )
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            listOf(120, 180, 240, 360, 480).forEach { mins ->
+                                val selected = dailyCapacityMinutes == mins
+                                Box(
+                                    modifier = Modifier
+                                        .clip(ZeroSmallShape)
+                                        .background(if (selected) colors.accentSubtle else colors.background)
+                                        .hairlineBorder(
+                                            shape = ZeroSmallShape,
+                                            color = if (selected) colors.accent else colors.hairlineBorder
+                                        )
+                                        .clickable {
+                                            haptics.reorderTick()
+                                            onSetDailyCapacityMinutes(mins)
+                                        }
+                                        .padding(horizontal = 16.dp, vertical = 10.dp)
+                                ) {
+                                    Text(
+                                        text = "${mins / 60}h",
+                                        style = tabular.counter,
+                                        color = if (selected) colors.accent else colors.textPrimary
+                                    )
+                                }
                             }
                         }
                     }

@@ -380,6 +380,9 @@ class ZeroBackupManager @Inject constructor(
         put("isAllDay", isAllDay)
         put("reminderAt", reminderAt ?: JSONObject.NULL)
         put("recurrenceRule", recurrenceRule ?: JSONObject.NULL)
+        put("firstStep", firstStep ?: JSONObject.NULL)
+        put("firstStepCompleted", firstStepCompleted)
+        put("estimatedMinutes", estimatedMinutes ?: JSONObject.NULL)
         put("sortOrder", sortOrder)
         put("createdAt", createdAt)
         put("updatedAt", updatedAt)
@@ -399,6 +402,9 @@ class ZeroBackupManager @Inject constructor(
         isAllDay = optBoolean("isAllDay", true),
         reminderAt = optNullableLong("reminderAt"),
         recurrenceRule = optNullableString("recurrenceRule"),
+        firstStep = optNullableString("firstStep"),
+        firstStepCompleted = optBoolean("firstStepCompleted", false),
+        estimatedMinutes = optNullableInt("estimatedMinutes"),
         sortOrder = optDouble("sortOrder", 0.0),
         createdAt = optLong("createdAt", System.currentTimeMillis()),
         updatedAt = optLong("updatedAt", System.currentTimeMillis()),
@@ -464,7 +470,10 @@ class ZeroBackupManager @Inject constructor(
     private fun JSONObject.optNullableLong(key: String): Long? =
         if (isNull(key)) null else optLong(key)
 
+    private fun JSONObject.optNullableInt(key: String): Int? =
+        if (isNull(key) || !has(key)) null else optInt(key)
+
     companion object {
-        const val CURRENT_SCHEMA_VERSION = 1
+        const val CURRENT_SCHEMA_VERSION = 2
     }
 }

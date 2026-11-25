@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -80,6 +81,7 @@ import com.zero.todo.core.designsystem.hairlineBorder
 import com.zero.todo.core.designsystem.hairlineDividerBottom
 import com.zero.todo.core.designsystem.hairlineDividerTop
 import com.zero.todo.core.designsystem.rememberZeroHaptics
+import com.zero.todo.domain.model.EffortTier
 import com.zero.todo.domain.model.FocusMode
 import com.zero.todo.domain.model.FolderNode
 import com.zero.todo.domain.model.TaskItem
@@ -135,6 +137,8 @@ fun TaskDetailPane(
     onMoveTaskToFolder: (taskId: String, targetFolderId: String?) -> Unit,
     onUpdateTitleAndDescription: (task: TaskItem, title: String, description: String) -> Unit,
     onUpdatePriority: (task: TaskItem, priority: TaskPriority) -> Unit,
+    onUpdateEffort: (task: TaskItem, estimatedMinutes: Int?) -> Unit,
+    onUpdateFirstStep: (task: TaskItem, firstStep: String?) -> Unit,
     onUpdateDueDate: (task: TaskItem, dueDateMillis: Long?, isAllDay: Boolean) -> Unit,
     onUpdateReminder: (task: TaskItem, reminderAtMillis: Long?) -> Unit,
     onUpdateRecurrenceRule: (task: TaskItem, rrule: String?) -> Unit,
@@ -404,9 +408,9 @@ fun TaskDetailPane(
                 modifier = Modifier.fillMaxWidth()
             )
 
-            // Priority Selector
+            // Priority Selector (comfortable 40dp touch height)
             Row(
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
@@ -425,6 +429,7 @@ fun TaskDetailPane(
                     }
                     Box(
                         modifier = Modifier
+                            .heightIn(min = 38.dp)
                             .clip(ZeroSmallShape)
                             .background(if (selected) accent.copy(alpha = 0.16f) else colors.surface)
                             .hairlineBorder(
@@ -435,7 +440,8 @@ fun TaskDetailPane(
                                 haptics.reorderTick()
                                 onUpdatePriority(task, level)
                             }
-                            .padding(horizontal = 10.dp, vertical = 5.dp)
+                            .padding(horizontal = 14.dp, vertical = 8.dp),
+                        contentAlignment = Alignment.Center
                     ) {
                         Text(
                             text = "P${level.value}",
@@ -443,6 +449,93 @@ fun TaskDetailPane(
                             color = if (selected) accent else colors.textMuted
                         )
                     }
+                }
+            }
+
+            // Effort Tier Selector for Day Capacity Ruler (5m / 25m / 1h)
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = stringResource(R.string.detail_effort),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = colors.textMuted,
+                    modifier = Modifier.width(54.dp)
+                )
+                EffortTier.entries.forEach { tier ->
+                    val selected = task.estimatedMinutes == tier.minutes
+                    Box(
+                        modifier = Modifier
+                            .heightIn(min = 38.dp)
+                            .clip(ZeroSmallShape)
+                            .background(if (selected) colors.accentSubtle else colors.surface)
+                            .hairlineBorder(
+                                shape = ZeroSmallShape,
+                                color = if (selected) colors.accent else colors.hairlineBorder
+                            )
+                            .clickable {
+                                haptics.reorderTick()
+                                onUpdateEffort(task, if (selected) null else tier.minutes)
+                            }
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "${tier.shortCode} · ${stringResource(tier.labelRes)}",
+                            style = tabular.dateCompact,
+                            color = if (selected) colors.accent else colors.textSecondary
+                        )
+                    }
+                }
+            }
+
+            // Lightweight "First Tiny Step" Icebreaker Field
+            var firstStepDraft by rememberSaveable(task.id, task.firstStep) {
+                mutableStateOf(task.firstStep.orEmpty())
+            }
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(ZeroCardShape)
+                    .background(colors.surface)
+                    .hairlineBorder(shape = ZeroCardShape)
+                    .padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Text(
+                    text = stringResource(R.string.now_first_step_label),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = colors.textMuted
+                )
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 40.dp)
+                        .clip(ZeroSmallShape)
+                        .background(colors.background)
+                        .hairlineBorder(shape = ZeroSmallShape)
+                        .padding(horizontal = 10.dp, vertical = 10.dp),
+                    contentAlignment = Alignment.CenterStart
+                ) {
+                    if (firstStepDraft.isEmpty()) {
+                        Text(
+                            text = stringResource(R.string.now_first_step_placeholder),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = colors.textMuted
+                        )
+                    }
+                    BasicTextField(
+                        value = firstStepDraft,
+                        onValueChange = { updated ->
+                            firstStepDraft = updated.take(36)
+                            onUpdateFirstStep(task, firstStepDraft.trim().ifBlank { null })
+                        },
+                        singleLine = true,
+                        textStyle = MaterialTheme.typography.bodySmall.copy(color = colors.textPrimary),
+                        cursorBrush = SolidColor(colors.accent),
+                        modifier = Modifier.fillMaxWidth()
+                    )
                 }
             }
 
@@ -894,30 +987,39 @@ fun TaskDetailPane(
                     task.tags.forEach { tag ->
                         Row(
                             modifier = Modifier
+                                .heightIn(min = 38.dp)
                                 .clip(ZeroSmallShape)
                                 .background(colors.surface)
                                 .hairlineBorder(shape = ZeroSmallShape)
-                                .padding(horizontal = 8.dp, vertical = 4.dp),
+                                .padding(start = 10.dp, end = 2.dp),
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            horizontalArrangement = Arrangement.spacedBy(2.dp)
                         ) {
                             Text(
                                 text = "#${tag.name}",
-                                style = MaterialTheme.typography.labelSmall,
+                                style = MaterialTheme.typography.labelMedium,
                                 color = colors.textPrimary,
-                                modifier = Modifier.clickable {
-                                    haptics.reorderTick()
-                                    onSelectTag(tag.id)
-                                }
-                            )
-                            Icon(
-                                imageVector = Icons.Rounded.Close,
-                                contentDescription = stringResource(R.string.cd_remove_tag),
-                                tint = colors.textMuted,
                                 modifier = Modifier
-                                    .size(12.dp)
-                                    .clickable { onRemoveTag(task.id, tag.id) }
+                                    .clickable {
+                                        haptics.reorderTick()
+                                        onSelectTag(tag.id)
+                                    }
+                                    .padding(vertical = 8.dp)
                             )
+                            Box(
+                                modifier = Modifier
+                                    .size(34.dp)
+                                    .clip(ZeroSmallShape)
+                                    .clickable { onRemoveTag(task.id, tag.id) },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Close,
+                                    contentDescription = stringResource(R.string.cd_remove_tag),
+                                    tint = colors.textMuted,
+                                    modifier = Modifier.size(15.dp)
+                                )
+                            }
                         }
                     }
 

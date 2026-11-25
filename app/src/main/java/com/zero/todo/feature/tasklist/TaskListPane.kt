@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -28,6 +29,7 @@ import androidx.compose.material.icons.automirrored.rounded.Sort
 import androidx.compose.material.icons.automirrored.rounded.ViewSidebar
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.CreateNewFolder
+import androidx.compose.material.icons.rounded.Layers
 import androidx.compose.material.icons.rounded.Menu
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Timer
@@ -70,6 +72,7 @@ import com.zero.todo.domain.model.TaskItem
 import com.zero.todo.domain.model.TaskSortMode
 import com.zero.todo.feature.folder.IncludeSubfoldersPill
 import com.zero.todo.feature.folder.NavigationDestination
+import com.zero.todo.feature.now.DayCapacityRuler
 import java.time.LocalDate
 
 @Composable
@@ -82,6 +85,9 @@ fun TaskListPane(
     isSearchOpen: Boolean,
     searchQuery: String,
     taskSortMode: TaskSortMode,
+    scheduledTodayMinutes: Int,
+    dailyCapacityMinutes: Int,
+    triageCount: Int,
     tasks: List<TaskItem>,
     folderNameById: Map<String, String>,
     selectedTaskId: String?,
@@ -102,6 +108,7 @@ fun TaskListPane(
     onSearchQueryChange: (String) -> Unit,
     onCycleSortMode: () -> Unit,
     onRescheduleOverdueToToday: () -> Unit,
+    onOpenTriage: () -> Unit,
     onSelectTag: (String) -> Unit,
     onRequestCreateSubfolder: () -> Unit,
     onOpenFocusMode: () -> Unit,
@@ -228,10 +235,11 @@ fun TaskListPane(
                         }
                     }
 
-                    // Sort Mode Cycle Pill
+                    // Sort Mode Cycle Pill (comfortable 36dp touch height)
                     Row(
                         modifier = Modifier
                             .padding(start = 4.dp)
+                            .heightIn(min = 36.dp)
                             .clip(ZeroSmallShape)
                             .background(if (taskSortMode != TaskSortMode.MANUAL) colors.accentSubtle else colors.surface)
                             .hairlineBorder(
@@ -242,15 +250,15 @@ fun TaskListPane(
                                 haptics.reorderTick()
                                 onCycleSortMode()
                             }
-                            .padding(horizontal = 6.dp, vertical = 4.dp),
+                            .padding(horizontal = 8.dp, vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(3.dp)
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Rounded.Sort,
                             contentDescription = stringResource(R.string.cd_cycle_sort),
                             tint = if (taskSortMode != TaskSortMode.MANUAL) colors.accent else colors.textSecondary,
-                            modifier = Modifier.size(13.dp)
+                            modifier = Modifier.size(15.dp)
                         )
                         Text(
                             text = stringResource(taskSortMode.labelRes),
@@ -259,28 +267,28 @@ fun TaskListPane(
                         )
                     }
 
-                    // Global Search Toggle
+                    // Global Search Toggle (generous 38dp target)
                     IconButton(
                         onClick = { onToggleSearch(!isSearchOpen) },
-                        modifier = Modifier.size(30.dp)
+                        modifier = Modifier.size(38.dp)
                     ) {
                         Icon(
                             imageVector = if (isSearchOpen) Icons.Rounded.Close else Icons.Rounded.Search,
                             contentDescription = stringResource(R.string.cd_search_tasks),
                             tint = if (isSearchOpen) colors.accent else colors.textSecondary,
-                            modifier = Modifier.size(17.dp)
+                            modifier = Modifier.size(19.dp)
                         )
                     }
 
                     IconButton(
                         onClick = onOpenFocusMode,
-                        modifier = Modifier.size(30.dp)
+                        modifier = Modifier.size(38.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Rounded.Timer,
                             contentDescription = stringResource(R.string.cd_enter_focus),
                             tint = colors.accent,
-                            modifier = Modifier.size(18.dp)
+                            modifier = Modifier.size(19.dp)
                         )
                     }
 
@@ -415,6 +423,62 @@ fun TaskListPane(
                     ),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
+                    // Precision Day Capacity Ruler inside Today view
+                    if (selectedDestination == NavigationDestination.Today && !isSearchOpen) {
+                        item(key = "day_capacity_ruler") {
+                            DayCapacityRuler(
+                                scheduledMinutes = scheduledTodayMinutes,
+                                capacityMinutes = dailyCapacityMinutes,
+                                taskCount = activeTasks.size
+                            )
+                        }
+                    }
+
+                    // Lightning Triage Deck Entry inside Inbox / Today when backlog exists
+                    if ((selectedDestination == NavigationDestination.Inbox || selectedDestination == NavigationDestination.Today) &&
+                        triageCount > 0 && !isSearchOpen
+                    ) {
+                        item(key = "triage_shortcut_strip") {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .heightIn(min = 46.dp)
+                                    .clip(ZeroSmallShape)
+                                    .background(colors.accentSubtle)
+                                    .hairlineBorder(shape = ZeroSmallShape, color = colors.accent)
+                                    .clickable {
+                                        haptics.confirm()
+                                        onOpenTriage()
+                                    }
+                                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.Layers,
+                                        contentDescription = null,
+                                        tint = colors.accent,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Text(
+                                        text = stringResource(R.string.triage_banner_prompt, triageCount),
+                                        style = MaterialTheme.typography.labelLarge,
+                                        color = colors.accent
+                                    )
+                                }
+                                Text(
+                                    text = stringResource(R.string.triage_start_short),
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = colors.accent
+                                )
+                            }
+                        }
+                    }
+
                     // Overdue Section (Today smart view only) with 1-Tap Reschedule to Today
                     if (overdueTasks.isNotEmpty()) {
                         item(key = "overdue_section_header") {
@@ -657,9 +721,8 @@ fun TaskListPane(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
-                .navigationBarsPadding()
                 .imePadding()
-                .padding(horizontal = 14.dp, vertical = 10.dp),
+                .padding(horizontal = 14.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             UndoCapsule(

@@ -327,9 +327,8 @@ fun CalendarPane(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
-                .navigationBarsPadding()
                 .imePadding()
-                .padding(horizontal = 14.dp, vertical = 10.dp),
+                .padding(horizontal = 14.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             UndoCapsule(

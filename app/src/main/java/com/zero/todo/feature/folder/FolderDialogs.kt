@@ -22,8 +22,12 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ArrowDownward
 import androidx.compose.material.icons.rounded.ArrowUpward
 import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.CreateNewFolder
+import androidx.compose.material.icons.rounded.DeleteOutline
+import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Folder
 import androidx.compose.material.icons.rounded.Inbox
+import androidx.compose.material.icons.rounded.SwapVert
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -39,7 +43,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
@@ -53,6 +59,7 @@ import com.zero.todo.core.designsystem.ZeroTheme
 import com.zero.todo.core.designsystem.hairlineBorder
 import com.zero.todo.domain.model.Folder
 import com.zero.todo.domain.model.FolderNode
+import com.zero.todo.domain.model.TagItem
 
 @Composable
 fun FolderPickerDialog(
@@ -587,5 +594,329 @@ fun MoveFolderDialog(
                 }
             }
         }
+    }
+}
+
+/**
+ * Touch-friendly 50dp action menu for managing a Folder (replaces cramped 22dp row icons).
+ */
+@Composable
+fun FolderActionMenuDialog(
+    folder: Folder,
+    onCreateSubfolder: () -> Unit,
+    onRename: () -> Unit,
+    onOrganize: () -> Unit,
+    onDelete: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    val colors = ZeroTheme.colors
+    Dialog(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(ZeroCardShape)
+                .background(colors.surfaceElevated)
+                .hairlineBorder(shape = ZeroCardShape)
+                .padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                text = folder.name,
+                style = MaterialTheme.typography.titleMedium,
+                color = colors.textPrimary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(bottom = 4.dp)
+            )
+            TactileMenuRow(
+                icon = Icons.Rounded.CreateNewFolder,
+                label = stringResource(R.string.cd_create_subfolder),
+                tint = colors.accent,
+                onClick = {
+                    onDismiss()
+                    onCreateSubfolder()
+                }
+            )
+            TactileMenuRow(
+                icon = Icons.Rounded.Edit,
+                label = stringResource(R.string.dialog_rename_folder_title),
+                tint = colors.textPrimary,
+                onClick = {
+                    onDismiss()
+                    onRename()
+                }
+            )
+            TactileMenuRow(
+                icon = Icons.Rounded.SwapVert,
+                label = stringResource(R.string.cd_organize_folder),
+                tint = colors.textPrimary,
+                onClick = {
+                    onDismiss()
+                    onOrganize()
+                }
+            )
+            TactileMenuRow(
+                icon = Icons.Rounded.DeleteOutline,
+                label = stringResource(R.string.cd_delete_folder),
+                tint = colors.priorityUrgent,
+                onClick = {
+                    onDismiss()
+                    onDelete()
+                }
+            )
+        }
+    }
+}
+
+/**
+ * Touch-friendly 50dp action menu for globally renaming or deleting a Tag.
+ */
+@Composable
+fun TagActionMenuDialog(
+    tag: TagItem,
+    onRename: () -> Unit,
+    onDelete: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    val colors = ZeroTheme.colors
+    Dialog(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(ZeroCardShape)
+                .background(colors.surfaceElevated)
+                .hairlineBorder(shape = ZeroCardShape)
+                .padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                text = "#${tag.name}",
+                style = MaterialTheme.typography.titleMedium,
+                color = colors.textPrimary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(bottom = 4.dp)
+            )
+            TactileMenuRow(
+                icon = Icons.Rounded.Edit,
+                label = stringResource(R.string.dialog_rename_tag_title),
+                tint = colors.textPrimary,
+                onClick = {
+                    onDismiss()
+                    onRename()
+                }
+            )
+            TactileMenuRow(
+                icon = Icons.Rounded.DeleteOutline,
+                label = stringResource(R.string.action_delete_tag),
+                tint = colors.priorityUrgent,
+                onClick = {
+                    onDismiss()
+                    onDelete()
+                }
+            )
+        }
+    }
+}
+
+@Composable
+fun RenameTagDialog(
+    tag: TagItem,
+    onDismiss: () -> Unit,
+    onConfirm: (tagId: String, newName: String) -> Unit
+) {
+    val colors = ZeroTheme.colors
+    var nameDraft by rememberSaveable(tag.id) { mutableStateOf(tag.name) }
+    val focusRequester = remember { FocusRequester() }
+
+    LaunchedEffect(Unit) { focusRequester.requestFocus() }
+
+    fun submit() {
+        val trimmed = nameDraft.trim().removePrefix("#")
+        if (trimmed.isNotEmpty()) onConfirm(tag.id, trimmed)
+    }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(ZeroCardShape)
+                .background(colors.surfaceElevated)
+                .hairlineBorder(shape = ZeroCardShape)
+                .padding(20.dp)
+        ) {
+            Text(
+                text = stringResource(R.string.dialog_rename_tag_title),
+                style = MaterialTheme.typography.titleMedium,
+                color = colors.textPrimary
+            )
+            Spacer(modifier = Modifier.height(14.dp))
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(ZeroSmallShape)
+                    .background(colors.surface)
+                    .hairlineBorder(
+                        shape = ZeroSmallShape,
+                        color = if (nameDraft.isNotBlank()) colors.accent else colors.hairlineBorder
+                    )
+                    .padding(horizontal = 12.dp, vertical = 14.dp)
+            ) {
+                BasicTextField(
+                    value = nameDraft,
+                    onValueChange = { nameDraft = it },
+                    singleLine = true,
+                    textStyle = MaterialTheme.typography.bodyMedium.copy(color = colors.textPrimary),
+                    cursorBrush = SolidColor(colors.accent),
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                    keyboardActions = KeyboardActions(onDone = { submit() }),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .focusRequester(focusRequester)
+                )
+            }
+            Spacer(modifier = Modifier.height(18.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End
+            ) {
+                Box(
+                    modifier = Modifier
+                        .heightIn(min = 44.dp)
+                        .clip(ZeroSmallShape)
+                        .hairlineBorder(shape = ZeroSmallShape)
+                        .clickable(onClick = onDismiss)
+                        .padding(horizontal = 16.dp, vertical = 10.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = stringResource(R.string.action_cancel),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = colors.textSecondary
+                    )
+                }
+                Spacer(modifier = Modifier.width(8.dp))
+                val canSave = nameDraft.trim().removePrefix("#").isNotEmpty()
+                Box(
+                    modifier = Modifier
+                        .heightIn(min = 44.dp)
+                        .clip(ZeroSmallShape)
+                        .background(if (canSave) colors.accent else colors.surface)
+                        .clickable(enabled = canSave, onClick = ::submit)
+                        .padding(horizontal = 18.dp, vertical = 10.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = stringResource(R.string.action_save),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = if (canSave) colors.onAccent else colors.textMuted
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun DeleteTagConfirmDialog(
+    tag: TagItem,
+    onDismiss: () -> Unit,
+    onConfirmDelete: (tagId: String) -> Unit
+) {
+    val colors = ZeroTheme.colors
+    Dialog(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(ZeroCardShape)
+                .background(colors.surfaceElevated)
+                .hairlineBorder(shape = ZeroCardShape)
+                .padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text(
+                text = stringResource(R.string.dialog_delete_tag_title, tag.name),
+                style = MaterialTheme.typography.titleMedium,
+                color = colors.textPrimary
+            )
+            Text(
+                text = stringResource(R.string.dialog_delete_tag_message),
+                style = MaterialTheme.typography.bodySmall,
+                color = colors.textSecondary
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End
+            ) {
+                Box(
+                    modifier = Modifier
+                        .heightIn(min = 44.dp)
+                        .clip(ZeroSmallShape)
+                        .hairlineBorder(shape = ZeroSmallShape)
+                        .clickable(onClick = onDismiss)
+                        .padding(horizontal = 16.dp, vertical = 10.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = stringResource(R.string.action_cancel),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = colors.textSecondary
+                    )
+                }
+                Spacer(modifier = Modifier.width(8.dp))
+                Box(
+                    modifier = Modifier
+                        .heightIn(min = 44.dp)
+                        .clip(ZeroSmallShape)
+                        .background(colors.priorityUrgent)
+                        .clickable {
+                            onConfirmDelete(tag.id)
+                            onDismiss()
+                        }
+                        .padding(horizontal = 18.dp, vertical = 10.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = stringResource(R.string.action_delete),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = colors.onAccent
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TactileMenuRow(
+    icon: ImageVector,
+    label: String,
+    tint: Color,
+    onClick: () -> Unit
+) {
+    val colors = ZeroTheme.colors
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 50.dp)
+            .clip(ZeroSmallShape)
+            .background(colors.surface)
+            .hairlineBorder(shape = ZeroSmallShape)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = tint,
+            modifier = Modifier.size(19.dp)
+        )
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyMedium,
+            color = if (tint == colors.priorityUrgent) colors.priorityUrgent else colors.textPrimary
+        )
     }
 }

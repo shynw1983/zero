@@ -45,6 +45,9 @@ interface TagDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertTag(tag: TagEntity)
 
+    @Query("UPDATE tags SET name = :newName, updatedAt = :updatedAt WHERE id = :tagId AND isDeleted = 0")
+    suspend fun renameTag(tagId: String, newName: String, updatedAt: Long)
+
     @Query("UPDATE tags SET isDeleted = 1, updatedAt = :updatedAt WHERE id = :tagId")
     suspend fun softDeleteTag(tagId: String, updatedAt: Long)
 

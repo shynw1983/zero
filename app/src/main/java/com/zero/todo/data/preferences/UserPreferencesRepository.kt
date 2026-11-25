@@ -6,6 +6,7 @@ import com.zero.todo.data.backup.WebDavConfig
 import com.zero.todo.domain.model.AntiMisclickMode
 import com.zero.todo.domain.model.AppLanguage
 import com.zero.todo.domain.model.TaskSortMode
+import com.zero.todo.domain.model.WorkspaceMode
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -21,6 +22,8 @@ data class UserPreferences(
     val hapticsEnabled: Boolean = true,
     val appLanguage: AppLanguage = AppLanguage.SYSTEM,
     val taskSortMode: TaskSortMode = TaskSortMode.MANUAL,
+    val workspaceMode: WorkspaceMode = WorkspaceMode.NOW,
+    val dailyCapacityMinutes: Int = 240,
     val webDavConfig: WebDavConfig = WebDavConfig()
 )
 
@@ -33,6 +36,8 @@ interface UserPreferencesRepository {
     fun setHapticsEnabled(enabled: Boolean)
     fun setAppLanguage(language: AppLanguage)
     fun setTaskSortMode(sortMode: TaskSortMode)
+    fun setWorkspaceMode(mode: WorkspaceMode)
+    fun setDailyCapacityMinutes(minutes: Int)
     fun setWebDavConfig(config: WebDavConfig)
 }
 
@@ -76,6 +81,17 @@ class SharedPrefsUserPreferencesRepository @Inject constructor(
         _preferences.update { it.copy(taskSortMode = sortMode) }
     }
 
+    override fun setWorkspaceMode(mode: WorkspaceMode) {
+        prefs.edit().putString(KEY_WORKSPACE_MODE, mode.name).apply()
+        _preferences.update { it.copy(workspaceMode = mode) }
+    }
+
+    override fun setDailyCapacityMinutes(minutes: Int) {
+        val clamped = minutes.coerceIn(60, 720)
+        prefs.edit().putInt(KEY_DAILY_CAPACITY_MINUTES, clamped).apply()
+        _preferences.update { it.copy(dailyCapacityMinutes = clamped) }
+    }
+
     override fun setWebDavConfig(config: WebDavConfig) {
         prefs.edit()
             .putString(KEY_WEBDAV_URL, config.serverUrl)
@@ -100,6 +116,10 @@ class SharedPrefsUserPreferencesRepository @Inject constructor(
         val sortMode = TaskSortMode.fromStorage(
             prefs.getString(KEY_TASK_SORT_MODE, TaskSortMode.MANUAL.name)
         )
+        val workspaceMode = WorkspaceMode.fromStorage(
+            prefs.getString(KEY_WORKSPACE_MODE, WorkspaceMode.NOW.name)
+        )
+        val dailyCapacityMinutes = prefs.getInt(KEY_DAILY_CAPACITY_MINUTES, 240).coerceIn(60, 720)
         val webDavConfig = WebDavConfig(
             serverUrl = prefs.getString(KEY_WEBDAV_URL, "").orEmpty(),
             username = prefs.getString(KEY_WEBDAV_USER, "").orEmpty(),
@@ -115,6 +135,8 @@ class SharedPrefsUserPreferencesRepository @Inject constructor(
             hapticsEnabled = hapticsEnabled,
             appLanguage = appLanguage,
             taskSortMode = sortMode,
+            workspaceMode = workspaceMode,
+            dailyCapacityMinutes = dailyCapacityMinutes,
             webDavConfig = webDavConfig
         )
     }
@@ -125,8 +147,10 @@ class SharedPrefsUserPreferencesRepository @Inject constructor(
         private const val KEY_ACCENT = "accent"
         private const val KEY_ANTI_MISCLICK_MODE = "anti_misclick_mode"
         private const val KEY_HAPTICS_ENABLED = "haptics_enabled"
-        private const val KEY_APP_LANGUAGE = "app_language"
+        const val KEY_APP_LANGUAGE = "app_language"
         private const val KEY_TASK_SORT_MODE = "task_sort_mode"
+        private const val KEY_WORKSPACE_MODE = "workspace_mode"
+        private const val KEY_DAILY_CAPACITY_MINUTES = "daily_capacity_minutes"
         private const val KEY_WEBDAV_URL = "webdav_url"
         private const val KEY_WEBDAV_USER = "webdav_user"
         private const val KEY_WEBDAV_PASS = "webdav_pass"
@@ -162,6 +186,14 @@ class InMemoryUserPreferencesRepository(
 
     override fun setTaskSortMode(sortMode: TaskSortMode) {
         _preferences.update { it.copy(taskSortMode = sortMode) }
+    }
+
+    override fun setWorkspaceMode(mode: WorkspaceMode) {
+        _preferences.update { it.copy(workspaceMode = mode) }
+    }
+
+    override fun setDailyCapacityMinutes(minutes: Int) {
+        _preferences.update { it.copy(dailyCapacityMinutes = minutes.coerceIn(60, 720)) }
     }
 
     override fun setWebDavConfig(config: WebDavConfig) {

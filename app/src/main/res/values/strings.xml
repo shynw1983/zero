@@ -260,4 +260,47 @@
     <string name="webdav_status_test_ok">WebDAV connection verified</string>
     <string name="webdav_status_push_ok">Backup pushed to WebDAV</string>
     <string name="shortcut_search">Toggle global search</string>
+
+    <!-- v2.0.0: Dual-State NOW/VAULT, First-Step Momentum, Day Capacity, Triage Deck & Tag Management -->
+    <string name="mode_now">NOW</string>
+    <string name="mode_vault">VAULT</string>
+    <string name="effort_micro">Micro</string>
+    <string name="effort_medium">Focus</string>
+    <string name="effort_heavy">Deep</string>
+    <string name="capacity_title">Today Energy Budget</string>
+    <string name="capacity_overloaded_hint">Over budget — defer lighter items</string>
+    <string name="now_header_title">NOW · RUNWAY</string>
+    <string name="now_triage_pill">Triage · %1$d</string>
+    <string name="now_empty_title">Runway Clear</string>
+    <string name="now_empty_desc">Nothing blocking your mind right now. Capture a thought below or pull tasks from your Vault.</string>
+    <string name="now_start_triage">30s Triage</string>
+    <string name="now_open_vault">Open Vault</string>
+    <string name="now_up_next">NEXT</string>
+    <string name="cd_open_task_detail">Open full details</string>
+    <string name="now_first_step_label">First Tiny Step (Icebreaker)</string>
+    <string name="now_first_step_flow_hint">Tap to finish &amp; slide into Flow timer</string>
+    <string name="now_first_step_placeholder">Write a 30-sec opening move (e.g. open doc)…</string>
+    <string name="now_first_step_done_hint">Icebreaker done — add another tiny step if needed</string>
+    <string name="now_skip_card">Next</string>
+    <string name="now_hold_complete">Hold Done</string>
+    <string name="triage_title">30s Triage</string>
+    <string name="triage_all_clear_title">Inbox &amp; Overdue Clear</string>
+    <string name="triage_all_clear_desc">Zero clutter, zero guilt. Your runway is ready.</string>
+    <string name="triage_enter_now">Enter NOW</string>
+    <string name="triage_action_today">Today</string>
+    <string name="triage_action_tomorrow">Tomorrow</string>
+    <string name="triage_action_let_go">Let Go</string>
+    <string name="triage_gesture_hint">Swipe ↑ Today · → Tomorrow · ← Let Go · or file below</string>
+    <string name="triage_file_to_folder">File directly into folder</string>
+    <string name="triage_banner_prompt">%1$d items ready for 30s Triage</string>
+    <string name="triage_start_short">Triage</string>
+    <string name="dialog_rename_tag_title">Rename Tag</string>
+    <string name="action_delete_tag">Delete Tag</string>
+    <string name="dialog_delete_tag_title">Delete \"#%1$s\"?</string>
+    <string name="dialog_delete_tag_message">This tag will be removed from the sidebar and detached from tasks. Your tasks will remain safe.</string>
+    <string name="cd_tag_options">Tag options</string>
+    <string name="cd_folder_options">Folder options</string>
+    <string name="detail_effort">Effort</string>
+    <string name="settings_section_capacity">Daily Energy Budget</string>
+    <string name="settings_capacity_desc">Set a realistic daily capacity for your Day Capacity Ruler to avoid over-scheduling</string>
 </resources>

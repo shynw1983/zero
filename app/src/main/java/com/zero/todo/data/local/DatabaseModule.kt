@@ -24,7 +24,9 @@ object DatabaseModule {
             context,
             ZeroDatabase::class.java,
             ZeroDatabase.DATABASE_NAME
-        ).build()
+        )
+            .addMigrations(ZeroDatabase.MIGRATION_1_2)
+            .build()
 
     @Provides
     fun provideFolderDao(database: ZeroDatabase): FolderDao = database.folderDao()

@@ -17,8 +17,10 @@ import com.zero.todo.data.repository.FolderRepositoryImpl
 import com.zero.todo.data.repository.TagRepositoryImpl
 import com.zero.todo.data.repository.TaskRepositoryImpl
 import com.zero.todo.domain.model.AntiMisclickMode
+import com.zero.todo.domain.model.FocusMode
 import com.zero.todo.domain.model.TaskPriority
 import com.zero.todo.domain.model.TaskSortMode
+import com.zero.todo.domain.model.WorkspaceMode
 import com.zero.todo.domain.usecase.GetFolderTreeUseCase
 import com.zero.todo.feature.folder.NavigationDestination
 import com.zero.todo.widget.NoOpWidgetRefresher
@@ -332,6 +334,74 @@ class MainViewModelStateTest {
         assertEquals(ZeroAccent.Sage, updated.activeAccent)
         assertEquals(AntiMisclickMode.SWIPE_DAMPED, updated.antiMisclickMode)
         assertFalse(updated.hapticsEnabled)
+        collectJob.cancel()
+    }
+
+    @Test
+    fun `ZERO 2_0 NOW runway skip, first-step flow momentum, day budget, triage, and global tag delete work end-to-end`() = runBlocking {
+        val todayMillis = ZeroDateFormatter.startOfDayMillis(LocalDate.now())
+        val t1 = taskRepository.createTask("Write Q4 review", priority = TaskPriority.URGENT, dueDate = todayMillis)
+        val t2 = taskRepository.createTask("Reply client email", priority = TaskPriority.HIGH, dueDate = todayMillis)
+        val unfiled = taskRepository.createTask("Random inbox thought")
+        val tag = tagRepository.getOrCreateTag("DeepWork")
+        tagRepository.attachTagToTask(t1.id, tag.id)
+
+        val vm = newViewModel()
+        val collectJob = launch(Dispatchers.Default) { vm.uiState.collect {} }
+
+        // Default workspaceMode is NOW, runway contains today tasks ordered by priority
+        val initial = withTimeout(5_000L) {
+            vm.uiState.first {
+                it.workspaceMode == WorkspaceMode.NOW &&
+                    it.runwayQueue.size == 2 &&
+                    it.triageQueue.any { item -> item.id == unfiled.id }
+            }
+        }
+        assertEquals(t1.id, initial.runwayQueue.first().id)
+
+        // Guilt-free skip moves t1 behind t2
+        vm.skipTaskInRunway(t1)
+        val afterSkip = withTimeout(5_000L) {
+            vm.uiState.first { it.runwayQueue.firstOrNull()?.id == t2.id }
+        }
+        assertEquals(t2.id, afterSkip.runwayQueue.first().id)
+
+        // Setting effort updates Day Budget scheduledTodayMinutes
+        vm.updateTaskEffort(t1, 60)
+        vm.updateTaskEffort(t2, 25)
+        val budgeted = withTimeout(5_000L) {
+            vm.uiState.first { it.scheduledTodayMinutes == 85 }
+        }
+        assertEquals(85, budgeted.scheduledTodayMinutes)
+
+        // Setting First Step and completing it starts Forward Momentum Stopwatch focus
+        vm.updateTaskFirstStep(t1, "Open doc and type title")
+        val withStep = withTimeout(5_000L) {
+            taskRepository.observeTaskWithTags(t1.id).filterNotNull().first { it.firstStep == "Open doc and type title" }
+        }
+        vm.completeFirstStepAndStartFlow(withStep)
+        val inFlow = withTimeout(5_000L) {
+            vm.uiState.first { it.focusState.isActive && it.focusState.mode == FocusMode.STOPWATCH }
+        }
+        assertEquals(t1.id, inFlow.focusState.task?.id)
+        vm.exitFocus()
+
+        // Triage schedules unfiled inbox item to today -> clears triageQueue
+        vm.triageScheduleToday(unfiled)
+        withTimeout(5_000L) {
+            vm.uiState.first { it.triageQueue.none { item -> item.id == unfiled.id } }
+        }
+
+        // Global Tag rename & delete
+        vm.renameTag(tag.id, "DeepFocus")
+        withTimeout(5_000L) {
+            vm.uiState.first { it.tagsWithCounts.any { tc -> tc.tag.id == tag.id && tc.tag.name == "DeepFocus" } }
+        }
+        vm.deleteTag(tag.id)
+        withTimeout(5_000L) {
+            vm.uiState.first { it.tagsWithCounts.none { tc -> tc.tag.id == tag.id } }
+        }
+
         collectJob.cancel()
     }
 }

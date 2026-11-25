@@ -260,4 +260,47 @@
     <string name="webdav_status_test_ok">WebDAV 连接正常</string>
     <string name="webdav_status_push_ok">已上传备份至 WebDAV</string>
     <string name="shortcut_search">打开 / 关闭全局搜索</string>
+
+    <!-- v2.0.0: 双态 NOW/VAULT、第一步破冰动量、精力刻度尺、30秒闪电清仓与标签管理 -->
+    <string name="mode_now">执行</string>
+    <string name="mode_vault">整理库</string>
+    <string name="effort_micro">微</string>
+    <string name="effort_medium">中</string>
+    <string name="effort_heavy">重</string>
+    <string name="capacity_title">今日精力刻度</string>
+    <string name="capacity_overloaded_hint">今日已超载 · 建议把轻任务挪到明天</string>
+    <string name="now_header_title">NOW · 执行跑道</string>
+    <string name="now_triage_pill">清仓 · %1$d</string>
+    <string name="now_empty_title">跑道已清空</string>
+    <string name="now_empty_desc">此刻没有压在心头的事。可在下方随时记录灵感，或去整理库挑选今日要事。</string>
+    <string name="now_start_triage">30 秒清仓</string>
+    <string name="now_open_vault">进入整理库</string>
+    <string name="now_up_next">下一张</string>
+    <string name="cd_open_task_detail">查看完整详情</string>
+    <string name="now_first_step_label">第一步破冰动作</string>
+    <string name="now_first_step_flow_hint">点击划掉 · 顺势进入正向动量计时</string>
+    <string name="now_first_step_placeholder">写一个 30 秒能动的小动作（如：打开文档写标题）…</string>
+    <string name="now_first_step_done_hint">破冰已完成 · 如需可再写下一步微动作</string>
+    <string name="now_skip_card">换一张</string>
+    <string name="now_hold_complete">按住完成</string>
+    <string name="triage_title">30 秒闪电清仓</string>
+    <string name="triage_all_clear_title">积压已全部清零</string>
+    <string name="triage_all_clear_desc">零杂乱、零愧疚，你的执行跑道已就绪。</string>
+    <string name="triage_enter_now">回到执行跑道</string>
+    <string name="triage_action_today">今天</string>
+    <string name="triage_action_tomorrow">明天</string>
+    <string name="triage_action_let_go">放弃</string>
+    <string name="triage_gesture_hint">上滑今天 · 右滑明天 · 左滑体面放弃 · 下方一键归档</string>
+    <string name="triage_file_to_folder">一键归档进文件夹</string>
+    <string name="triage_banner_prompt">有 %1$d 条积压待清仓（30 秒滑完）</string>
+    <string name="triage_start_short">去清仓</string>
+    <string name="dialog_rename_tag_title">重命名标签</string>
+    <string name="action_delete_tag">删除标签</string>
+    <string name="dialog_delete_tag_title">删除「#%1$s」？</string>
+    <string name="dialog_delete_tag_message">将从侧边栏移除此标签并自动解除任务关联，任务本身不会被删除。</string>
+    <string name="cd_tag_options">标签操作</string>
+    <string name="cd_folder_options">文件夹操作</string>
+    <string name="detail_effort">体量</string>
+    <string name="settings_section_capacity">每日精力容量上限</string>
+    <string name="settings_capacity_desc">为「今日精力刻度尺」设定真实可执行的时间上限，避免盲目排满任务</string>
 </resources>

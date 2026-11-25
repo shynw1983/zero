@@ -260,4 +260,47 @@
     <string name="webdav_status_test_ok">WebDAV 接続を確認しました</string>
     <string name="webdav_status_push_ok">WebDAV へバックアップを送信しました</string>
     <string name="shortcut_search">全体検索を開閉</string>
+
+    <!-- v2.0.0: NOW/VAULT 二重モード・最初の一歩・容量ゲージ・30秒トリアージ・タグ管理 -->
+    <string name="mode_now">実行</string>
+    <string name="mode_vault">整理庫</string>
+    <string name="effort_micro">軽</string>
+    <string name="effort_medium">中</string>
+    <string name="effort_heavy">重</string>
+    <string name="capacity_title">今日のエネルギー容量</string>
+    <string name="capacity_overloaded_hint">容量オーバー · 軽いタスクを明日へ移しましょう</string>
+    <string name="now_header_title">NOW · ランウェイ</string>
+    <string name="now_triage_pill">仕分け · %1$d</string>
+    <string name="now_empty_title">ランウェイは空です</string>
+    <string name="now_empty_desc">今すぐ抱える負担はありません。下から記録するか、整理庫から選べます。</string>
+    <string name="now_start_triage">30秒仕分け</string>
+    <string name="now_open_vault">整理庫を開く</string>
+    <string name="now_up_next">次へ</string>
+    <string name="cd_open_task_detail">詳細を開く</string>
+    <string name="now_first_step_label">最初の一歩（ハードル破壊）</string>
+    <string name="now_first_step_flow_hint">タップで完了し、そのまま集中フロー計測へ</string>
+    <string name="now_first_step_placeholder">30秒で動ける最小アクション（例：資料を開く）…</string>
+    <string name="now_first_step_done_hint">最初の一歩完了 · 次の小さな一歩を入力可能</string>
+    <string name="now_skip_card">後回し</string>
+    <string name="now_hold_complete">長押し完了</string>
+    <string name="triage_title">30秒カード仕分け</string>
+    <string name="triage_all_clear_title">すべて整理完了</string>
+    <string name="triage_all_clear_desc">散らかりも罪悪感もゼロ。実行ランウェイの準備完了です。</string>
+    <string name="triage_enter_now">NOW に戻る</string>
+    <string name="triage_action_today">今日</string>
+    <string name="triage_action_tomorrow">明日</string>
+    <string name="triage_action_let_go">手放す</string>
+    <string name="triage_gesture_hint">上スワイプ今日 · 右明日 · 左手放す · 下でフォルダ分類</string>
+    <string name="triage_file_to_folder">フォルダへワンタップ分類</string>
+    <string name="triage_banner_prompt">未整理・期限切れ %1$d 件を30秒で仕分け</string>
+    <string name="triage_start_short">仕分け</string>
+    <string name="dialog_rename_tag_title">タグ名を変更</string>
+    <string name="action_delete_tag">タグを削除</string>
+    <string name="dialog_delete_tag_title">「#%1$s」を削除しますか？</string>
+    <string name="dialog_delete_tag_message">サイドバーからタグを削除し紐付けを解除します。タスク本体は消えません。</string>
+    <string name="cd_tag_options">タグメニュー</string>
+    <string name="cd_folder_options">フォルダメニュー</string>
+    <string name="detail_effort">負荷</string>
+    <string name="settings_section_capacity">1日のエネルギー上限</string>
+    <string name="settings_capacity_desc">容量ゲージの基準時間を設定し、無理な詰め込みを防ぎます</string>
 </resources>

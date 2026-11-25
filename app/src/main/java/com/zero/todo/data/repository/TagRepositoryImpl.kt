@@ -58,6 +58,12 @@ class TagRepositoryImpl @Inject constructor(
         tagDao.detachTagFromTask(taskId = taskId, tagId = tagId)
     }
 
+    override suspend fun renameTag(tagId: String, newName: String) {
+        val clean = newName.trim().removePrefix("#")
+        if (clean.isEmpty()) return
+        tagDao.renameTag(tagId = tagId, newName = clean, updatedAt = System.currentTimeMillis())
+    }
+
     override suspend fun softDeleteTag(tagId: String) {
         tagDao.softDeleteTag(tagId = tagId, updatedAt = System.currentTimeMillis())
     }

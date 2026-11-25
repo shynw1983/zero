@@ -1,6 +1,7 @@
 package com.zero.todo.feature.main
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandHorizontally
 import androidx.compose.animation.fadeIn
@@ -8,17 +9,34 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkHorizontally
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Bolt
+import androidx.compose.material.icons.rounded.FolderCopy
 import androidx.compose.material3.DrawerValue
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.ModalNavigationDrawer
+import androidx.compose.material3.Text
 import androidx.compose.material3.adaptive.ExperimentalMaterial3AdaptiveApi
 import androidx.compose.material3.adaptive.currentWindowAdaptiveInfo
 import androidx.compose.material3.adaptive.layout.AnimatedPane
@@ -33,8 +51,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.isCtrlPressed
@@ -49,10 +70,14 @@ import androidx.compose.ui.unit.dp
 import androidx.window.core.layout.WindowWidthSizeClass
 import com.zero.todo.R
 import com.zero.todo.core.designsystem.ZeroAccent
+import com.zero.todo.core.designsystem.ZeroCapsuleShape
 import com.zero.todo.core.designsystem.ZeroMotion
 import com.zero.todo.core.designsystem.ZeroTheme
+import com.zero.todo.core.designsystem.hairlineBorder
 import com.zero.todo.core.designsystem.hairlineDividerEnd
 import com.zero.todo.core.designsystem.hairlineDividerStart
+import com.zero.todo.core.designsystem.hairlineDividerTop
+import com.zero.todo.core.designsystem.rememberZeroHaptics
 import com.zero.todo.core.nlp.QuickInputParser
 import com.zero.todo.data.backup.WebDavConfig
 import com.zero.todo.domain.model.AntiMisclickMode
@@ -60,19 +85,26 @@ import com.zero.todo.domain.model.AppLanguage
 import com.zero.todo.domain.model.FocusMode
 import com.zero.todo.domain.model.Folder
 import com.zero.todo.domain.model.FolderNode
+import com.zero.todo.domain.model.TagItem
 import com.zero.todo.domain.model.TaskItem
 import com.zero.todo.domain.model.TaskPriority
+import com.zero.todo.domain.model.WorkspaceMode
 import com.zero.todo.feature.calendar.CalendarPane
 import com.zero.todo.feature.calendar.CalendarViewMode
 import com.zero.todo.feature.focus.SingleTaskFocusOverlay
 import com.zero.todo.feature.folder.CreateFolderDialog
 import com.zero.todo.feature.folder.DeleteFolderConfirmDialog
+import com.zero.todo.feature.folder.DeleteTagConfirmDialog
+import com.zero.todo.feature.folder.FolderActionMenuDialog
 import com.zero.todo.feature.folder.FolderTreePanel
 import com.zero.todo.feature.folder.MoveFolderDialog
 import com.zero.todo.feature.folder.NavigationDestination
 import com.zero.todo.feature.folder.RenameFolderDialog
+import com.zero.todo.feature.folder.RenameTagDialog
 import com.zero.todo.feature.folder.SmartViewCounts
+import com.zero.todo.feature.folder.TagActionMenuDialog
 import com.zero.todo.feature.matrix.MatrixPane
+import com.zero.todo.feature.now.NowRunwayScreen
 import com.zero.todo.feature.settings.BackupUiStatus
 import com.zero.todo.feature.settings.SettingsOverlay
 import com.zero.todo.feature.taskdetail.TaskDetailPane
@@ -80,10 +112,25 @@ import com.zero.todo.feature.tasklist.FolderPathSuggestion
 import com.zero.todo.feature.tasklist.TaskListPane
 import com.zero.todo.feature.tasklist.UndoBannerState
 import com.zero.todo.feature.trash.TrashPane
+import com.zero.todo.feature.triage.TriageDeckOverlay
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 
 data class ZeroShellCallbacks(
+    val onSetWorkspaceMode: (WorkspaceMode) -> Unit = {},
+    val onSetDailyCapacityMinutes: (Int) -> Unit = {},
+    val onOpenTriage: () -> Unit = {},
+    val onCloseTriage: () -> Unit = {},
+    val onSkipRunwayTask: (TaskItem) -> Unit = {},
+    val onOpenTaskDetailFromNow: (TaskItem) -> Unit = {},
+    val onUpdateTaskFirstStep: (TaskItem, String?) -> Unit = { _, _ -> },
+    val onCompleteFirstStepAndStartFlow: (TaskItem) -> Unit = {},
+    val onUpdateTaskEffort: (TaskItem, Int?) -> Unit = { _, _ -> },
+    val onTriageScheduleToday: (TaskItem) -> Unit = {},
+    val onTriageDeferTomorrow: (TaskItem) -> Unit = {},
+    val onTriageMoveToFolder: (TaskItem, String) -> Unit = { _, _ -> },
+    val onRenameTag: (tagId: String, newName: String) -> Unit = { _, _ -> },
+    val onDeleteTag: (tagId: String) -> Unit = {},
     val onSelectDestination: (NavigationDestination) -> Unit = {},
     val onSelectCalendarDate: (LocalDate) -> Unit = {},
     val onSelectCalendarViewMode: (CalendarViewMode) -> Unit = {},
@@ -165,11 +212,17 @@ fun ZeroAdaptiveShell(
     val colors = ZeroTheme.colors
     val focusManager = LocalFocusManager.current
     val quickInputFocusRequester = remember { FocusRequester() }
+
     var createFolderParent by remember { mutableStateOf<Folder?>(null) }
     var showCreateFolderDialog by remember { mutableStateOf(false) }
+    var folderMenuTarget by remember { mutableStateOf<Folder?>(null) }
     var renameTargetFolder by remember { mutableStateOf<Folder?>(null) }
     var organizeTargetFolder by remember { mutableStateOf<Folder?>(null) }
     var deleteTargetFolder by remember { mutableStateOf<Folder?>(null) }
+
+    var tagMenuTarget by remember { mutableStateOf<TagItem?>(null) }
+    var renameTargetTag by remember { mutableStateOf<TagItem?>(null) }
+    var deleteTargetTag by remember { mutableStateOf<TagItem?>(null) }
 
     LaunchedEffect(uiState.quickInputFocusRequestTick) {
         if (uiState.quickInputFocusRequestTick > 0L) {
@@ -182,18 +235,6 @@ fun ZeroAdaptiveShell(
         showCreateFolderDialog = true
     }
 
-    val openRenameFolderDialog: (Folder) -> Unit = { folder ->
-        renameTargetFolder = folder
-    }
-
-    val openOrganizeFolderDialog: (Folder) -> Unit = { folder ->
-        organizeTargetFolder = folder
-    }
-
-    val openDeleteFolderDialog: (Folder) -> Unit = { folder ->
-        deleteTargetFolder = folder
-    }
-
     // Tablet & Desktop external keyboard shortcuts (Ctrl/Cmd + N, Ctrl/Cmd + F, Esc, Ctrl/Cmd + ',', Ctrl/Cmd + 1..5)
     val rootKeyboardModifier = modifier
         .fillMaxSize()
@@ -204,12 +245,14 @@ fun ZeroAdaptiveShell(
             when {
                 modPressed && keyEvent.key == Key.N -> {
                     if (uiState.isSettingsOpen) callbacks.onCloseSettings()
+                    if (uiState.isTriageOpen) callbacks.onCloseTriage()
                     if (uiState.focusState.isActive) callbacks.onExitFocus()
                     runCatching { quickInputFocusRequester.requestFocus() }
                     true
                 }
                 modPressed && keyEvent.key == Key.F -> {
                     if (uiState.isSettingsOpen) callbacks.onCloseSettings()
+                    callbacks.onSetWorkspaceMode(WorkspaceMode.VAULT)
                     callbacks.onToggleSearch(!uiState.isSearchOpen)
                     true
                 }
@@ -218,22 +261,27 @@ fun ZeroAdaptiveShell(
                     true
                 }
                 modPressed && keyEvent.key == Key.One -> {
+                    callbacks.onSetWorkspaceMode(WorkspaceMode.VAULT)
                     callbacks.onSelectDestination(NavigationDestination.Inbox)
                     true
                 }
                 modPressed && keyEvent.key == Key.Two -> {
+                    callbacks.onSetWorkspaceMode(WorkspaceMode.VAULT)
                     callbacks.onSelectDestination(NavigationDestination.Today)
                     true
                 }
                 modPressed && keyEvent.key == Key.Three -> {
+                    callbacks.onSetWorkspaceMode(WorkspaceMode.VAULT)
                     callbacks.onSelectDestination(NavigationDestination.Tomorrow)
                     true
                 }
                 modPressed && keyEvent.key == Key.Four -> {
+                    callbacks.onSetWorkspaceMode(WorkspaceMode.VAULT)
                     callbacks.onSelectDestination(NavigationDestination.Next7Days)
                     true
                 }
                 modPressed && keyEvent.key == Key.Five -> {
+                    callbacks.onSetWorkspaceMode(WorkspaceMode.VAULT)
                     callbacks.onSelectDestination(NavigationDestination.Calendar)
                     true
                 }
@@ -241,6 +289,18 @@ fun ZeroAdaptiveShell(
                     when {
                         uiState.isSettingsOpen -> {
                             callbacks.onCloseSettings()
+                            true
+                        }
+                        uiState.isTriageOpen -> {
+                            callbacks.onCloseTriage()
+                            true
+                        }
+                        folderMenuTarget != null -> {
+                            folderMenuTarget = null
+                            true
+                        }
+                        tagMenuTarget != null -> {
+                            tagMenuTarget = null
                             true
                         }
                         showCreateFolderDialog -> {
@@ -257,6 +317,14 @@ fun ZeroAdaptiveShell(
                         }
                         deleteTargetFolder != null -> {
                             deleteTargetFolder = null
+                            true
+                        }
+                        renameTargetTag != null -> {
+                            renameTargetTag = null
+                            true
+                        }
+                        deleteTargetTag != null -> {
+                            deleteTargetTag = null
                             true
                         }
                         uiState.isSearchOpen -> {
@@ -281,51 +349,123 @@ fun ZeroAdaptiveShell(
             }
         }
 
-    val contentSurfaceModifier = Modifier
-        .fillMaxSize()
-        .background(colors.background)
-        .statusBarsPadding()
+    Box(
+        modifier = rootKeyboardModifier
+            .background(colors.background)
+            .statusBarsPadding()
+    ) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            // Primary Dual-State Content: NOW (Execution Runway) vs VAULT (Organization Studio)
+            AnimatedContent(
+                targetState = uiState.workspaceMode,
+                transitionSpec = {
+                    fadeIn(ZeroMotion.FloatSpring) togetherWith fadeOut(ZeroMotion.FloatSpring)
+                },
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth(),
+                label = "workspace_dual_state"
+            ) { mode ->
+                when (mode) {
+                    WorkspaceMode.NOW -> {
+                        NowRunwayScreen(
+                            currentDate = uiState.currentDate,
+                            runwayQueue = uiState.runwayQueue,
+                            scheduledTodayMinutes = uiState.scheduledTodayMinutes,
+                            dailyCapacityMinutes = uiState.dailyCapacityMinutes,
+                            triageCount = uiState.triageQueue.size,
+                            folderNameById = uiState.folderNameById,
+                            quickInputText = uiState.quickInputText,
+                            parsedQuickInput = uiState.parsedQuickInput,
+                            folderSuggestions = uiState.folderSuggestions,
+                            continuousEntryEnabled = uiState.continuousEntryEnabled,
+                            undoBanner = uiState.undoBanner,
+                            quickInputFocusRequester = quickInputFocusRequester,
+                            onCompleteTask = callbacks.onToggleTaskComplete,
+                            onSkipTask = callbacks.onSkipRunwayTask,
+                            onOpenTaskDetail = callbacks.onOpenTaskDetailFromNow,
+                            onStartFocus = callbacks.onStartFocus,
+                            onUpdateFirstStep = callbacks.onUpdateTaskFirstStep,
+                            onCompleteFirstStepAndStartFlow = callbacks.onCompleteFirstStepAndStartFlow,
+                            onUpdateEffort = callbacks.onUpdateTaskEffort,
+                            onOpenTriage = callbacks.onOpenTriage,
+                            onSwitchToVault = { callbacks.onSetWorkspaceMode(WorkspaceMode.VAULT) },
+                            onOpenSettings = callbacks.onOpenSettings,
+                            onQuickInputChange = callbacks.onQuickInputChange,
+                            onQuickInputSubmit = callbacks.onQuickInputSubmit,
+                            onSelectFolderSuggestion = callbacks.onSelectFolderSuggestion,
+                            onToggleContinuousEntry = callbacks.onToggleContinuousEntry,
+                            onVoiceInputRecognized = callbacks.onVoiceInputRecognized,
+                            onUndo = callbacks.onUndo,
+                            onUndoTimeout = callbacks.onUndoTimeout
+                        )
+                    }
 
-    Box(modifier = rootKeyboardModifier) {
-        when (windowWidthSizeClass) {
-            WindowWidthSizeClass.COMPACT -> {
-                CompactSinglePaneLayout(
-                    uiState = uiState,
-                    callbacks = callbacks,
-                    quickInputFocusRequester = quickInputFocusRequester,
-                    onRequestCreateFolder = openCreateFolderDialog,
-                    onRequestRenameFolder = openRenameFolderDialog,
-                    onRequestOrganizeFolder = openOrganizeFolderDialog,
-                    onRequestDeleteFolder = openDeleteFolderDialog,
-                    modifier = contentSurfaceModifier
-                )
+                    WorkspaceMode.VAULT -> {
+                        when (windowWidthSizeClass) {
+                            WindowWidthSizeClass.COMPACT -> {
+                                CompactSinglePaneLayout(
+                                    uiState = uiState,
+                                    callbacks = callbacks,
+                                    quickInputFocusRequester = quickInputFocusRequester,
+                                    onRequestCreateFolder = openCreateFolderDialog,
+                                    onRequestFolderMenu = { folderMenuTarget = it },
+                                    onRequestTagMenu = { tagMenuTarget = it }
+                                )
+                            }
+
+                            WindowWidthSizeClass.MEDIUM -> {
+                                MediumTwoPaneLayout(
+                                    uiState = uiState,
+                                    callbacks = callbacks,
+                                    quickInputFocusRequester = quickInputFocusRequester,
+                                    onRequestCreateFolder = openCreateFolderDialog,
+                                    onRequestFolderMenu = { folderMenuTarget = it },
+                                    onRequestTagMenu = { tagMenuTarget = it }
+                                )
+                            }
+
+                            else -> {
+                                ExpandedThreePaneLayout(
+                                    uiState = uiState,
+                                    callbacks = callbacks,
+                                    quickInputFocusRequester = quickInputFocusRequester,
+                                    onRequestCreateFolder = openCreateFolderDialog,
+                                    onRequestFolderMenu = { folderMenuTarget = it },
+                                    onRequestTagMenu = { tagMenuTarget = it }
+                                )
+                            }
+                        }
+                    }
+                }
             }
 
-            WindowWidthSizeClass.MEDIUM -> {
-                MediumTwoPaneLayout(
-                    uiState = uiState,
-                    callbacks = callbacks,
-                    quickInputFocusRequester = quickInputFocusRequester,
-                    onRequestCreateFolder = openCreateFolderDialog,
-                    onRequestRenameFolder = openRenameFolderDialog,
-                    onRequestOrganizeFolder = openOrganizeFolderDialog,
-                    onRequestDeleteFolder = openDeleteFolderDialog,
-                    modifier = contentSurfaceModifier
-                )
-            }
+            // ZERO 2.0 Tactile Dual-State Hardware Switcher Bar (NOW <-> VAULT, 48dp touch height)
+            DualStateModeBar(
+                activeMode = uiState.workspaceMode,
+                runwayCount = uiState.runwayQueue.size,
+                vaultBadgeCount = uiState.triageQueue.size,
+                onSelectMode = callbacks.onSetWorkspaceMode
+            )
+        }
 
-            else -> {
-                ExpandedThreePaneLayout(
-                    uiState = uiState,
-                    callbacks = callbacks,
-                    quickInputFocusRequester = quickInputFocusRequester,
-                    onRequestCreateFolder = openCreateFolderDialog,
-                    onRequestRenameFolder = openRenameFolderDialog,
-                    onRequestOrganizeFolder = openOrganizeFolderDialog,
-                    onRequestDeleteFolder = openDeleteFolderDialog,
-                    modifier = contentSurfaceModifier
-                )
-            }
+        // Full-Screen 30-Second Lightning Triage Deck Overlay
+        AnimatedVisibility(
+            visible = uiState.isTriageOpen,
+            enter = fadeIn(animationSpec = ZeroMotion.FloatSpring) +
+                slideInVertically(animationSpec = ZeroMotion.IntOffsetSpring) { it / 10 },
+            exit = fadeOut(animationSpec = ZeroMotion.FloatSpring) +
+                slideOutVertically(animationSpec = ZeroMotion.IntOffsetSpring) { it / 10 }
+        ) {
+            TriageDeckOverlay(
+                queue = uiState.triageQueue,
+                quickFolders = uiState.quickFolders,
+                onScheduleToday = callbacks.onTriageScheduleToday,
+                onDeferTomorrow = callbacks.onTriageDeferTomorrow,
+                onMoveToFolder = callbacks.onTriageMoveToFolder,
+                onDiscardTask = callbacks.onDeleteTask,
+                onDismiss = callbacks.onCloseTriage
+            )
         }
 
         // Full-Screen Single-Task Focus Mode Overlay
@@ -363,6 +503,7 @@ fun ZeroAdaptiveShell(
                 antiMisclickMode = uiState.antiMisclickMode,
                 hapticsEnabled = uiState.hapticsEnabled,
                 appLanguage = uiState.appLanguage,
+                dailyCapacityMinutes = uiState.dailyCapacityMinutes,
                 webDavConfig = uiState.webDavConfig,
                 webDavStatus = uiState.webDavStatus,
                 backupStatus = uiState.backupStatus,
@@ -371,6 +512,7 @@ fun ZeroAdaptiveShell(
                 onSetAntiMisclickMode = callbacks.onSetAntiMisclickMode,
                 onSetHapticsEnabled = callbacks.onSetHapticsEnabled,
                 onSetAppLanguage = callbacks.onSetAppLanguage,
+                onSetDailyCapacityMinutes = callbacks.onSetDailyCapacityMinutes,
                 onUpdateWebDavConfig = callbacks.onUpdateWebDavConfig,
                 onTestWebDav = callbacks.onTestWebDav,
                 onPushWebDav = callbacks.onPushWebDav,
@@ -382,6 +524,19 @@ fun ZeroAdaptiveShell(
                 onDismiss = callbacks.onCloseSettings
             )
         }
+    }
+
+    // Folder Management Action Sheet + Dialogs
+    val menuFolder = folderMenuTarget
+    if (menuFolder != null) {
+        FolderActionMenuDialog(
+            folder = menuFolder,
+            onCreateSubfolder = { openCreateFolderDialog(menuFolder) },
+            onRename = { renameTargetFolder = menuFolder },
+            onOrganize = { organizeTargetFolder = menuFolder },
+            onDelete = { deleteTargetFolder = menuFolder },
+            onDismiss = { folderMenuTarget = null }
+        )
     }
 
     if (showCreateFolderDialog) {
@@ -428,6 +583,153 @@ fun ZeroAdaptiveShell(
                 callbacks.onDeleteFolder(id)
             }
         )
+    }
+
+    // Tag Global Management Action Sheet + Dialogs (Rename & Delete Tag!)
+    val menuTag = tagMenuTarget
+    if (menuTag != null) {
+        TagActionMenuDialog(
+            tag = menuTag,
+            onRename = { renameTargetTag = menuTag },
+            onDelete = { deleteTargetTag = menuTag },
+            onDismiss = { tagMenuTarget = null }
+        )
+    }
+
+    val tagToRename = renameTargetTag
+    if (tagToRename != null) {
+        RenameTagDialog(
+            tag = tagToRename,
+            onDismiss = { renameTargetTag = null },
+            onConfirm = { tagId, newName ->
+                renameTargetTag = null
+                callbacks.onRenameTag(tagId, newName)
+            }
+        )
+    }
+
+    val tagToDelete = deleteTargetTag
+    if (tagToDelete != null) {
+        DeleteTagConfirmDialog(
+            tag = tagToDelete,
+            onDismiss = { deleteTargetTag = null },
+            onConfirmDelete = { tagId ->
+                deleteTargetTag = null
+                callbacks.onDeleteTag(tagId)
+            }
+        )
+    }
+}
+
+/**
+ * Tactile Dieter Rams / hardware-inspired bottom Dual-State Switcher Bar (NOW <-> VAULT).
+ */
+@Composable
+private fun DualStateModeBar(
+    activeMode: WorkspaceMode,
+    runwayCount: Int,
+    vaultBadgeCount: Int,
+    onSelectMode: (WorkspaceMode) -> Unit
+) {
+    val colors = ZeroTheme.colors
+    val haptics = rememberZeroHaptics()
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(colors.background)
+            .hairlineDividerTop()
+            .navigationBarsPadding()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Row(
+            modifier = Modifier
+                .widthIn(max = 360.dp)
+                .fillMaxWidth()
+                .height(48.dp)
+                .clip(ZeroCapsuleShape)
+                .background(colors.surface)
+                .hairlineBorder(shape = ZeroCapsuleShape)
+                .padding(4.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            DualModeSegment(
+                icon = Icons.Rounded.Bolt,
+                label = stringResource(R.string.mode_now),
+                badgeCount = runwayCount,
+                selected = activeMode == WorkspaceMode.NOW,
+                onClick = {
+                    if (activeMode != WorkspaceMode.NOW) {
+                        haptics.confirm()
+                        onSelectMode(WorkspaceMode.NOW)
+                    }
+                },
+                modifier = Modifier.weight(1f)
+            )
+            DualModeSegment(
+                icon = Icons.Rounded.FolderCopy,
+                label = stringResource(R.string.mode_vault),
+                badgeCount = vaultBadgeCount,
+                selected = activeMode == WorkspaceMode.VAULT,
+                onClick = {
+                    if (activeMode != WorkspaceMode.VAULT) {
+                        haptics.confirm()
+                        onSelectMode(WorkspaceMode.VAULT)
+                    }
+                },
+                modifier = Modifier.weight(1f)
+            )
+        }
+    }
+}
+
+@Composable
+private fun DualModeSegment(
+    icon: ImageVector,
+    label: String,
+    badgeCount: Int,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val colors = ZeroTheme.colors
+    val tabular = ZeroTheme.tabularTypography
+
+    Row(
+        modifier = modifier
+            .fillMaxHeight()
+            .clip(ZeroCapsuleShape)
+            .background(if (selected) colors.surfaceElevated else colors.surface)
+            .then(
+                if (selected) Modifier.hairlineBorder(shape = ZeroCapsuleShape, color = colors.accent)
+                else Modifier
+            )
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = if (selected) colors.accent else colors.textMuted,
+            modifier = Modifier.size(17.dp)
+        )
+        Spacer(modifier = Modifier.width(6.dp))
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelLarge,
+            color = if (selected) colors.textPrimary else colors.textSecondary
+        )
+        if (badgeCount > 0) {
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(
+                text = badgeCount.toString().padStart(2, '0'),
+                style = tabular.dateCompact,
+                color = if (selected) colors.accent else colors.textMuted
+            )
+        }
     }
 }
 
@@ -530,6 +832,9 @@ private fun CenterWorkspacePane(
                 isSearchOpen = uiState.isSearchOpen,
                 searchQuery = uiState.searchQuery,
                 taskSortMode = uiState.taskSortMode,
+                scheduledTodayMinutes = uiState.scheduledTodayMinutes,
+                dailyCapacityMinutes = uiState.dailyCapacityMinutes,
+                triageCount = uiState.triageQueue.size,
                 tasks = uiState.tasks,
                 folderNameById = uiState.folderNameById,
                 selectedTaskId = uiState.selectedTaskId,
@@ -550,6 +855,7 @@ private fun CenterWorkspacePane(
                 onSearchQueryChange = callbacks.onSearchQueryChange,
                 onCycleSortMode = callbacks.onCycleSortMode,
                 onRescheduleOverdueToToday = callbacks.onRescheduleOverdueToToday,
+                onOpenTriage = callbacks.onOpenTriage,
                 onSelectTag = { tagId -> callbacks.onSelectDestination(NavigationDestination.TagView(tagId)) },
                 onRequestCreateSubfolder = { onRequestCreateFolder(uiState.breadcrumbs.lastOrNull()) },
                 onOpenFocusMode = { callbacks.onStartFocus(null, FocusMode.TWO_MIN_STARTER) },
@@ -590,6 +896,8 @@ private fun BoundTaskDetailPane(
         onMoveTaskToFolder = callbacks.onMoveTaskToFolder,
         onUpdateTitleAndDescription = callbacks.onUpdateTaskTitleAndDescription,
         onUpdatePriority = callbacks.onUpdateTaskPriority,
+        onUpdateEffort = callbacks.onUpdateTaskEffort,
+        onUpdateFirstStep = callbacks.onUpdateTaskFirstStep,
         onUpdateDueDate = callbacks.onUpdateTaskDueDate,
         onUpdateReminder = callbacks.onUpdateTaskReminder,
         onUpdateRecurrenceRule = callbacks.onUpdateTaskRecurrenceRule,
@@ -615,9 +923,8 @@ private fun CompactSinglePaneLayout(
     callbacks: ZeroShellCallbacks,
     quickInputFocusRequester: FocusRequester,
     onRequestCreateFolder: (Folder?) -> Unit,
-    onRequestRenameFolder: (Folder) -> Unit,
-    onRequestOrganizeFolder: (Folder) -> Unit,
-    onRequestDeleteFolder: (Folder) -> Unit,
+    onRequestFolderMenu: (Folder) -> Unit,
+    onRequestTagMenu: (TagItem) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val colors = ZeroTheme.colors
@@ -634,7 +941,7 @@ private fun CompactSinglePaneLayout(
         }
     }
 
-    BackHandler(enabled = navigator.canNavigateBack() && !uiState.focusState.isActive && !uiState.isSettingsOpen) {
+    BackHandler(enabled = navigator.canNavigateBack() && !uiState.focusState.isActive && !uiState.isSettingsOpen && !uiState.isTriageOpen) {
         callbacks.onSelectTask(null)
         navigator.navigateBack()
     }
@@ -646,7 +953,7 @@ private fun CompactSinglePaneLayout(
             ModalDrawerSheet(
                 drawerContainerColor = colors.background,
                 modifier = Modifier
-                    .width(284.dp)
+                    .width(292.dp)
                     .hairlineDividerEnd()
             ) {
                 FolderTreePanel(
@@ -654,6 +961,7 @@ private fun CompactSinglePaneLayout(
                     tagsWithCounts = uiState.tagsWithCounts,
                     selectedDestination = uiState.selectedDestination,
                     smartViewCounts = uiState.smartViewCounts,
+                    triageCount = uiState.triageQueue.size,
                     includeSubfolders = uiState.includeSubfolders,
                     isDarkTheme = uiState.isDarkTheme,
                     activeAccent = uiState.activeAccent,
@@ -661,11 +969,14 @@ private fun CompactSinglePaneLayout(
                         callbacks.onSelectDestination(destination)
                         scope.launch { drawerState.close() }
                     },
+                    onOpenTriage = {
+                        scope.launch { drawerState.close() }
+                        callbacks.onOpenTriage()
+                    },
                     onToggleFolderExpanded = callbacks.onToggleFolderExpanded,
                     onRequestCreateFolder = onRequestCreateFolder,
-                    onRequestRenameFolder = onRequestRenameFolder,
-                    onRequestOrganizeFolder = onRequestOrganizeFolder,
-                    onRequestDeleteFolder = onRequestDeleteFolder,
+                    onRequestFolderMenu = onRequestFolderMenu,
+                    onRequestTagMenu = onRequestTagMenu,
                     onToggleIncludeSubfolders = callbacks.onToggleIncludeSubfolders,
                     onToggleTheme = callbacks.onToggleTheme,
                     onToggleAccent = callbacks.onToggleAccent,
@@ -714,10 +1025,9 @@ private fun CompactSinglePaneLayout(
 
 /**
  * Smart Dynamic Two-Pane Layout for Unfolded Foldables (Medium 600dp–840dp):
- * - No task selected: `[Full-Height Folder Tree (252dp) | Full-Height Task List]` — zero blank right pane,
- *   full-height continuous scrolling for Smart Views, infinite Folders, Tags, and Trash.
+ * - No task selected: `[Full-Height Folder Tree | Full-Height Task List]` — zero blank right pane.
  * - Task selected: smoothly transitions to `[Full-Height Task List | Full-Height Task Detail]`,
- *   while the full-height Folder Tree remains 1-tap / edge-swipe away via ModalNavigationDrawer.
+ *   while full-height Folder Tree remains 1-tap / edge-swipe away via ModalNavigationDrawer.
  */
 @Composable
 private fun MediumTwoPaneLayout(
@@ -725,9 +1035,8 @@ private fun MediumTwoPaneLayout(
     callbacks: ZeroShellCallbacks,
     quickInputFocusRequester: FocusRequester,
     onRequestCreateFolder: (Folder?) -> Unit,
-    onRequestRenameFolder: (Folder) -> Unit,
-    onRequestOrganizeFolder: (Folder) -> Unit,
-    onRequestDeleteFolder: (Folder) -> Unit,
+    onRequestFolderMenu: (Folder) -> Unit,
+    onRequestTagMenu: (TagItem) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val colors = ZeroTheme.colors
@@ -735,8 +1044,7 @@ private fun MediumTwoPaneLayout(
     val scope = rememberCoroutineScope()
     val hasSelectedTask = uiState.selectedTask != null
 
-    // Close detail pane on system Back to return smoothly to [Folder Tree | Task List]
-    BackHandler(enabled = hasSelectedTask && !uiState.focusState.isActive && !uiState.isSettingsOpen) {
+    BackHandler(enabled = hasSelectedTask && !uiState.focusState.isActive && !uiState.isSettingsOpen && !uiState.isTriageOpen) {
         callbacks.onSelectTask(null)
     }
 
@@ -748,7 +1056,7 @@ private fun MediumTwoPaneLayout(
             ModalDrawerSheet(
                 drawerContainerColor = colors.background,
                 modifier = Modifier
-                    .width(276.dp)
+                    .width(284.dp)
                     .hairlineDividerEnd()
             ) {
                 FolderTreePanel(
@@ -756,6 +1064,7 @@ private fun MediumTwoPaneLayout(
                     tagsWithCounts = uiState.tagsWithCounts,
                     selectedDestination = uiState.selectedDestination,
                     smartViewCounts = uiState.smartViewCounts,
+                    triageCount = uiState.triageQueue.size,
                     includeSubfolders = uiState.includeSubfolders,
                     isDarkTheme = uiState.isDarkTheme,
                     activeAccent = uiState.activeAccent,
@@ -763,11 +1072,14 @@ private fun MediumTwoPaneLayout(
                         callbacks.onSelectDestination(destination)
                         scope.launch { drawerState.close() }
                     },
+                    onOpenTriage = {
+                        scope.launch { drawerState.close() }
+                        callbacks.onOpenTriage()
+                    },
                     onToggleFolderExpanded = callbacks.onToggleFolderExpanded,
                     onRequestCreateFolder = onRequestCreateFolder,
-                    onRequestRenameFolder = onRequestRenameFolder,
-                    onRequestOrganizeFolder = onRequestOrganizeFolder,
-                    onRequestDeleteFolder = onRequestDeleteFolder,
+                    onRequestFolderMenu = onRequestFolderMenu,
+                    onRequestTagMenu = onRequestTagMenu,
                     onToggleIncludeSubfolders = callbacks.onToggleIncludeSubfolders,
                     onToggleTheme = callbacks.onToggleTheme,
                     onToggleAccent = callbacks.onToggleAccent,
@@ -780,11 +1092,10 @@ private fun MediumTwoPaneLayout(
         }
     ) {
         BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-            val sidebarWidth = (maxWidth * 0.36f).coerceIn(232.dp, 268.dp)
+            val sidebarWidth = (maxWidth * 0.36f).coerceIn(240.dp, 276.dp)
             val detailWidth = (maxWidth * 0.50f).coerceIn(292.dp, 400.dp)
 
             Row(modifier = Modifier.fillMaxSize()) {
-                // Left Full-Height Folder Sidebar (visible when browsing list without an open task detail)
                 AnimatedVisibility(
                     visible = !hasSelectedTask && uiState.isMediumTreeExpanded,
                     enter = expandHorizontally(animationSpec = ZeroMotion.IntSizeSpring) +
@@ -797,15 +1108,16 @@ private fun MediumTwoPaneLayout(
                         tagsWithCounts = uiState.tagsWithCounts,
                         selectedDestination = uiState.selectedDestination,
                         smartViewCounts = uiState.smartViewCounts,
+                        triageCount = uiState.triageQueue.size,
                         includeSubfolders = uiState.includeSubfolders,
                         isDarkTheme = uiState.isDarkTheme,
                         activeAccent = uiState.activeAccent,
                         onSelectDestination = callbacks.onSelectDestination,
+                        onOpenTriage = callbacks.onOpenTriage,
                         onToggleFolderExpanded = callbacks.onToggleFolderExpanded,
                         onRequestCreateFolder = onRequestCreateFolder,
-                        onRequestRenameFolder = onRequestRenameFolder,
-                        onRequestOrganizeFolder = onRequestOrganizeFolder,
-                        onRequestDeleteFolder = onRequestDeleteFolder,
+                        onRequestFolderMenu = onRequestFolderMenu,
+                        onRequestTagMenu = onRequestTagMenu,
                         onToggleIncludeSubfolders = callbacks.onToggleIncludeSubfolders,
                         onToggleTheme = callbacks.onToggleTheme,
                         onToggleAccent = callbacks.onToggleAccent,
@@ -817,7 +1129,6 @@ private fun MediumTwoPaneLayout(
                     )
                 }
 
-                // Primary Full-Height Workspace Pane (Task List / Calendar / Matrix / Trash)
                 CenterWorkspacePane(
                     uiState = uiState,
                     callbacks = callbacks,
@@ -831,7 +1142,6 @@ private fun MediumTwoPaneLayout(
                         .fillMaxHeight()
                 )
 
-                // Right Full-Height Task Detail Pane (appears smoothly when a task is selected)
                 AnimatedVisibility(
                     visible = hasSelectedTask,
                     enter = expandHorizontally(animationSpec = ZeroMotion.IntSizeSpring) +
@@ -861,9 +1171,8 @@ private fun ExpandedThreePaneLayout(
     callbacks: ZeroShellCallbacks,
     quickInputFocusRequester: FocusRequester,
     onRequestCreateFolder: (Folder?) -> Unit,
-    onRequestRenameFolder: (Folder) -> Unit,
-    onRequestOrganizeFolder: (Folder) -> Unit,
-    onRequestDeleteFolder: (Folder) -> Unit,
+    onRequestFolderMenu: (Folder) -> Unit,
+    onRequestTagMenu: (TagItem) -> Unit,
     modifier: Modifier = Modifier
 ) {
     Row(modifier = modifier.fillMaxSize()) {
@@ -872,21 +1181,22 @@ private fun ExpandedThreePaneLayout(
             tagsWithCounts = uiState.tagsWithCounts,
             selectedDestination = uiState.selectedDestination,
             smartViewCounts = uiState.smartViewCounts,
+            triageCount = uiState.triageQueue.size,
             includeSubfolders = uiState.includeSubfolders,
             isDarkTheme = uiState.isDarkTheme,
             activeAccent = uiState.activeAccent,
             onSelectDestination = callbacks.onSelectDestination,
+            onOpenTriage = callbacks.onOpenTriage,
             onToggleFolderExpanded = callbacks.onToggleFolderExpanded,
             onRequestCreateFolder = onRequestCreateFolder,
-            onRequestRenameFolder = onRequestRenameFolder,
-            onRequestOrganizeFolder = onRequestOrganizeFolder,
-            onRequestDeleteFolder = onRequestDeleteFolder,
+            onRequestFolderMenu = onRequestFolderMenu,
+            onRequestTagMenu = onRequestTagMenu,
             onToggleIncludeSubfolders = callbacks.onToggleIncludeSubfolders,
             onToggleTheme = callbacks.onToggleTheme,
             onToggleAccent = callbacks.onToggleAccent,
             onOpenSettings = callbacks.onOpenSettings,
             modifier = Modifier
-                .width(260.dp)
+                .width(268.dp)
                 .fillMaxHeight()
                 .hairlineDividerEnd()
         )
@@ -927,16 +1237,23 @@ private fun samplePreviewState(): MainUiState {
         title = "评审 Q4 架构设计与数据库表结构",
         description = "# 核心验收\n- [x] 检查递归 CTE 索引\n- [ ] 验证防误触 30% 阈值",
         priority = TaskPriority.URGENT,
+        firstStep = "打开文档写下 3 个核心议题",
+        estimatedMinutes = 25,
         recurrenceRule = "FREQ=WEEKLY;BYDAY=MO,WE,FR"
     )
     val t2 = TaskItem(
         id = "t2",
         folderId = "f3",
         title = "提交 11 月差旅机票报销单",
-        priority = TaskPriority.HIGH
+        priority = TaskPriority.HIGH,
+        estimatedMinutes = 5
     )
     val sampleInput = "明天下午3点 /工作/财务/报销 提交发票 !1 #财务"
     return MainUiState(
+        workspaceMode = WorkspaceMode.NOW,
+        runwayQueue = listOf(t1, t2),
+        scheduledTodayMinutes = 30,
+        dailyCapacityMinutes = 240,
         selectedDestination = NavigationDestination.FolderView("f1"),
         destinationTitle = "工作",
         breadcrumbs = listOf(fWork),
@@ -971,7 +1288,7 @@ private fun samplePreviewState(): MainUiState {
     )
 }
 
-@Preview(name = "Compact Phone Dark", widthDp = 390, heightDp = 844)
+@Preview(name = "Compact Phone NOW Dark", widthDp = 390, heightDp = 844)
 @Composable
 private fun PreviewZeroCompact() {
     ZeroTheme(darkTheme = true) {
@@ -983,26 +1300,14 @@ private fun PreviewZeroCompact() {
     }
 }
 
-@Preview(name = "Medium Foldable Dark", widthDp = 700, heightDp = 840)
+@Preview(name = "Medium Foldable VAULT Dark", widthDp = 700, heightDp = 840)
 @Composable
 private fun PreviewZeroMedium() {
     ZeroTheme(darkTheme = true) {
         ZeroAdaptiveShell(
-            uiState = remember { samplePreviewState() },
+            uiState = remember { samplePreviewState().copy(workspaceMode = WorkspaceMode.VAULT, selectedTask = null, selectedTaskId = null) },
             callbacks = ZeroShellCallbacks(),
             windowWidthSizeClass = WindowWidthSizeClass.MEDIUM
-        )
-    }
-}
-
-@Preview(name = "Expanded Tablet Dark", widthDp = 1100, heightDp = 760)
-@Composable
-private fun PreviewZeroExpanded() {
-    ZeroTheme(darkTheme = true) {
-        ZeroAdaptiveShell(
-            uiState = remember { samplePreviewState() },
-            callbacks = ZeroShellCallbacks(),
-            windowWidthSizeClass = WindowWidthSizeClass.EXPANDED
         )
     }
 }
