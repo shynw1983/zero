@@ -1,6 +1,9 @@
 package com.zero.todo.feature.main
 
+import android.app.Activity
 import android.app.LocaleManager
+import android.content.Context
+import android.content.ContextWrapper
 import android.content.res.Configuration
 import android.os.Build
 import android.os.LocaleList
@@ -10,11 +13,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
+import androidx.core.view.WindowCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -48,6 +54,17 @@ fun ZeroAppRoot(
     val baseContext = LocalContext.current
     val baseConfig = LocalConfiguration.current
     val lifecycleOwner = LocalLifecycleOwner.current
+    val view = LocalView.current
+
+    // Sync system status & navigation bar icon contrast cleanly with Dark / Light theme
+    SideEffect {
+        val window = baseContext.findActivity()?.window
+        if (window != null && !view.isInEditMode) {
+            val controller = WindowCompat.getInsetsController(window, view)
+            controller.isAppearanceLightStatusBars = !uiState.isDarkTheme
+            controller.isAppearanceLightNavigationBars = !uiState.isDarkTheme
+        }
+    }
 
     // Sync midnight date & wall-clock focus timer whenever app returns to foreground
     DisposableEffect(lifecycleOwner, viewModel) {
@@ -207,4 +224,10 @@ fun ZeroAppRoot(
             }
         }
     }
+}
+
+private tailrec fun Context.findActivity(): Activity? = when (this) {
+    is Activity -> this
+    is ContextWrapper -> baseContext.findActivity()
+    else -> null
 }

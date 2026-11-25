@@ -2,20 +2,18 @@ package com.zero.todo.feature.main
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.expandVertically
+import androidx.compose.animation.expandHorizontally
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.shrinkHorizontally
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.DrawerValue
@@ -26,7 +24,6 @@ import androidx.compose.material3.adaptive.currentWindowAdaptiveInfo
 import androidx.compose.material3.adaptive.layout.AnimatedPane
 import androidx.compose.material3.adaptive.layout.ListDetailPaneScaffold
 import androidx.compose.material3.adaptive.layout.ListDetailPaneScaffoldRole
-import androidx.compose.material3.adaptive.layout.calculatePaneScaffoldDirective
 import androidx.compose.material3.adaptive.navigation.rememberListDetailPaneScaffoldNavigator
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
@@ -54,7 +51,6 @@ import com.zero.todo.R
 import com.zero.todo.core.designsystem.ZeroAccent
 import com.zero.todo.core.designsystem.ZeroMotion
 import com.zero.todo.core.designsystem.ZeroTheme
-import com.zero.todo.core.designsystem.hairlineDividerBottom
 import com.zero.todo.core.designsystem.hairlineDividerEnd
 import com.zero.todo.core.designsystem.hairlineDividerStart
 import com.zero.todo.core.nlp.QuickInputParser
@@ -716,7 +712,13 @@ private fun CompactSinglePaneLayout(
     }
 }
 
-@OptIn(ExperimentalMaterial3AdaptiveApi::class)
+/**
+ * Smart Dynamic Two-Pane Layout for Unfolded Foldables (Medium 600dp–840dp):
+ * - No task selected: `[Full-Height Folder Tree (252dp) | Full-Height Task List]` — zero blank right pane,
+ *   full-height continuous scrolling for Smart Views, infinite Folders, Tags, and Trash.
+ * - Task selected: smoothly transitions to `[Full-Height Task List | Full-Height Task Detail]`,
+ *   while the full-height Folder Tree remains 1-tap / edge-swipe away via ModalNavigationDrawer.
+ */
 @Composable
 private fun MediumTwoPaneLayout(
     uiState: MainUiState,
@@ -728,79 +730,129 @@ private fun MediumTwoPaneLayout(
     onRequestDeleteFolder: (Folder) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val baseDirective = calculatePaneScaffoldDirective(currentWindowAdaptiveInfo())
-    val twoPaneDirective = baseDirective.copy(
-        maxHorizontalPartitions = 2,
-        horizontalPartitionSpacerSize = 0.dp
-    )
-    val navigator = rememberListDetailPaneScaffoldNavigator<String>(
-        scaffoldDirective = twoPaneDirective
-    )
+    val colors = ZeroTheme.colors
+    val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
+    val scope = rememberCoroutineScope()
+    val hasSelectedTask = uiState.selectedTask != null
 
-    ListDetailPaneScaffold(
-        directive = navigator.scaffoldDirective,
-        value = navigator.scaffoldValue,
+    // Close detail pane on system Back to return smoothly to [Folder Tree | Task List]
+    BackHandler(enabled = hasSelectedTask && !uiState.focusState.isActive && !uiState.isSettingsOpen) {
+        callbacks.onSelectTask(null)
+    }
+
+    ModalNavigationDrawer(
+        drawerState = drawerState,
+        gesturesEnabled = hasSelectedTask || !uiState.isMediumTreeExpanded,
         modifier = modifier,
-        listPane = {
-            AnimatedPane {
-                Column(modifier = Modifier.fillMaxSize()) {
-                    AnimatedVisibility(
-                        visible = uiState.isMediumTreeExpanded,
-                        enter = expandVertically(animationSpec = ZeroMotion.IntSizeSpring) +
-                            fadeIn(animationSpec = ZeroMotion.FloatSpring),
-                        exit = shrinkVertically(animationSpec = ZeroMotion.IntSizeSpring) +
-                            fadeOut(animationSpec = ZeroMotion.FloatSpring)
-                    ) {
-                        FolderTreePanel(
-                            folderTree = uiState.folderTree,
-                            tagsWithCounts = uiState.tagsWithCounts,
-                            selectedDestination = uiState.selectedDestination,
-                            smartViewCounts = uiState.smartViewCounts,
-                            includeSubfolders = uiState.includeSubfolders,
-                            isDarkTheme = uiState.isDarkTheme,
-                            activeAccent = uiState.activeAccent,
-                            onSelectDestination = callbacks.onSelectDestination,
-                            onToggleFolderExpanded = callbacks.onToggleFolderExpanded,
-                            onRequestCreateFolder = onRequestCreateFolder,
-                            onRequestRenameFolder = onRequestRenameFolder,
-                            onRequestOrganizeFolder = onRequestOrganizeFolder,
-                            onRequestDeleteFolder = onRequestDeleteFolder,
-                            onToggleIncludeSubfolders = callbacks.onToggleIncludeSubfolders,
-                            onToggleTheme = callbacks.onToggleTheme,
-                            onToggleAccent = callbacks.onToggleAccent,
-                            onOpenSettings = callbacks.onOpenSettings,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .heightIn(min = 180.dp, max = 260.dp)
-                                .hairlineDividerBottom()
-                        )
+        drawerContent = {
+            ModalDrawerSheet(
+                drawerContainerColor = colors.background,
+                modifier = Modifier
+                    .width(276.dp)
+                    .hairlineDividerEnd()
+            ) {
+                FolderTreePanel(
+                    folderTree = uiState.folderTree,
+                    tagsWithCounts = uiState.tagsWithCounts,
+                    selectedDestination = uiState.selectedDestination,
+                    smartViewCounts = uiState.smartViewCounts,
+                    includeSubfolders = uiState.includeSubfolders,
+                    isDarkTheme = uiState.isDarkTheme,
+                    activeAccent = uiState.activeAccent,
+                    onSelectDestination = { destination ->
+                        callbacks.onSelectDestination(destination)
+                        scope.launch { drawerState.close() }
+                    },
+                    onToggleFolderExpanded = callbacks.onToggleFolderExpanded,
+                    onRequestCreateFolder = onRequestCreateFolder,
+                    onRequestRenameFolder = onRequestRenameFolder,
+                    onRequestOrganizeFolder = onRequestOrganizeFolder,
+                    onRequestDeleteFolder = onRequestDeleteFolder,
+                    onToggleIncludeSubfolders = callbacks.onToggleIncludeSubfolders,
+                    onToggleTheme = callbacks.onToggleTheme,
+                    onToggleAccent = callbacks.onToggleAccent,
+                    onOpenSettings = {
+                        scope.launch { drawerState.close() }
+                        callbacks.onOpenSettings()
                     }
-
-                    CenterWorkspacePane(
-                        uiState = uiState,
-                        callbacks = callbacks,
-                        quickInputFocusRequester = quickInputFocusRequester,
-                        showDrawerButton = false,
-                        showTreeToggleButton = true,
-                        onOpenDrawer = {},
-                        onRequestCreateFolder = onRequestCreateFolder,
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-            }
-        },
-        detailPane = {
-            AnimatedPane {
-                BoundTaskDetailPane(
-                    uiState = uiState,
-                    callbacks = callbacks,
-                    showBackButton = false,
-                    onNavigateBack = {},
-                    modifier = Modifier.hairlineDividerStart()
                 )
             }
         }
-    )
+    ) {
+        BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+            val sidebarWidth = (maxWidth * 0.36f).coerceIn(232.dp, 268.dp)
+            val detailWidth = (maxWidth * 0.50f).coerceIn(292.dp, 400.dp)
+
+            Row(modifier = Modifier.fillMaxSize()) {
+                // Left Full-Height Folder Sidebar (visible when browsing list without an open task detail)
+                AnimatedVisibility(
+                    visible = !hasSelectedTask && uiState.isMediumTreeExpanded,
+                    enter = expandHorizontally(animationSpec = ZeroMotion.IntSizeSpring) +
+                        fadeIn(animationSpec = ZeroMotion.FloatSpring),
+                    exit = shrinkHorizontally(animationSpec = ZeroMotion.IntSizeSpring) +
+                        fadeOut(animationSpec = ZeroMotion.FloatSpring)
+                ) {
+                    FolderTreePanel(
+                        folderTree = uiState.folderTree,
+                        tagsWithCounts = uiState.tagsWithCounts,
+                        selectedDestination = uiState.selectedDestination,
+                        smartViewCounts = uiState.smartViewCounts,
+                        includeSubfolders = uiState.includeSubfolders,
+                        isDarkTheme = uiState.isDarkTheme,
+                        activeAccent = uiState.activeAccent,
+                        onSelectDestination = callbacks.onSelectDestination,
+                        onToggleFolderExpanded = callbacks.onToggleFolderExpanded,
+                        onRequestCreateFolder = onRequestCreateFolder,
+                        onRequestRenameFolder = onRequestRenameFolder,
+                        onRequestOrganizeFolder = onRequestOrganizeFolder,
+                        onRequestDeleteFolder = onRequestDeleteFolder,
+                        onToggleIncludeSubfolders = callbacks.onToggleIncludeSubfolders,
+                        onToggleTheme = callbacks.onToggleTheme,
+                        onToggleAccent = callbacks.onToggleAccent,
+                        onOpenSettings = callbacks.onOpenSettings,
+                        modifier = Modifier
+                            .width(sidebarWidth)
+                            .fillMaxHeight()
+                            .hairlineDividerEnd()
+                    )
+                }
+
+                // Primary Full-Height Workspace Pane (Task List / Calendar / Matrix / Trash)
+                CenterWorkspacePane(
+                    uiState = uiState,
+                    callbacks = callbacks,
+                    quickInputFocusRequester = quickInputFocusRequester,
+                    showDrawerButton = hasSelectedTask,
+                    showTreeToggleButton = !hasSelectedTask,
+                    onOpenDrawer = { scope.launch { drawerState.open() } },
+                    onRequestCreateFolder = onRequestCreateFolder,
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
+                )
+
+                // Right Full-Height Task Detail Pane (appears smoothly when a task is selected)
+                AnimatedVisibility(
+                    visible = hasSelectedTask,
+                    enter = expandHorizontally(animationSpec = ZeroMotion.IntSizeSpring) +
+                        fadeIn(animationSpec = ZeroMotion.FloatSpring),
+                    exit = shrinkHorizontally(animationSpec = ZeroMotion.IntSizeSpring) +
+                        fadeOut(animationSpec = ZeroMotion.FloatSpring)
+                ) {
+                    BoundTaskDetailPane(
+                        uiState = uiState,
+                        callbacks = callbacks,
+                        showBackButton = true,
+                        onNavigateBack = { callbacks.onSelectTask(null) },
+                        modifier = Modifier
+                            .width(detailWidth)
+                            .fillMaxHeight()
+                            .hairlineDividerStart()
+                    )
+                }
+            }
+        }
+    }
 }
 
 @Composable
