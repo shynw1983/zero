@@ -1,5 +1,6 @@
 package com.zero.todo.feature.calendar
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -35,9 +36,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.zero.todo.R
 import com.zero.todo.core.designsystem.ZeroCardShape
 import com.zero.todo.core.designsystem.ZeroMotion
 import com.zero.todo.core.designsystem.ZeroSmallShape
@@ -61,13 +64,21 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.temporal.TemporalAdjusters
 
-enum class CalendarViewMode(val label: String) {
-    MONTH("月"),
-    WEEK("周"),
-    DAY("日")
+enum class CalendarViewMode(@StringRes val labelRes: Int) {
+    MONTH(R.string.cal_mode_month),
+    WEEK(R.string.cal_mode_week),
+    DAY(R.string.cal_mode_day)
 }
 
-private val WEEKDAY_HEADERS = listOf("一", "二", "三", "四", "五", "六", "日")
+private val WEEKDAY_HEADER_RES = listOf(
+    R.string.cal_weekday_mon,
+    R.string.cal_weekday_tue,
+    R.string.cal_weekday_wed,
+    R.string.cal_weekday_thu,
+    R.string.cal_weekday_fri,
+    R.string.cal_weekday_sat,
+    R.string.cal_weekday_sun
+)
 
 /**
  * Minimalist Near-Future Calendar View supporting Month / Week / Day switching.
@@ -163,7 +174,7 @@ fun CalendarPane(
                         IconButton(onClick = onOpenDrawer, modifier = Modifier.size(34.dp)) {
                             Icon(
                                 imageVector = Icons.Rounded.Menu,
-                                contentDescription = "打开目录树",
+                                contentDescription = stringResource(R.string.cd_open_drawer),
                                 tint = colors.textPrimary,
                                 modifier = Modifier.size(20.dp)
                             )
@@ -172,7 +183,7 @@ fun CalendarPane(
                         IconButton(onClick = onToggleTreePanel, modifier = Modifier.size(34.dp)) {
                             Icon(
                                 imageVector = Icons.AutoMirrored.Rounded.ViewSidebar,
-                                contentDescription = "展开或折叠目录树",
+                                contentDescription = stringResource(R.string.cd_toggle_tree_panel),
                                 tint = colors.textSecondary,
                                 modifier = Modifier.size(19.dp)
                             )
@@ -182,7 +193,7 @@ fun CalendarPane(
                     IconButton(onClick = { stepPeriod(-1) }, modifier = Modifier.size(28.dp)) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowLeft,
-                            contentDescription = "上一周期",
+                            contentDescription = stringResource(R.string.cd_prev_period),
                             tint = colors.textSecondary,
                             modifier = Modifier.size(18.dp)
                         )
@@ -198,7 +209,7 @@ fun CalendarPane(
                     IconButton(onClick = { stepPeriod(1) }, modifier = Modifier.size(28.dp)) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
-                            contentDescription = "下一周期",
+                            contentDescription = stringResource(R.string.cd_next_period),
                             tint = colors.textSecondary,
                             modifier = Modifier.size(18.dp)
                         )
@@ -214,7 +225,7 @@ fun CalendarPane(
                                 .padding(horizontal = 7.dp, vertical = 3.dp)
                         ) {
                             Text(
-                                text = "今",
+                                text = stringResource(R.string.cal_today_short),
                                 style = MaterialTheme.typography.labelSmall,
                                 color = colors.accent
                             )
@@ -241,7 +252,7 @@ fun CalendarPane(
                                 .padding(horizontal = 9.dp, vertical = 4.dp)
                         ) {
                             Text(
-                                text = mode.label,
+                                text = stringResource(mode.labelRes),
                                 style = MaterialTheme.typography.labelMedium,
                                 color = if (active) colors.accent else colors.textMuted
                             )
@@ -359,9 +370,9 @@ private fun MonthGridSection(
     ) {
         // Weekday header
         Row(modifier = Modifier.fillMaxWidth()) {
-            WEEKDAY_HEADERS.forEach { dayName ->
+            WEEKDAY_HEADER_RES.forEach { dayRes ->
                 Text(
-                    text = dayName,
+                    text = stringResource(dayRes),
                     style = MaterialTheme.typography.labelSmall,
                     color = colors.textMuted,
                     textAlign = TextAlign.Center,
@@ -473,7 +484,7 @@ private fun WeekStripSection(
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 Text(
-                    text = WEEKDAY_HEADERS[idx],
+                    text = stringResource(WEEKDAY_HEADER_RES[idx]),
                     style = MaterialTheme.typography.labelSmall,
                     color = if (isSelected) colors.accent else colors.textMuted
                 )
@@ -527,7 +538,10 @@ private fun SelectedDayTaskList(
                 color = colors.textSecondary
             )
             Text(
-                text = "${tasks.count { !it.isCompleted }.toString().padStart(2, '0')} 待办",
+                text = stringResource(
+                    R.string.cal_pending_count,
+                    tasks.count { !it.isCompleted }.toString().padStart(2, '0')
+                ),
                 style = tabular.dateCompact,
                 color = colors.accent
             )
@@ -542,7 +556,7 @@ private fun SelectedDayTaskList(
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = "当日无日程任务",
+                    text = stringResource(R.string.cal_day_empty),
                     style = MaterialTheme.typography.bodySmall,
                     color = colors.textMuted
                 )
@@ -617,7 +631,7 @@ private fun DayTimelineSection(
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text(
-                        text = "全天 · 仅日期",
+                        text = stringResource(R.string.cal_all_day_header),
                         style = MaterialTheme.typography.labelSmall,
                         color = colors.textMuted
                     )
@@ -629,7 +643,7 @@ private fun DayTimelineSection(
                 }
                 if (allDayTasks.isEmpty()) {
                     Text(
-                        text = "暂无全天任务",
+                        text = stringResource(R.string.cal_all_day_empty),
                         style = MaterialTheme.typography.bodySmall,
                         color = colors.textMuted
                     )
@@ -658,7 +672,7 @@ private fun DayTimelineSection(
                                 modifier = Modifier.weight(1f)
                             )
                             Text(
-                                text = if (task.isCompleted) "已完成" else "P${task.priority.value}",
+                                text = if (task.isCompleted) stringResource(R.string.action_completed) else "P${task.priority.value}",
                                 style = tabular.dateCompact,
                                 color = if (task.isCompleted) colors.textMuted else colors.accent,
                                 modifier = Modifier.clickable { onToggleTaskComplete(task) }

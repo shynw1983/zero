@@ -49,10 +49,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.zero.todo.R
 import com.zero.todo.core.common.RecurrenceRule
 import com.zero.todo.core.common.ZeroDateFormatter
 import com.zero.todo.core.designsystem.ZeroCardShape
@@ -126,6 +129,7 @@ fun TaskDetailPane(
     val colors = ZeroTheme.colors
     val tabular = ZeroTheme.tabularTypography
     val haptics = rememberZeroHaptics()
+    val activeLocale = LocalConfiguration.current.locales[0]
 
     if (task == null) {
         Box(
@@ -139,12 +143,12 @@ fun TaskDetailPane(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Text(
-                    text = "NO SELECTION",
+                    text = stringResource(R.string.detail_no_selection_title),
                     style = tabular.dateCompact,
                     color = colors.textMuted
                 )
                 Text(
-                    text = "选择一项任务查看详情、无限子任务、重复规则与 Markdown 笔记",
+                    text = stringResource(R.string.detail_no_selection_hint),
                     style = MaterialTheme.typography.bodySmall,
                     color = colors.textMuted
                 )
@@ -211,7 +215,7 @@ fun TaskDetailPane(
                     ) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
-                            contentDescription = "返回列表",
+                            contentDescription = stringResource(R.string.cd_back_to_list),
                             tint = colors.textPrimary,
                             modifier = Modifier.size(20.dp)
                         )
@@ -234,7 +238,7 @@ fun TaskDetailPane(
                         modifier = Modifier.size(13.dp)
                     )
                     Text(
-                        text = folderName ?: "收集箱",
+                        text = folderName ?: stringResource(R.string.nav_inbox),
                         style = MaterialTheme.typography.labelMedium,
                         color = colors.textSecondary,
                         maxLines = 1,
@@ -268,7 +272,7 @@ fun TaskDetailPane(
                         modifier = Modifier.size(14.dp)
                     )
                     Text(
-                        text = "先做2分",
+                        text = stringResource(R.string.detail_start_2min),
                         style = MaterialTheme.typography.labelMedium,
                         color = colors.accent
                     )
@@ -289,7 +293,9 @@ fun TaskDetailPane(
                         .padding(horizontal = 10.dp, vertical = 5.dp)
                 ) {
                     Text(
-                        text = if (task.isCompleted) "已完成" else "完成",
+                        text = stringResource(
+                            if (task.isCompleted) R.string.action_completed else R.string.action_done
+                        ),
                         style = MaterialTheme.typography.labelMedium,
                         color = if (task.isCompleted) colors.accent else colors.textPrimary
                     )
@@ -304,7 +310,7 @@ fun TaskDetailPane(
                 ) {
                     Icon(
                         imageVector = Icons.Rounded.DeleteOutline,
-                        contentDescription = "删除任务",
+                        contentDescription = stringResource(R.string.cd_delete_task),
                         tint = colors.textMuted,
                         modifier = Modifier.size(18.dp)
                     )
@@ -343,10 +349,10 @@ fun TaskDetailPane(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "优先级",
+                    text = stringResource(R.string.detail_priority),
                     style = MaterialTheme.typography.labelSmall,
                     color = colors.textMuted,
-                    modifier = Modifier.width(46.dp)
+                    modifier = Modifier.width(54.dp)
                 )
                 TaskPriority.entries.forEach { level ->
                     val selected = task.priority == level
@@ -406,9 +412,13 @@ fun TaskDetailPane(
                         )
                         Text(
                             text = if (task.dueDate != null) {
-                                ZeroDateFormatter.formatDueDate(task.dueDate, task.isAllDay)
+                                ZeroDateFormatter.formatDueDate(
+                                    dueDateMillis = task.dueDate,
+                                    isAllDay = task.isAllDay,
+                                    locale = activeLocale
+                                )
                             } else {
-                                "未设置截止日期"
+                                stringResource(R.string.detail_no_due_date)
                             },
                             style = tabular.dateCompact,
                             color = if (task.dueDate != null) colors.textPrimary else colors.textMuted
@@ -425,7 +435,7 @@ fun TaskDetailPane(
                         horizontalArrangement = Arrangement.spacedBy(2.dp)
                     ) {
                         ModeSegmentChip(
-                            label = "仅日期",
+                            label = stringResource(R.string.detail_date_only),
                             selected = task.isAllDay,
                             onClick = {
                                 val date = currentDueDateTime?.toLocalDate() ?: LocalDate.now()
@@ -433,7 +443,7 @@ fun TaskDetailPane(
                             }
                         )
                         ModeSegmentChip(
-                            label = "具体时间",
+                            label = stringResource(R.string.detail_specific_time),
                             selected = !task.isAllDay && task.dueDate != null,
                             onClick = {
                                 val date = currentDueDateTime?.toLocalDate() ?: LocalDate.now()
@@ -455,27 +465,27 @@ fun TaskDetailPane(
                 ) {
                     val existingTime = currentDueDateTime?.toLocalTime()?.takeUnless { task.isAllDay }
                     val allDay = task.isAllDay || task.dueDate == null
-                    QuickChip("今天") {
+                    QuickChip(stringResource(R.string.quick_today)) {
                         updateDueDateTime(LocalDate.now(), existingTime, allDay)
                     }
-                    QuickChip("明天") {
+                    QuickChip(stringResource(R.string.quick_tomorrow)) {
                         updateDueDateTime(LocalDate.now().plusDays(1), existingTime, allDay)
                     }
-                    QuickChip("后天") {
+                    QuickChip(stringResource(R.string.quick_day_after)) {
                         updateDueDateTime(LocalDate.now().plusDays(2), existingTime, allDay)
                     }
-                    QuickChip("下周一") {
+                    QuickChip(stringResource(R.string.quick_next_monday)) {
                         val nextMon = LocalDate.now().with(TemporalAdjusters.next(DayOfWeek.MONDAY))
                         updateDueDateTime(nextMon, existingTime, allDay)
                     }
                     if (task.dueDate != null) {
-                        QuickChip("-1天") {
+                        QuickChip(stringResource(R.string.quick_minus_day)) {
                             updateDueDateTime(currentDueDateTime!!.toLocalDate().minusDays(1), existingTime, allDay)
                         }
-                        QuickChip("+1天") {
+                        QuickChip(stringResource(R.string.quick_plus_day)) {
                             updateDueDateTime(currentDueDateTime!!.toLocalDate().plusDays(1), existingTime, allDay)
                         }
-                        QuickChip("清除") {
+                        QuickChip(stringResource(R.string.action_clear)) {
                             onUpdateDueDate(task, null, true)
                         }
                     }
@@ -552,13 +562,13 @@ fun TaskDetailPane(
                             modifier = Modifier.size(15.dp)
                         )
                         Text(
-                            text = "重复规则",
+                            text = stringResource(R.string.detail_recurrence),
                             style = MaterialTheme.typography.labelMedium,
                             color = colors.textSecondary
                         )
                     }
                     Text(
-                        text = RecurrenceRule.formatLabel(task.recurrenceRule),
+                        text = RecurrenceRule.formatLabel(task.recurrenceRule, activeLocale),
                         style = tabular.dateCompact,
                         color = if (task.recurrenceRule != null) colors.accent else colors.textMuted
                     )
@@ -571,11 +581,11 @@ fun TaskDetailPane(
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     val presets = listOf(
-                        "不重复" to null,
-                        "每天" to RecurrenceRule.PRESET_DAILY.toRruleString(),
-                        "工作日" to RecurrenceRule.PRESET_WEEKDAYS.toRruleString(),
-                        "每周" to RecurrenceRule.PRESET_WEEKLY.toRruleString(),
-                        "每月" to RecurrenceRule.PRESET_MONTHLY.toRruleString()
+                        stringResource(R.string.recur_none) to null,
+                        stringResource(R.string.recur_daily) to RecurrenceRule.PRESET_DAILY.toRruleString(),
+                        stringResource(R.string.recur_weekdays) to RecurrenceRule.PRESET_WEEKDAYS.toRruleString(),
+                        stringResource(R.string.recur_weekly) to RecurrenceRule.PRESET_WEEKLY.toRruleString(),
+                        stringResource(R.string.recur_monthly) to RecurrenceRule.PRESET_MONTHLY.toRruleString()
                     )
                     presets.forEach { (label, rrule) ->
                         val active = task.recurrenceRule == rrule
@@ -589,7 +599,7 @@ fun TaskDetailPane(
                         }
                     }
                     QuickChip(
-                        label = "自定义 RRULE",
+                        label = stringResource(R.string.recur_custom),
                         selected = showCustomRruleEditor
                     ) {
                         showCustomRruleEditor = !showCustomRruleEditor
@@ -637,15 +647,16 @@ fun TaskDetailPane(
                                     .padding(horizontal = 12.dp, vertical = 8.dp)
                             ) {
                                 Text(
-                                    text = "应用",
+                                    text = stringResource(R.string.action_apply),
                                     style = MaterialTheme.typography.labelMedium,
                                     color = if (parsedCustom != null) colors.onAccent else colors.textMuted
                                 )
                             }
                         }
                         Text(
-                            text = parsedCustom?.let { "解析结果：${it.toDisplayLabel()}" }
-                                ?: "示例：FREQ=DAILY;INTERVAL=2 或 FREQ=WEEKLY;BYDAY=MO,WE,FR",
+                            text = parsedCustom?.let {
+                                stringResource(R.string.recur_parsed_preview, it.toDisplayLabel(activeLocale))
+                            } ?: stringResource(R.string.recur_rrule_hint),
                             style = MaterialTheme.typography.labelSmall,
                             color = if (parsedCustom != null) colors.accent else colors.textMuted
                         )
@@ -662,7 +673,7 @@ fun TaskDetailPane(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Text(
-                    text = "标签",
+                    text = stringResource(R.string.detail_tags),
                     style = MaterialTheme.typography.labelMedium,
                     color = colors.textMuted
                 )
@@ -690,7 +701,7 @@ fun TaskDetailPane(
                             )
                             Icon(
                                 imageVector = Icons.Rounded.Close,
-                                contentDescription = "移除标签",
+                                contentDescription = stringResource(R.string.cd_remove_tag),
                                 tint = colors.textMuted,
                                 modifier = Modifier
                                     .size(12.dp)
@@ -709,7 +720,7 @@ fun TaskDetailPane(
                     ) {
                         if (newTagDraft.isEmpty()) {
                             Text(
-                                text = "+ 添加标签",
+                                text = stringResource(R.string.detail_add_tag_placeholder),
                                 style = MaterialTheme.typography.labelSmall,
                                 color = colors.textMuted
                             )
@@ -749,7 +760,7 @@ fun TaskDetailPane(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "无限子任务",
+                        text = stringResource(R.string.detail_subtasks),
                         style = MaterialTheme.typography.labelMedium,
                         color = colors.textMuted
                     )
@@ -839,7 +850,7 @@ fun TaskDetailPane(
                             ) {
                                 Icon(
                                     imageVector = Icons.Rounded.SubdirectoryArrowRight,
-                                    contentDescription = "添加下级子任务",
+                                    contentDescription = stringResource(R.string.cd_add_nested_subtask),
                                     tint = colors.textMuted,
                                     modifier = Modifier.size(15.dp)
                                 )
@@ -861,12 +872,12 @@ fun TaskDetailPane(
                             ) {
                                 Icon(
                                     imageVector = Icons.Rounded.NorthWest,
-                                    contentDescription = "提升为主任务",
+                                    contentDescription = stringResource(R.string.cd_promote_subtask),
                                     tint = colors.accent,
                                     modifier = Modifier.size(11.dp)
                                 )
                                 Text(
-                                    text = "提升",
+                                    text = stringResource(R.string.detail_promote_subtask),
                                     style = MaterialTheme.typography.labelSmall,
                                     color = colors.textSecondary
                                 )
@@ -881,7 +892,7 @@ fun TaskDetailPane(
                             ) {
                                 Icon(
                                     imageVector = Icons.Rounded.Close,
-                                    contentDescription = "删除子任务",
+                                    contentDescription = stringResource(R.string.cd_delete_subtask),
                                     tint = colors.textMuted,
                                     modifier = Modifier.size(13.dp)
                                 )
@@ -903,7 +914,7 @@ fun TaskDetailPane(
                                 Box(modifier = Modifier.weight(1f)) {
                                     if (nestedSubtaskDraft.isEmpty()) {
                                         Text(
-                                            text = "在「${sub.title}」下新增子任务…",
+                                            text = stringResource(R.string.detail_add_child_subtask_placeholder, sub.title),
                                             style = MaterialTheme.typography.bodySmall,
                                             color = colors.textMuted,
                                             maxLines = 1,
@@ -956,7 +967,7 @@ fun TaskDetailPane(
                     Box(modifier = Modifier.weight(1f)) {
                         if (newSubtaskDraft.isEmpty()) {
                             Text(
-                                text = "添加子任务…",
+                                text = stringResource(R.string.detail_add_subtask_placeholder),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = colors.textMuted
                             )
@@ -998,7 +1009,7 @@ fun TaskDetailPane(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "MARKDOWN 笔记",
+                        text = stringResource(R.string.detail_markdown_notes),
                         style = tabular.dateCompact,
                         color = colors.textMuted
                     )
@@ -1011,12 +1022,12 @@ fun TaskDetailPane(
                         horizontalArrangement = Arrangement.spacedBy(2.dp)
                     ) {
                         ModeSegmentChip(
-                            label = "编辑",
+                            label = stringResource(R.string.detail_mode_edit),
                             selected = !markdownPreviewMode,
                             onClick = { markdownPreviewMode = false }
                         )
                         ModeSegmentChip(
-                            label = "预览",
+                            label = stringResource(R.string.detail_mode_preview),
                             selected = markdownPreviewMode,
                             onClick = { markdownPreviewMode = true }
                         )
@@ -1036,7 +1047,7 @@ fun TaskDetailPane(
                     } else {
                         if (descriptionDraft.isEmpty()) {
                             Text(
-                                text = "支持 Markdown (# 标题 / - [ ] 清单 / **加粗** / `代码` / > 引用)…",
+                                text = stringResource(R.string.detail_markdown_placeholder),
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = colors.textMuted
                             )

@@ -28,9 +28,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import com.zero.todo.R
 import com.zero.todo.core.designsystem.ZeroCardShape
 import com.zero.todo.core.designsystem.ZeroSmallShape
 import com.zero.todo.core.designsystem.ZeroTheme
@@ -68,7 +70,11 @@ fun CreateFolderDialog(
                 .padding(20.dp)
         ) {
             Text(
-                text = if (parentFolder == null) "新建文件夹" else "在「${parentFolder.name}」下新建子文件夹",
+                text = if (parentFolder == null) {
+                    stringResource(R.string.dialog_create_folder_title)
+                } else {
+                    stringResource(R.string.dialog_create_subfolder_title, parentFolder.name)
+                },
                 style = MaterialTheme.typography.titleMedium,
                 color = colors.textPrimary
             )
@@ -88,7 +94,7 @@ fun CreateFolderDialog(
             ) {
                 if (folderName.isEmpty()) {
                     Text(
-                        text = "输入文件夹名称...",
+                        text = stringResource(R.string.dialog_folder_name_placeholder),
                         style = MaterialTheme.typography.bodyMedium,
                         color = colors.textMuted
                     )
@@ -122,7 +128,7 @@ fun CreateFolderDialog(
                         .padding(horizontal = 14.dp, vertical = 8.dp)
                 ) {
                     Text(
-                        text = "取消",
+                        text = stringResource(R.string.action_cancel),
                         style = MaterialTheme.typography.labelLarge,
                         color = colors.textSecondary
                     )
@@ -141,7 +147,7 @@ fun CreateFolderDialog(
                         .padding(horizontal = 16.dp, vertical = 8.dp)
                 ) {
                     Text(
-                        text = "创建",
+                        text = stringResource(R.string.action_create),
                         style = MaterialTheme.typography.labelLarge,
                         color = if (canSubmit) colors.onAccent else colors.textMuted
                     )

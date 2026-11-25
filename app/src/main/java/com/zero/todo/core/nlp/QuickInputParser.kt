@@ -62,7 +62,7 @@ object QuickInputParser {
     private val ISO_DATE_REGEX = Regex("""(?<!\d)(\d{4})[-/](\d{1,2})[-/](\d{1,2})(?!\d)""")
     private val CN_MONTH_DAY_REGEX = Regex("""(?<!\d)(\d{1,2})月(\d{1,2})[日号]?""")
     private val COMBINED_PERIOD_DATE_REGEX = Regex("""(今晚|今早|明早|明晚|后天早|后天晚)""")
-    private val RELATIVE_DATE_REGEX = Regex("""(大后天|后天|明天|今天|(?i:tomorrow)|(?i:today))""")
+    private val RELATIVE_DATE_REGEX = Regex("""(大后天|后天|明天|今天|明後日|明日|今日|모레|내일|오늘|(?i:tomorrow)|(?i:today))""")
     private val WEEKDAY_REGEX = Regex("""(下周|下星期|本周|这周|这星期|周|星期)([一二三四五六日天])""")
 
     private val COLON_TIME_REGEX = Regex("""(?<!\d)(\d{1,2}):(\d{2})(?!\d)""")
@@ -204,9 +204,9 @@ object QuickInputParser {
                 val word = match.groupValues[1].lowercase()
                 val today = now.toLocalDate()
                 val date = when (word) {
-                    "今天", "today" -> today
-                    "明天", "tomorrow" -> today.plusDays(1)
-                    "后天" -> today.plusDays(2)
+                    "今天", "今日", "오늘", "today" -> today
+                    "明天", "明日", "내일", "tomorrow" -> today.plusDays(1)
+                    "后天", "明後日", "모레" -> today.plusDays(2)
                     "大后天" -> today.plusDays(3)
                     else -> continue
                 }

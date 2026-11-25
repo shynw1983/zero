@@ -27,8 +27,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.zero.todo.R
 import com.zero.todo.core.designsystem.ZeroCapsuleShape
 import com.zero.todo.core.designsystem.ZeroMotion
 import com.zero.todo.core.designsystem.ZeroSmallShape
@@ -40,7 +42,7 @@ import java.util.Locale
 data class UndoBannerState(
     val id: Long = System.currentTimeMillis(),
     val taskId: String,
-    val message: String,
+    val taskTitle: String,
     val undoType: UndoType,
     val durationMillis: Long = 3_000L
 )
@@ -86,6 +88,11 @@ fun UndoCapsule(
 
         val progress = (remainingMs.toFloat() / activeBanner.durationMillis.toFloat()).coerceIn(0f, 1f)
         val secondsText = String.format(Locale.US, "%.1fs", remainingMs / 1000f)
+        val messageText = when (activeBanner.undoType) {
+            UndoType.REVERT_COMPLETE -> stringResource(R.string.undo_completed, activeBanner.taskTitle)
+            UndoType.REVERT_UNCOMPLETE -> stringResource(R.string.undo_restored, activeBanner.taskTitle)
+            UndoType.RESTORE_DELETED_TASK -> stringResource(R.string.undo_deleted, activeBanner.taskTitle)
+        }
 
         Column(
             modifier = Modifier
@@ -112,7 +119,7 @@ fun UndoCapsule(
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = activeBanner.message,
+                        text = messageText,
                         style = MaterialTheme.typography.bodySmall,
                         color = colors.textPrimary,
                         maxLines = 1,
@@ -131,14 +138,13 @@ fun UndoCapsule(
                         .padding(horizontal = 10.dp, vertical = 4.dp)
                 ) {
                     Text(
-                        text = "撤销",
+                        text = stringResource(R.string.action_undo),
                         style = MaterialTheme.typography.labelMedium,
                         color = colors.accent
                     )
                 }
             }
 
-            // Minimalist 1.5.dp countdown progress rail
             Box(
                 modifier = Modifier
                     .fillMaxWidth()

@@ -1,0 +1,193 @@
+<resources>
+    <string name="app_name">ZERO</string>
+
+    <!-- Widgets -->
+    <string name="widget_today_label">ZERO · 오늘 할 일</string>
+    <string name="widget_today_description">미니멀 다크 오늘 할 일 목록과 빠른 완료</string>
+    <string name="widget_quick_capture_label">ZERO · 빠른 입력</string>
+    <string name="widget_quick_capture_description">1x1 캡슐로 받은함 빠른 입력을 즉시 열기</string>
+    <string name="widget_today_header">ZERO · 오늘</string>
+    <string name="widget_today_empty">오늘 일정 완료 · 탭하여 빠르게 기록</string>
+    <string name="widget_more_tasks">+%1$d개 더보기</string>
+
+    <!-- Languages -->
+    <string name="lang_system">시스템 설정</string>
+    <string name="lang_ja">日本語</string>
+    <string name="lang_zh">简体中文</string>
+    <string name="lang_ko">한국어</string>
+    <string name="lang_en">English</string>
+
+    <!-- Smart Views & Folder Tree -->
+    <string name="nav_inbox">받은함</string>
+    <string name="nav_today">오늘</string>
+    <string name="nav_tomorrow">내일</string>
+    <string name="nav_next_7_days">다음 7일</string>
+    <string name="nav_calendar">캘린더</string>
+    <string name="section_folders">폴더</string>
+    <string name="folders_empty_hint">폴더가 없습니다. 우측 상단 버튼으로 생성하세요</string>
+    <string name="filter_current_folder">현재만</string>
+    <string name="filter_include_subfolders">하위 포함</string>
+    <string name="cd_toggle_theme">테마 전환</string>
+    <string name="cd_open_settings">설정 열기</string>
+    <string name="cd_create_root_folder">루트 폴더 만들기</string>
+    <string name="cd_create_subfolder">하위 폴더 만들기</string>
+    <string name="cd_delete_folder">폴더 삭제</string>
+    <string name="cd_expand">펼치기</string>
+    <string name="cd_collapse">접기</string>
+    <string name="cd_open_drawer">폴더 트리 열기</string>
+    <string name="cd_toggle_tree_panel">폴더 패널 접기/펼치기</string>
+    <string name="cd_enter_focus">단일 작업 집중 모드</string>
+    <string name="dialog_create_folder_title">새 폴더</string>
+    <string name="dialog_create_subfolder_title">「%1$s」 아래에 하위 폴더 만들기</string>
+    <string name="dialog_folder_name_placeholder">폴더 이름 입력…</string>
+    <string name="action_cancel">취소</string>
+    <string name="action_create">만들기</string>
+    <string name="action_apply">적용</string>
+    <string name="action_undo">실행 취소</string>
+    <string name="action_done">완료</string>
+    <string name="action_completed">완료됨</string>
+    <string name="action_clear">지우기</string>
+
+    <!-- Task List, Anti-Misclick & Quick Input -->
+    <string name="empty_tasks_hint">머릿속을 비우고 아래 캡슐에 바로 기록하세요</string>
+    <string name="swipe_release_complete">놓아서 완료</string>
+    <string name="swipe_release_restore">놓아서 복원</string>
+    <string name="cd_drag_reorder">드래그하여 정렬</string>
+    <string name="undo_completed">「%1$s」 완료됨</string>
+    <string name="undo_restored">「%1$s」 복원됨</string>
+    <string name="undo_deleted">「%1$s」 삭제됨</string>
+    <string name="quick_input_placeholder">빠른 기록… 예: 내일 15:00 /업무 !1 #태그</string>
+    <string name="quick_input_route">경로</string>
+    <string name="quick_input_voice_prompt">할 일을 말하세요 (예: 내일 15:00 /업무 보고서 제출 !1 #긴급)</string>
+    <string name="quick_input_voice_unavailable">이 기기에서는 시스템 음성 인식을 사용할 수 없습니다</string>
+    <string name="cd_continuous_on">연속 입력 켜짐</string>
+    <string name="cd_continuous_off">연속 입력 꺼짐</string>
+    <string name="cd_voice_capture">길게 눌러 음성 입력</string>
+    <string name="cd_save_task">할 일 저장</string>
+
+    <!-- Task Detail -->
+    <string name="detail_no_selection_title">NO SELECTION</string>
+    <string name="detail_no_selection_hint">할 일을 선택해 하위 작업, 반복 규칙, Markdown 노트를 편집하세요</string>
+    <string name="detail_start_2min">2분 시작</string>
+    <string name="cd_back_to_list">목록으로</string>
+    <string name="cd_delete_task">할 일 삭제</string>
+    <string name="detail_priority">우선순위</string>
+    <string name="detail_no_due_date">마감일 없음</string>
+    <string name="detail_date_only">날짜만</string>
+    <string name="detail_specific_time">시간 지정</string>
+    <string name="quick_today">오늘</string>
+    <string name="quick_tomorrow">내일</string>
+    <string name="quick_day_after">모레</string>
+    <string name="quick_next_monday">다음 월요일</string>
+    <string name="quick_minus_day">-1일</string>
+    <string name="quick_plus_day">+1일</string>
+    <string name="detail_recurrence">반복 규칙</string>
+    <string name="recur_none">반복 안 함</string>
+    <string name="recur_daily">매일</string>
+    <string name="recur_weekdays">평일</string>
+    <string name="recur_weekly">매주</string>
+    <string name="recur_monthly">매월</string>
+    <string name="recur_custom">사용자 RRULE</string>
+    <string name="recur_parsed_preview">해석 결과: %1$s</string>
+    <string name="recur_rrule_hint">예: FREQ=DAILY;INTERVAL=2 또는 FREQ=WEEKLY;BYDAY=MO,WE,FR</string>
+    <string name="detail_tags">태그</string>
+    <string name="detail_add_tag_placeholder">+ 태그 추가</string>
+    <string name="cd_remove_tag">태그 제거</string>
+    <string name="detail_subtasks">무한 하위 작업</string>
+    <string name="detail_promote_subtask">승격</string>
+    <string name="cd_promote_subtask">상위 작업으로 승격</string>
+    <string name="cd_add_nested_subtask">하위 작업 추가</string>
+    <string name="cd_delete_subtask">하위 작업 삭제</string>
+    <string name="detail_add_child_subtask_placeholder">「%1$s」 아래에 하위 작업 추가…</string>
+    <string name="detail_add_subtask_placeholder">하위 작업 추가…</string>
+    <string name="detail_markdown_notes">MARKDOWN 노트</string>
+    <string name="detail_mode_edit">편집</string>
+    <string name="detail_mode_preview">미리보기</string>
+    <string name="detail_markdown_placeholder">Markdown 지원 (# 제목 / - [ ] 체크 / **굵게** / `코드` / > 인용)…</string>
+    <string name="detail_markdown_empty">Markdown 노트가 비어 있습니다</string>
+
+    <!-- Calendar -->
+    <string name="cal_mode_month">월</string>
+    <string name="cal_mode_week">주</string>
+    <string name="cal_mode_day">일</string>
+    <string name="cal_today_short">오늘</string>
+    <string name="cal_weekday_mon">월</string>
+    <string name="cal_weekday_tue">화</string>
+    <string name="cal_weekday_wed">수</string>
+    <string name="cal_weekday_thu">목</string>
+    <string name="cal_weekday_fri">금</string>
+    <string name="cal_weekday_sat">토</string>
+    <string name="cal_weekday_sun">일</string>
+    <string name="cd_prev_period">이전 기간</string>
+    <string name="cd_next_period">다음 기간</string>
+    <string name="cal_pending_count">%1$s개 남음</string>
+    <string name="cal_day_empty">이 날에 예정된 작업이 없습니다</string>
+    <string name="cal_all_day_header">종일 · 날짜만</string>
+    <string name="cal_all_day_empty">종일 작업 없음</string>
+
+    <!-- Focus Mode -->
+    <string name="focus_header_label">SINGLE FOCUS</string>
+    <string name="focus_today_minutes">오늘 %1$sm</string>
+    <string name="cd_exit_focus">집중 모드 종료</string>
+    <string name="focus_tab_two_min">딱 2분만</string>
+    <string name="focus_tab_pomodoro">25m 집중</string>
+    <string name="focus_tab_stopwatch">스톱워치</string>
+    <string name="focus_free_session">자유 집중 세션</string>
+    <string name="focus_hint_two_min">미루기 관성을 깨는 단 2분</string>
+    <string name="focus_hint_pomodoro">25분 딥 포커스</string>
+    <string name="focus_hint_stopwatch">부담 없는 카운트업</string>
+    <string name="focus_status_running">집중 진행 중</string>
+    <string name="focus_status_paused">일시 정지</string>
+    <string name="focus_status_two_min_done">2분 스타트 완료</string>
+    <string name="focus_status_pomodoro_done">뽀모도로 완료</string>
+    <string name="focus_prompt_continue_desc">몰입이 시작되었습니다. 25분 뽀모도로로 이어갈까요?</string>
+    <string name="focus_btn_continue_pomodoro">25분 뽀모도로로 바로 이어하기</string>
+    <string name="focus_btn_pause">일시 정지</string>
+    <string name="focus_btn_resume">계속 집중</string>
+    <string name="focus_btn_start_two_min">딱 2분만 시작</string>
+    <string name="focus_btn_start_pomodoro">뽀모도로 시작</string>
+    <string name="focus_btn_start_stopwatch">타이머 시작</string>
+    <string name="cd_reset_timer">타이머 초기화</string>
+    <string name="cd_complete_task">할 일 완료</string>
+
+    <!-- Anti-Misclick Modes -->
+    <string name="antimisclick_hold_title">0.3초 길게 눌러 확인</string>
+    <string name="antimisclick_hold_desc">왼쪽 체크박스를 0.3초 눌러 완료 (스와이프 비활성)</string>
+    <string name="antimisclick_swipe_title">저항 스와이프</string>
+    <string name="antimisclick_swipe_desc">좌우 30% 이상 밀어 완료 (체크박스 길게 누르기 비활성)</string>
+    <string name="antimisclick_both_title">듀얼 모드</string>
+    <string name="antimisclick_both_desc">0.3초 길게 누르기와 30% 저항 스와이프 모두 사용</string>
+
+    <!-- Settings -->
+    <string name="settings_title">설정 · ZERO</string>
+    <string name="cd_close_settings">설정 닫기</string>
+    <string name="settings_section_language">언어</string>
+    <string name="settings_section_theme">테마</string>
+    <string name="settings_theme_dark">다크 · 옵시디언</string>
+    <string name="settings_theme_light">라이트 · 쿨 페이퍼</string>
+    <string name="settings_section_accent">강조 색상</string>
+    <string name="settings_accent_orange">시그널 오렌지</string>
+    <string name="settings_accent_cyan">사이버 시안</string>
+    <string name="settings_section_antimisclick">오터치 방지 모드</string>
+    <string name="settings_section_haptics">촉각 피드백</string>
+    <string name="settings_haptics_title">리니어 모터 진동</string>
+    <string name="settings_haptics_desc">완료 클릭, 드래그 틱, 2분 완료 부드러운 알림</string>
+    <string name="settings_toggle_on">켜기</string>
+    <string name="settings_toggle_off">끄기</string>
+    <string name="settings_section_backup">로컬 데이터 백업 / 내보내기</string>
+    <string name="settings_export_json_title">전체 JSON 백업 내보내기</string>
+    <string name="settings_export_json_desc">폴더 트리, 할 일, 하위 작업, 태그, 집중 기록 전체 저장</string>
+    <string name="settings_import_json_title">JSON 백업에서 복원</string>
+    <string name="settings_import_json_desc">트랜잭션 일괄 복원 후 트리 및 위젯 즉시 새로고침</string>
+    <string name="settings_export_md_title">계층 Markdown (.md) 내보내기</string>
+    <string name="settings_export_md_desc">폴더 계층 구조에 맞춰 정리된 Markdown 문서로 내보내기</string>
+    <string name="settings_section_shortcuts">외부 키보드 단축키</string>
+    <string name="shortcut_quick_input">빠른 입력 캡슐 포커스</string>
+    <string name="shortcut_escape">창 닫기 / 집중 종료 / 선택 해제</string>
+    <string name="shortcut_settings">설정 열기</string>
+    <string name="shortcut_smart_views">받은함 / 오늘 / 내일 / 7일 / 캘린더 이동</string>
+    <string name="backup_export_json_ok">전체 JSON 백업을 내보냈습니다</string>
+    <string name="backup_export_md_ok">계층 Markdown 파일을 내보냈습니다</string>
+    <string name="backup_import_ok">복원 완료: 폴더 %1$d · 할 일 %2$d · 태그 %3$d</string>
+    <string name="backup_error">작업 실패: %1$s</string>
+</resources>

@@ -16,6 +16,7 @@ import com.zero.todo.data.repository.FolderRepository
 import com.zero.todo.data.repository.TagRepository
 import com.zero.todo.data.repository.TaskRepository
 import com.zero.todo.domain.model.AntiMisclickMode
+import com.zero.todo.domain.model.AppLanguage
 import com.zero.todo.domain.model.FocusMode
 import com.zero.todo.domain.model.Folder
 import com.zero.todo.domain.model.FolderNode
@@ -27,6 +28,7 @@ import com.zero.todo.feature.focus.FocusTimerController
 import com.zero.todo.feature.focus.FocusUiState
 import com.zero.todo.feature.folder.NavigationDestination
 import com.zero.todo.feature.folder.SmartViewCounts
+import com.zero.todo.feature.settings.BackupUiStatus
 import com.zero.todo.feature.tasklist.FolderPathSuggestion
 import com.zero.todo.feature.tasklist.UndoBannerState
 import com.zero.todo.feature.tasklist.UndoType
@@ -70,9 +72,10 @@ data class MainUiState(
     val activeAccent: ZeroAccent = ZeroAccent.SignalOrange,
     val antiMisclickMode: AntiMisclickMode = AntiMisclickMode.BOTH,
     val hapticsEnabled: Boolean = true,
+    val appLanguage: AppLanguage = AppLanguage.SYSTEM,
     val isMediumTreeExpanded: Boolean = true,
     val isSettingsOpen: Boolean = false,
-    val backupStatusMessage: String? = null,
+    val backupStatus: BackupUiStatus? = null,
     val focusState: FocusUiState = FocusUiState(),
     val quickInputFocusRequestTick: Long = 0L
 )
@@ -127,7 +130,7 @@ class MainViewModel @Inject constructor(
         savedStateHandle.getStateFlow(KEY_SETTINGS_OPEN, false)
 
     private val undoBannerFlow = MutableStateFlow<UndoBannerState?>(null)
-    private val backupStatusFlow = MutableStateFlow<String?>(null)
+    private val backupStatusFlow = MutableStateFlow<BackupUiStatus?>(null)
     private val quickInputFocusRequestTickFlow = MutableStateFlow(0L)
 
     private val folderTreeFlow = getFolderTreeUseCase()
@@ -221,7 +224,7 @@ class MainViewModel @Inject constructor(
         val preferences: UserPreferences,
         val isMediumTreeExpanded: Boolean,
         val isSettingsOpen: Boolean,
-        val backupStatusMessage: String?,
+        val backupStatus: BackupUiStatus?,
         val focusState: FocusUiState,
         val quickInputFocusRequestTick: Long
     )
@@ -267,7 +270,7 @@ class MainViewModel @Inject constructor(
         val prefs = values[3] as UserPreferences
         val mediumExpanded = values[4] as Boolean
         val settingsOpen = values[5] as Boolean
-        val backupMsg = values[6] as String?
+        val backupStatus = values[6] as BackupUiStatus?
         val focusState = values[7] as FocusUiState
         val focusTick = values[8] as Long
         InputAndUiBundle(
@@ -277,7 +280,7 @@ class MainViewModel @Inject constructor(
             preferences = prefs,
             isMediumTreeExpanded = mediumExpanded,
             isSettingsOpen = settingsOpen,
-            backupStatusMessage = backupMsg,
+            backupStatus = backupStatus,
             focusState = focusState,
             quickInputFocusRequestTick = focusTick
         )
@@ -347,9 +350,10 @@ class MainViewModel @Inject constructor(
             activeAccent = ui.preferences.accent,
             antiMisclickMode = ui.preferences.antiMisclickMode,
             hapticsEnabled = ui.preferences.hapticsEnabled,
+            appLanguage = ui.preferences.appLanguage,
             isMediumTreeExpanded = ui.isMediumTreeExpanded,
             isSettingsOpen = ui.isSettingsOpen,
-            backupStatusMessage = ui.backupStatusMessage,
+            backupStatus = ui.backupStatus,
             focusState = ui.focusState,
             quickInputFocusRequestTick = ui.quickInputFocusRequestTick
         )
@@ -430,12 +434,19 @@ class MainViewModel @Inject constructor(
         userPreferencesRepository.setHapticsEnabled(enabled)
     }
 
+    fun setAppLanguage(language: AppLanguage) {
+        userPreferencesRepository.setAppLanguage(language)
+        viewModelScope.launch {
+            widgetRefresher.refreshAll()
+        }
+    }
+
     suspend fun generateJsonBackup(): String = backupManager.exportJson()
 
     suspend fun generateMarkdownExport(): String = backupManager.exportMarkdown()
 
-    fun reportBackupStatus(message: String) {
-        backupStatusFlow.value = message
+    fun reportBackupStatus(status: BackupUiStatus) {
+        backupStatusFlow.value = status
     }
 
     fun importJsonBackup(jsonPayload: String) {
@@ -445,11 +456,10 @@ class MainViewModel @Inject constructor(
             }.onSuccess { summary ->
                 selectTask(null)
                 selectDestination(NavigationDestination.Inbox)
-                backupStatusFlow.value =
-                    "恢复成功：${summary.foldersCount} 目录 · ${summary.tasksCount} 任务 · ${summary.tagsCount} 标签"
+                backupStatusFlow.value = BackupUiStatus.ImportSuccess(summary)
                 widgetRefresher.refreshAll()
             }.onFailure { err ->
-                backupStatusFlow.value = "恢复失败：${err.message ?: "JSON 格式无效"}"
+                backupStatusFlow.value = BackupUiStatus.Error(err.message ?: "Invalid JSON")
             }
         }
     }
@@ -544,7 +554,7 @@ class MainViewModel @Inject constructor(
             focusController.syncFocusedTask(task.copy(isCompleted = newCompleted))
             undoBannerFlow.value = UndoBannerState(
                 taskId = task.id,
-                message = if (newCompleted) "已完成「${task.title}」" else "已恢复「${task.title}」",
+                taskTitle = task.title,
                 undoType = if (newCompleted) UndoType.REVERT_COMPLETE else UndoType.REVERT_UNCOMPLETE
             )
             widgetRefresher.refreshAll()
@@ -652,7 +662,7 @@ class MainViewModel @Inject constructor(
             }
             undoBannerFlow.value = UndoBannerState(
                 taskId = task.id,
-                message = "已删除「${task.title}」",
+                taskTitle = task.title,
                 undoType = UndoType.RESTORE_DELETED_TASK
             )
             widgetRefresher.refreshAll()

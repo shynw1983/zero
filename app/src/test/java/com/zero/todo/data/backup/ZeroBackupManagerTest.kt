@@ -144,7 +144,10 @@ class ZeroBackupManagerTest {
         val tag = tagRepository.getOrCreateTag("重点")
         tagRepository.attachTagToTask(report.id, tag.id)
 
-        val markdown = backupManager.exportMarkdown(zoneId = ZoneId.of("UTC"))
+        val markdown = backupManager.exportMarkdown(
+            zoneId = ZoneId.of("UTC"),
+            locale = java.util.Locale.SIMPLIFIED_CHINESE
+        )
 
         assertTrue(markdown.contains("# ZERO Export"))
         assertTrue(markdown.contains("## 收集箱 (Inbox)"))

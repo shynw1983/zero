@@ -20,12 +20,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
+import com.zero.todo.R
 import com.zero.todo.core.designsystem.ZeroMonoFontFamily
 import com.zero.todo.core.designsystem.ZeroSmallShape
 import com.zero.todo.core.designsystem.ZeroTheme
@@ -47,7 +49,7 @@ fun ZeroMarkdownPreview(
 
     if (markdown.isBlank()) {
         Text(
-            text = "暂无 Markdown 笔记内容",
+            text = stringResource(R.string.detail_markdown_empty),
             style = MaterialTheme.typography.bodySmall,
             color = colors.textMuted,
             modifier = modifier

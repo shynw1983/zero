@@ -94,6 +94,26 @@ class QuickInputParserTest {
     }
 
     @Test
+    fun `parses Japanese and Korean relative dates cleanly`() {
+        val jp = QuickInputParser.parse("明日 15:00 デザイン確認 !2 #UI", now = now, zoneId = zone)
+        assertEquals("デザイン確認", jp.title)
+        assertEquals(TaskPriority.HIGH, jp.priority)
+        assertEquals(listOf("UI"), jp.tags)
+        assertEquals(
+            LocalDateTime.of(2026, 11, 26, 15, 0),
+            Instant.ofEpochMilli(jp.dueDateMillis!!).atZone(zone).toLocalDateTime()
+        )
+
+        val ko = QuickInputParser.parse("내일 09:30 스탠드업 미팅 !1", now = now, zoneId = zone)
+        assertEquals("스탠드업 미팅", ko.title)
+        assertEquals(TaskPriority.URGENT, ko.priority)
+        assertEquals(
+            LocalDateTime.of(2026, 11, 26, 9, 30),
+            Instant.ofEpochMilli(ko.dueDateMillis!!).atZone(zone).toLocalDateTime()
+        )
+    }
+
+    @Test
     fun `plain capture without tokens preserves full text with zero mandatory fields`() {
         val plain = QuickInputParser.parse("买一箱苏打水", now = now, zoneId = zone)
         assertEquals("买一箱苏打水", plain.title)

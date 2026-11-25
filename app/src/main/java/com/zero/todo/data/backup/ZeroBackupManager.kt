@@ -178,7 +178,10 @@ class ZeroBackupManager @Inject constructor(
      * Exports all active folders, tasks, nested subtasks, tags, and notes as clean
      * hierarchical Markdown organized by the infinite folder tree.
      */
-    suspend fun exportMarkdown(zoneId: ZoneId = ZoneId.systemDefault()): String {
+    suspend fun exportMarkdown(
+        zoneId: ZoneId = ZoneId.systemDefault(),
+        locale: java.util.Locale = java.util.Locale.getDefault()
+    ): String {
         val activeFolders = folderDao.getActiveFolders()
         val allActiveTasks = taskDao.getAllTasksSnapshot().filterNot { it.isDeleted }
         val activeTagsById = tagDao.getAllTagsSnapshot()
@@ -218,10 +221,12 @@ class ZeroBackupManager @Inject constructor(
                 metaParts.add("[P${task.priority}]")
             }
             if (task.dueDate != null) {
-                metaParts.add("📅 ${ZeroDateFormatter.formatDueDate(task.dueDate, task.isAllDay, zoneId = zoneId)}")
+                metaParts.add(
+                    "📅 ${ZeroDateFormatter.formatDueDate(task.dueDate, task.isAllDay, zoneId = zoneId, locale = locale)}"
+                )
             }
             if (!task.recurrenceRule.isNullOrBlank()) {
-                metaParts.add("↻ ${RecurrenceRule.formatLabel(task.recurrenceRule)}")
+                metaParts.add("↻ ${RecurrenceRule.formatLabel(task.recurrenceRule, locale)}")
             }
             tagsByTaskId[task.id]?.sorted()?.forEach { tagName ->
                 metaParts.add("#$tagName")

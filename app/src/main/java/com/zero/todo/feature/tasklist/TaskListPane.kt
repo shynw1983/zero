@@ -37,9 +37,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
+import com.zero.todo.R
 import com.zero.todo.core.designsystem.ZeroMotion
 import com.zero.todo.core.designsystem.ZeroTheme
 import com.zero.todo.core.designsystem.hairlineDividerBottom
@@ -121,7 +123,7 @@ fun TaskListPane(
                         ) {
                             Icon(
                                 imageVector = Icons.Rounded.Menu,
-                                contentDescription = "打开目录树",
+                                contentDescription = stringResource(R.string.cd_open_drawer),
                                 tint = colors.textPrimary,
                                 modifier = Modifier.size(20.dp)
                             )
@@ -134,7 +136,7 @@ fun TaskListPane(
                         ) {
                             Icon(
                                 imageVector = Icons.AutoMirrored.Rounded.ViewSidebar,
-                                contentDescription = "展开或折叠目录树",
+                                contentDescription = stringResource(R.string.cd_toggle_tree_panel),
                                 tint = colors.textSecondary,
                                 modifier = Modifier.size(19.dp)
                             )
@@ -163,7 +165,7 @@ fun TaskListPane(
                         ) {
                             Icon(
                                 imageVector = Icons.Rounded.CreateNewFolder,
-                                contentDescription = "新建子文件夹",
+                                contentDescription = stringResource(R.string.cd_create_subfolder),
                                 tint = colors.textSecondary,
                                 modifier = Modifier.size(17.dp)
                             )
@@ -177,7 +179,7 @@ fun TaskListPane(
                     ) {
                         Icon(
                             imageVector = Icons.Rounded.Timer,
-                            contentDescription = "进入单任务专注模式",
+                            contentDescription = stringResource(R.string.cd_enter_focus),
                             tint = colors.accent,
                             modifier = Modifier.size(18.dp)
                         )
@@ -237,7 +239,7 @@ fun TaskListPane(
                             color = colors.textMuted
                         )
                         Text(
-                            text = "清空思绪，在下方胶囊随时捕捉",
+                            text = stringResource(R.string.empty_tasks_hint),
                             style = MaterialTheme.typography.bodySmall,
                             color = colors.textMuted
                         )

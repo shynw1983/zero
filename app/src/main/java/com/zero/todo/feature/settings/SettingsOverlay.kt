@@ -6,6 +6,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -37,8 +38,11 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.zero.todo.R
 import com.zero.todo.core.designsystem.ZeroAccent
 import com.zero.todo.core.designsystem.ZeroCardShape
 import com.zero.todo.core.designsystem.ZeroSmallShape
@@ -46,12 +50,21 @@ import com.zero.todo.core.designsystem.ZeroTheme
 import com.zero.todo.core.designsystem.hairlineBorder
 import com.zero.todo.core.designsystem.hairlineDividerBottom
 import com.zero.todo.core.designsystem.rememberZeroHaptics
+import com.zero.todo.data.backup.BackupSummary
 import com.zero.todo.domain.model.AntiMisclickMode
+import com.zero.todo.domain.model.AppLanguage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
+
+sealed interface BackupUiStatus {
+    data object ExportJsonSuccess : BackupUiStatus
+    data object ExportMarkdownSuccess : BackupUiStatus
+    data class ImportSuccess(val summary: BackupSummary) : BackupUiStatus
+    data class Error(val detail: String) : BackupUiStatus
+}
 
 @Composable
 fun SettingsOverlay(
@@ -59,15 +72,17 @@ fun SettingsOverlay(
     activeAccent: ZeroAccent,
     antiMisclickMode: AntiMisclickMode,
     hapticsEnabled: Boolean,
-    backupStatusMessage: String?,
+    appLanguage: AppLanguage,
+    backupStatus: BackupUiStatus?,
     onSetDarkTheme: (Boolean) -> Unit,
     onSetAccent: (ZeroAccent) -> Unit,
     onSetAntiMisclickMode: (AntiMisclickMode) -> Unit,
     onSetHapticsEnabled: (Boolean) -> Unit,
+    onSetAppLanguage: (AppLanguage) -> Unit,
     onGenerateJsonBackup: suspend () -> String,
     onGenerateMarkdownExport: suspend () -> String,
     onImportJsonBackup: (String) -> Unit,
-    onReportBackupStatus: (String) -> Unit,
+    onReportBackupStatus: (BackupUiStatus) -> Unit,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -91,14 +106,14 @@ fun SettingsOverlay(
                 withContext(Dispatchers.IO) {
                     context.contentResolver.openOutputStream(uri)?.use { stream ->
                         stream.write(payload.toByteArray(Charsets.UTF_8))
-                    } ?: error("无法打开目标写入流")
+                    } ?: error("OutputStream unavailable")
                 }
             }.onSuccess {
                 haptics.confirm()
-                onReportBackupStatus("JSON 完整备份已导出")
+                onReportBackupStatus(BackupUiStatus.ExportJsonSuccess)
             }.onFailure { err ->
                 haptics.reject()
-                onReportBackupStatus("导出失败：${err.message ?: "未知错误"}")
+                onReportBackupStatus(BackupUiStatus.Error(err.message ?: "IO error"))
             }
         }
     }
@@ -113,14 +128,14 @@ fun SettingsOverlay(
                 withContext(Dispatchers.IO) {
                     context.contentResolver.openOutputStream(uri)?.use { stream ->
                         stream.write(payload.toByteArray(Charsets.UTF_8))
-                    } ?: error("无法打开目标写入流")
+                    } ?: error("OutputStream unavailable")
                 }
             }.onSuccess {
                 haptics.confirm()
-                onReportBackupStatus("层级 Markdown 文件已导出")
+                onReportBackupStatus(BackupUiStatus.ExportMarkdownSuccess)
             }.onFailure { err ->
                 haptics.reject()
-                onReportBackupStatus("Markdown 导出失败：${err.message ?: "未知错误"}")
+                onReportBackupStatus(BackupUiStatus.Error(err.message ?: "IO error"))
             }
         }
     }
@@ -134,13 +149,13 @@ fun SettingsOverlay(
                 withContext(Dispatchers.IO) {
                     context.contentResolver.openInputStream(uri)?.use { stream ->
                         stream.bufferedReader(Charsets.UTF_8).readText()
-                    } ?: error("无法读取备份文件")
+                    } ?: error("InputStream unavailable")
                 }
             }.onSuccess { content ->
                 onImportJsonBackup(content)
             }.onFailure { err ->
                 haptics.reject()
-                onReportBackupStatus("读取失败：${err.message ?: "未知错误"}")
+                onReportBackupStatus(BackupUiStatus.Error(err.message ?: "IO error"))
             }
         }
     }
@@ -175,7 +190,7 @@ fun SettingsOverlay(
                             .background(colors.accent)
                     )
                     Text(
-                        text = "设置 · ZERO",
+                        text = stringResource(R.string.settings_title),
                         style = MaterialTheme.typography.titleMedium,
                         color = colors.textPrimary
                     )
@@ -183,7 +198,7 @@ fun SettingsOverlay(
                 IconButton(onClick = onDismiss, modifier = Modifier.size(34.dp)) {
                     Icon(
                         imageVector = Icons.Rounded.Close,
-                        contentDescription = "关闭设置",
+                        contentDescription = stringResource(R.string.cd_close_settings),
                         tint = colors.textSecondary,
                         modifier = Modifier.size(20.dp)
                     )
@@ -199,14 +214,48 @@ fun SettingsOverlay(
                     .padding(horizontal = 18.dp, vertical = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
+                // 0. Language Selector (JA / ZH / KO / EN / System)
+                SettingsSectionCard(title = stringResource(R.string.settings_section_language)) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        AppLanguage.entries.forEach { lang ->
+                            val selected = appLanguage == lang
+                            Box(
+                                modifier = Modifier
+                                    .clip(ZeroSmallShape)
+                                    .background(if (selected) colors.accentSubtle else colors.background)
+                                    .hairlineBorder(
+                                        shape = ZeroSmallShape,
+                                        color = if (selected) colors.accent else colors.hairlineBorder
+                                    )
+                                    .clickable {
+                                        haptics.reorderTick()
+                                        onSetAppLanguage(lang)
+                                    }
+                                    .padding(horizontal = 12.dp, vertical = 8.dp)
+                            ) {
+                                Text(
+                                    text = stringResource(lang.labelRes),
+                                    style = MaterialTheme.typography.labelLarge,
+                                    color = if (selected) colors.accent else colors.textPrimary
+                                )
+                            }
+                        }
+                    }
+                }
+
                 // 1. Theme Appearance
-                SettingsSectionCard(title = "外观主题") {
+                SettingsSectionCard(title = stringResource(R.string.settings_section_theme)) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         SettingsChoiceTile(
-                            title = "深色 · 黑曜石",
+                            title = stringResource(R.string.settings_theme_dark),
                             subtitle = "#09090B",
                             selected = isDarkTheme,
                             onClick = {
@@ -216,7 +265,7 @@ fun SettingsOverlay(
                             modifier = Modifier.weight(1f)
                         )
                         SettingsChoiceTile(
-                            title = "浅色 · 冷纸白",
+                            title = stringResource(R.string.settings_theme_light),
                             subtitle = "#F7F7F9",
                             selected = !isDarkTheme,
                             onClick = {
@@ -229,13 +278,13 @@ fun SettingsOverlay(
                 }
 
                 // 2. Functional Accent Color
-                SettingsSectionCard(title = "功能强调色") {
+                SettingsSectionCard(title = stringResource(R.string.settings_section_accent)) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         AccentChoiceTile(
-                            label = "信号橙",
+                            label = stringResource(R.string.settings_accent_orange),
                             hex = "#FF4D00",
                             accent = ZeroAccent.SignalOrange,
                             selected = activeAccent == ZeroAccent.SignalOrange,
@@ -246,7 +295,7 @@ fun SettingsOverlay(
                             modifier = Modifier.weight(1f)
                         )
                         AccentChoiceTile(
-                            label = "电子青",
+                            label = stringResource(R.string.settings_accent_cyan),
                             hex = "#00E5FF",
                             accent = ZeroAccent.CyberCyan,
                             selected = activeAccent == ZeroAccent.CyberCyan,
@@ -260,7 +309,7 @@ fun SettingsOverlay(
                 }
 
                 // 3. Anti-Misclick Mode Switcher
-                SettingsSectionCard(title = "防误触完成模式") {
+                SettingsSectionCard(title = stringResource(R.string.settings_section_antimisclick)) {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         AntiMisclickMode.entries.forEach { mode ->
                             val selected = antiMisclickMode == mode
@@ -286,12 +335,12 @@ fun SettingsOverlay(
                                     verticalArrangement = Arrangement.spacedBy(2.dp)
                                 ) {
                                     Text(
-                                        text = mode.titleZh,
+                                        text = stringResource(mode.titleRes),
                                         style = MaterialTheme.typography.titleSmall,
                                         color = if (selected) colors.accent else colors.textPrimary
                                     )
                                     Text(
-                                        text = mode.descriptionZh,
+                                        text = stringResource(mode.descriptionRes),
                                         style = MaterialTheme.typography.bodySmall,
                                         color = colors.textSecondary
                                     )
@@ -308,7 +357,7 @@ fun SettingsOverlay(
                 }
 
                 // 4. Tactile Haptics Toggle
-                SettingsSectionCard(title = "触觉与物理反馈") {
+                SettingsSectionCard(title = stringResource(R.string.settings_section_haptics)) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -319,12 +368,12 @@ fun SettingsOverlay(
                             verticalArrangement = Arrangement.spacedBy(2.dp)
                         ) {
                             Text(
-                                text = "线性马达震动反馈",
+                                text = stringResource(R.string.settings_haptics_title),
                                 style = MaterialTheme.typography.titleSmall,
                                 color = colors.textPrimary
                             )
                             Text(
-                                text = "任务完成、拖拽刻度、2 分钟起步柔和提示",
+                                text = stringResource(R.string.settings_haptics_desc),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = colors.textSecondary
                             )
@@ -337,11 +386,17 @@ fun SettingsOverlay(
                                 .padding(2.dp),
                             horizontalArrangement = Arrangement.spacedBy(2.dp)
                         ) {
-                            ToggleChip(label = "开启", selected = hapticsEnabled) {
+                            ToggleChip(
+                                label = stringResource(R.string.settings_toggle_on),
+                                selected = hapticsEnabled
+                            ) {
                                 onSetHapticsEnabled(true)
                                 haptics.confirm()
                             }
-                            ToggleChip(label = "静音", selected = !hapticsEnabled) {
+                            ToggleChip(
+                                label = stringResource(R.string.settings_toggle_off),
+                                selected = !hapticsEnabled
+                            ) {
                                 onSetHapticsEnabled(false)
                             }
                         }
@@ -349,30 +404,41 @@ fun SettingsOverlay(
                 }
 
                 // 5. Local Data Backup & Export (JSON + Hierarchical Markdown)
-                SettingsSectionCard(title = "本地数据导入 / 导出") {
+                SettingsSectionCard(title = stringResource(R.string.settings_section_backup)) {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         BackupActionButton(
                             icon = Icons.Rounded.Download,
-                            title = "导出完整 JSON 备份",
-                            subtitle = "完整保存多级目录、任务、子任务、标签与专注记录",
+                            title = stringResource(R.string.settings_export_json_title),
+                            subtitle = stringResource(R.string.settings_export_json_desc),
                             onClick = { exportJsonLauncher.launch("zero_backup_$dateStamp.json") }
                         )
                         BackupActionButton(
                             icon = Icons.Rounded.Upload,
-                            title = "从 JSON 备份恢复",
-                            subtitle = "原子事务全量恢复并即时刷新目录树与桌面小组件",
+                            title = stringResource(R.string.settings_import_json_title),
+                            subtitle = stringResource(R.string.settings_import_json_desc),
                             onClick = { importJsonLauncher.launch(arrayOf("application/json", "text/plain")) }
                         )
                         BackupActionButton(
                             icon = Icons.Rounded.Description,
-                            title = "导出层级 Markdown (.md)",
-                            subtitle = "按无限嵌套文件夹结构整理为可读 Markdown 文档",
+                            title = stringResource(R.string.settings_export_md_title),
+                            subtitle = stringResource(R.string.settings_export_md_desc),
                             onClick = { exportMarkdownLauncher.launch("zero_tasks_$dateStamp.md") }
                         )
 
-                        if (!backupStatusMessage.isNullOrBlank()) {
+                        if (backupStatus != null) {
+                            val statusText = when (backupStatus) {
+                                BackupUiStatus.ExportJsonSuccess -> stringResource(R.string.backup_export_json_ok)
+                                BackupUiStatus.ExportMarkdownSuccess -> stringResource(R.string.backup_export_md_ok)
+                                is BackupUiStatus.ImportSuccess -> stringResource(
+                                    R.string.backup_import_ok,
+                                    backupStatus.summary.foldersCount,
+                                    backupStatus.summary.tasksCount,
+                                    backupStatus.summary.tagsCount
+                                )
+                                is BackupUiStatus.Error -> stringResource(R.string.backup_error, backupStatus.detail)
+                            }
                             Text(
-                                text = backupStatusMessage,
+                                text = statusText,
                                 style = tabular.dateCompact,
                                 color = colors.accent,
                                 modifier = Modifier.padding(top = 4.dp)
@@ -381,13 +447,13 @@ fun SettingsOverlay(
                     }
                 }
 
-                // 6. Hardware Keyboard Shortcuts (Tablets)
-                SettingsSectionCard(title = "外接键盘快捷键（平板 / 桌面模式）") {
+                // 6. Hardware Keyboard Shortcuts
+                SettingsSectionCard(title = stringResource(R.string.settings_section_shortcuts)) {
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        ShortcutRow("Ctrl / Cmd + N", "聚焦底部极速输入胶囊")
-                        ShortcutRow("Esc", "关闭弹窗 / 退出专注 / 取消选中")
-                        ShortcutRow("Ctrl / Cmd + ,", "打开设置面板")
-                        ShortcutRow("Ctrl / Cmd + 1..5", "快速切换收集箱 / 今天 / 明天 / 7天 / 日历")
+                        ShortcutRow("Ctrl / Cmd + N", stringResource(R.string.shortcut_quick_input))
+                        ShortcutRow("Esc", stringResource(R.string.shortcut_escape))
+                        ShortcutRow("Ctrl / Cmd + ,", stringResource(R.string.shortcut_settings))
+                        ShortcutRow("Ctrl / Cmd + 1..5", stringResource(R.string.shortcut_smart_views))
                     }
                 }
 
@@ -525,7 +591,7 @@ private fun ToggleChip(
 
 @Composable
 private fun BackupActionButton(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    icon: ImageVector,
     title: String,
     subtitle: String,
     onClick: () -> Unit

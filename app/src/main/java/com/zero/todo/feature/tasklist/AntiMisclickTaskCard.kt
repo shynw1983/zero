@@ -49,10 +49,13 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import com.zero.todo.R
 import com.zero.todo.core.common.ZeroDateFormatter
 import com.zero.todo.core.designsystem.ZeroCardShape
 import com.zero.todo.core.designsystem.ZeroDimens
@@ -162,8 +165,8 @@ fun AntiMisclickTaskCard(
                     )
                     Text(
                         text = when {
-                            swipeArmedVisual && task.isCompleted -> "松开恢复"
-                            swipeArmedVisual -> "松开完成"
+                            swipeArmedVisual && task.isCompleted -> stringResource(R.string.swipe_release_restore)
+                            swipeArmedVisual -> stringResource(R.string.swipe_release_complete)
                             else -> "${(swipeRatio.coerceAtMost(1f) * 100).roundToInt()}%"
                         },
                         style = tabular.dateCompact,
@@ -349,10 +352,15 @@ fun AntiMisclickTaskCard(
                         }
 
                         if (task.dueDate != null) {
+                            val activeLocale = LocalConfiguration.current.locales[0]
                             val overdue = !task.isCompleted &&
                                 ZeroDateFormatter.isOverdue(task.dueDate, task.isAllDay)
                             Text(
-                                text = ZeroDateFormatter.formatDueDate(task.dueDate, task.isAllDay),
+                                text = ZeroDateFormatter.formatDueDate(
+                                    dueDateMillis = task.dueDate,
+                                    isAllDay = task.isAllDay,
+                                    locale = activeLocale
+                                ),
                                 style = tabular.dateCompact,
                                 color = if (overdue) colors.accent else colors.textSecondary
                             )
@@ -406,7 +414,7 @@ fun AntiMisclickTaskCard(
             ) {
                 Icon(
                     imageVector = Icons.Rounded.DragHandle,
-                    contentDescription = "拖拽排序",
+                    contentDescription = stringResource(R.string.cd_drag_reorder),
                     tint = if (isDragging) colors.accent else colors.textMuted,
                     modifier = Modifier.size(18.dp)
                 )
@@ -469,7 +477,7 @@ private fun RadialHoldCheckbox(
         if (isCompleted) {
             Icon(
                 imageVector = Icons.Rounded.Check,
-                contentDescription = "已完成",
+                contentDescription = stringResource(R.string.action_completed),
                 tint = checkIconColor,
                 modifier = Modifier.size(13.dp)
             )

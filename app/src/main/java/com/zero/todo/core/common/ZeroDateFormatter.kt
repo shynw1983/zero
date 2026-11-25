@@ -9,9 +9,9 @@ import java.util.Locale
 
 object ZeroDateFormatter {
 
-    private val timeFormatter = DateTimeFormatter.ofPattern("HH:mm", Locale.getDefault())
-    private val monthDayFormatter = DateTimeFormatter.ofPattern("MM/dd", Locale.getDefault())
-    private val fullDateFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd", Locale.getDefault())
+    private val timeFormatter = DateTimeFormatter.ofPattern("HH:mm", Locale.US)
+    private val monthDayFormatter = DateTimeFormatter.ofPattern("MM/dd", Locale.US)
+    private val fullDateFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd", Locale.US)
 
     fun startOfDayMillis(date: LocalDate, zoneId: ZoneId = ZoneId.systemDefault()): Long =
         date.atStartOfDay(zoneId).toInstant().toEpochMilli()
@@ -23,17 +23,39 @@ object ZeroDateFormatter {
         dueDateMillis: Long,
         isAllDay: Boolean,
         now: LocalDateTime = LocalDateTime.now(),
-        zoneId: ZoneId = ZoneId.systemDefault()
+        zoneId: ZoneId = ZoneId.systemDefault(),
+        locale: Locale = Locale.getDefault()
     ): String {
         val target = Instant.ofEpochMilli(dueDateMillis).atZone(zoneId).toLocalDateTime()
         val today = now.toLocalDate()
         val targetDate = target.toLocalDate()
+        val lang = locale.language.lowercase(Locale.US)
 
         val datePart = when (targetDate) {
-            today -> "今天"
-            today.plusDays(1) -> "明天"
-            today.plusDays(2) -> "后天"
-            today.minusDays(1) -> "昨天"
+            today -> when (lang) {
+                "zh" -> "今天"
+                "ja" -> "今日"
+                "ko" -> "오늘"
+                else -> "Today"
+            }
+            today.plusDays(1) -> when (lang) {
+                "zh" -> "明天"
+                "ja" -> "明日"
+                "ko" -> "내일"
+                else -> "Tomorrow"
+            }
+            today.plusDays(2) -> when (lang) {
+                "zh" -> "后天"
+                "ja" -> "明後日"
+                "ko" -> "모레"
+                else -> "In 2d"
+            }
+            today.minusDays(1) -> when (lang) {
+                "zh" -> "昨天"
+                "ja" -> "昨日"
+                "ko" -> "어제"
+                else -> "Yesterday"
+            }
             else -> if (targetDate.year == today.year) {
                 targetDate.format(monthDayFormatter)
             } else {

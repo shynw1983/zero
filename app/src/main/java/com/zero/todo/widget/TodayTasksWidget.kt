@@ -35,6 +35,7 @@ import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
 import androidx.glance.unit.ColorProvider
 import com.zero.todo.MainActivity
+import com.zero.todo.R
 import com.zero.todo.core.common.ZeroDateFormatter
 import com.zero.todo.data.local.entity.TaskEntity
 import com.zero.todo.feature.folder.NavigationDestination
@@ -113,7 +114,7 @@ private fun TodayTasksWidgetContent(
             ) {}
             Spacer(modifier = GlanceModifier.width(8.dp))
             Text(
-                text = "ZERO · 今天",
+                text = context.getString(R.string.widget_today_header),
                 style = TextStyle(
                     color = ColorProvider(WidgetTextPrimary),
                     fontSize = 13.sp,
@@ -176,7 +177,7 @@ private fun TodayTasksWidgetContent(
                     )
                     Spacer(modifier = GlanceModifier.height(4.dp))
                     Text(
-                        text = "今日已清空 · 点击快速捕捉",
+                        text = context.getString(R.string.widget_today_empty),
                         style = TextStyle(
                             color = ColorProvider(WidgetTextSecondary),
                             fontSize = 11.sp
@@ -192,7 +193,7 @@ private fun TodayTasksWidgetContent(
                 }
                 if (tasks.size > 6) {
                     Text(
-                        text = "+${tasks.size - 6} 更多任务",
+                        text = context.getString(R.string.widget_more_tasks, tasks.size - 6),
                         style = TextStyle(
                             color = ColorProvider(WidgetTextMuted),
                             fontSize = 11.sp

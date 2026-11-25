@@ -3,6 +3,7 @@ package com.zero.todo.data.preferences
 import android.content.Context
 import com.zero.todo.core.designsystem.ZeroAccent
 import com.zero.todo.domain.model.AntiMisclickMode
+import com.zero.todo.domain.model.AppLanguage
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -15,7 +16,8 @@ data class UserPreferences(
     val isDarkTheme: Boolean = true,
     val accent: ZeroAccent = ZeroAccent.SignalOrange,
     val antiMisclickMode: AntiMisclickMode = AntiMisclickMode.BOTH,
-    val hapticsEnabled: Boolean = true
+    val hapticsEnabled: Boolean = true,
+    val appLanguage: AppLanguage = AppLanguage.SYSTEM
 )
 
 interface UserPreferencesRepository {
@@ -25,6 +27,7 @@ interface UserPreferencesRepository {
     fun setAccent(accent: ZeroAccent)
     fun setAntiMisclickMode(mode: AntiMisclickMode)
     fun setHapticsEnabled(enabled: Boolean)
+    fun setAppLanguage(language: AppLanguage)
 }
 
 @Singleton
@@ -57,6 +60,11 @@ class SharedPrefsUserPreferencesRepository @Inject constructor(
         _preferences.update { it.copy(hapticsEnabled = enabled) }
     }
 
+    override fun setAppLanguage(language: AppLanguage) {
+        prefs.edit().putString(KEY_APP_LANGUAGE, language.name).apply()
+        _preferences.update { it.copy(appLanguage = language) }
+    }
+
     private fun loadInitial(): UserPreferences {
         val isDark = prefs.getBoolean(KEY_DARK_THEME, true)
         val accentName = prefs.getString(KEY_ACCENT, ZeroAccent.SignalOrange.name)
@@ -65,20 +73,25 @@ class SharedPrefsUserPreferencesRepository @Inject constructor(
             prefs.getString(KEY_ANTI_MISCLICK_MODE, AntiMisclickMode.BOTH.name)
         )
         val hapticsEnabled = prefs.getBoolean(KEY_HAPTICS_ENABLED, true)
+        val appLanguage = AppLanguage.fromStorage(
+            prefs.getString(KEY_APP_LANGUAGE, AppLanguage.SYSTEM.name)
+        )
         return UserPreferences(
             isDarkTheme = isDark,
             accent = accent,
             antiMisclickMode = antiMisclickMode,
-            hapticsEnabled = hapticsEnabled
+            hapticsEnabled = hapticsEnabled,
+            appLanguage = appLanguage
         )
     }
 
     companion object {
-        private const val PREFS_NAME = "zero_user_preferences"
+        const val PREFS_NAME = "zero_user_preferences"
         private const val KEY_DARK_THEME = "is_dark_theme"
         private const val KEY_ACCENT = "accent"
         private const val KEY_ANTI_MISCLICK_MODE = "anti_misclick_mode"
         private const val KEY_HAPTICS_ENABLED = "haptics_enabled"
+        const val KEY_APP_LANGUAGE = "app_language"
     }
 }
 
@@ -102,5 +115,9 @@ class InMemoryUserPreferencesRepository(
 
     override fun setHapticsEnabled(enabled: Boolean) {
         _preferences.update { it.copy(hapticsEnabled = enabled) }
+    }
+
+    override fun setAppLanguage(language: AppLanguage) {
+        _preferences.update { it.copy(appLanguage = language) }
     }
 }

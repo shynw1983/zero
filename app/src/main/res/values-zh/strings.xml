@@ -1,0 +1,193 @@
+<resources>
+    <string name="app_name">ZERO</string>
+
+    <!-- Widgets -->
+    <string name="widget_today_label">ZERO · 今日任务</string>
+    <string name="widget_today_description">极简深色今日待办清单与快捷勾选</string>
+    <string name="widget_quick_capture_label">ZERO · 极速录入</string>
+    <string name="widget_quick_capture_description">1x1 桌面直达胶囊，一键打开收集箱极速录入</string>
+    <string name="widget_today_header">ZERO · 今天</string>
+    <string name="widget_today_empty">今日已清空 · 点击快速捕捉</string>
+    <string name="widget_more_tasks">+%1$d 更多任务</string>
+
+    <!-- Languages -->
+    <string name="lang_system">跟随系统</string>
+    <string name="lang_ja">日本語</string>
+    <string name="lang_zh">简体中文</string>
+    <string name="lang_ko">한국어</string>
+    <string name="lang_en">English</string>
+
+    <!-- Smart Views & Folder Tree -->
+    <string name="nav_inbox">收集箱</string>
+    <string name="nav_today">今天</string>
+    <string name="nav_tomorrow">明天</string>
+    <string name="nav_next_7_days">最近 7 天</string>
+    <string name="nav_calendar">日历</string>
+    <string name="section_folders">文件夹</string>
+    <string name="folders_empty_hint">暂无文件夹，点击右上角创建</string>
+    <string name="filter_current_folder">仅当前</string>
+    <string name="filter_include_subfolders">含子级</string>
+    <string name="cd_toggle_theme">切换主题</string>
+    <string name="cd_open_settings">打开设置</string>
+    <string name="cd_create_root_folder">新建根文件夹</string>
+    <string name="cd_create_subfolder">新建子文件夹</string>
+    <string name="cd_delete_folder">删除文件夹</string>
+    <string name="cd_expand">展开</string>
+    <string name="cd_collapse">折叠</string>
+    <string name="cd_open_drawer">打开目录树</string>
+    <string name="cd_toggle_tree_panel">展开或折叠目录树</string>
+    <string name="cd_enter_focus">进入单任务专注模式</string>
+    <string name="dialog_create_folder_title">新建文件夹</string>
+    <string name="dialog_create_subfolder_title">在「%1$s」下新建子文件夹</string>
+    <string name="dialog_folder_name_placeholder">输入文件夹名称…</string>
+    <string name="action_cancel">取消</string>
+    <string name="action_create">创建</string>
+    <string name="action_apply">应用</string>
+    <string name="action_undo">撤销</string>
+    <string name="action_done">完成</string>
+    <string name="action_completed">已完成</string>
+    <string name="action_clear">清除</string>
+
+    <!-- Task List, Anti-Misclick & Quick Input -->
+    <string name="empty_tasks_hint">清空思绪，在下方胶囊随时捕捉</string>
+    <string name="swipe_release_complete">松开完成</string>
+    <string name="swipe_release_restore">松开恢复</string>
+    <string name="cd_drag_reorder">拖拽排序</string>
+    <string name="undo_completed">已完成「%1$s」</string>
+    <string name="undo_restored">已恢复「%1$s」</string>
+    <string name="undo_deleted">已删除「%1$s」</string>
+    <string name="quick_input_placeholder">快速捕捉… 支持 明天 15:00 /目录 !1 #标签</string>
+    <string name="quick_input_route">路由</string>
+    <string name="quick_input_voice_prompt">说出任务，例如：明天下午3点 /工作 提交方案 !1 #紧急</string>
+    <string name="quick_input_voice_unavailable">当前设备未安装系统语音识别服务</string>
+    <string name="cd_continuous_on">连续录入已开启</string>
+    <string name="cd_continuous_off">连续录入已关闭</string>
+    <string name="cd_voice_capture">长按语音录入任务</string>
+    <string name="cd_save_task">保存任务</string>
+
+    <!-- Task Detail -->
+    <string name="detail_no_selection_title">NO SELECTION</string>
+    <string name="detail_no_selection_hint">选择一项任务查看详情、无限子任务、重复规则与 Markdown 笔记</string>
+    <string name="detail_start_2min">先做2分</string>
+    <string name="cd_back_to_list">返回列表</string>
+    <string name="cd_delete_task">删除任务</string>
+    <string name="detail_priority">优先级</string>
+    <string name="detail_no_due_date">未设置截止日期</string>
+    <string name="detail_date_only">仅日期</string>
+    <string name="detail_specific_time">具体时间</string>
+    <string name="quick_today">今天</string>
+    <string name="quick_tomorrow">明天</string>
+    <string name="quick_day_after">后天</string>
+    <string name="quick_next_monday">下周一</string>
+    <string name="quick_minus_day">-1天</string>
+    <string name="quick_plus_day">+1天</string>
+    <string name="detail_recurrence">重复规则</string>
+    <string name="recur_none">不重复</string>
+    <string name="recur_daily">每天</string>
+    <string name="recur_weekdays">工作日</string>
+    <string name="recur_weekly">每周</string>
+    <string name="recur_monthly">每月</string>
+    <string name="recur_custom">自定义 RRULE</string>
+    <string name="recur_parsed_preview">解析结果：%1$s</string>
+    <string name="recur_rrule_hint">示例：FREQ=DAILY;INTERVAL=2 或 FREQ=WEEKLY;BYDAY=MO,WE,FR</string>
+    <string name="detail_tags">标签</string>
+    <string name="detail_add_tag_placeholder">+ 添加标签</string>
+    <string name="cd_remove_tag">移除标签</string>
+    <string name="detail_subtasks">无限子任务</string>
+    <string name="detail_promote_subtask">提升</string>
+    <string name="cd_promote_subtask">提升为主任务</string>
+    <string name="cd_add_nested_subtask">添加下级子任务</string>
+    <string name="cd_delete_subtask">删除子任务</string>
+    <string name="detail_add_child_subtask_placeholder">在「%1$s」下新增子任务…</string>
+    <string name="detail_add_subtask_placeholder">添加子任务…</string>
+    <string name="detail_markdown_notes">MARKDOWN 笔记</string>
+    <string name="detail_mode_edit">编辑</string>
+    <string name="detail_mode_preview">预览</string>
+    <string name="detail_markdown_placeholder">支持 Markdown (# 标题 / - [ ] 清单 / **加粗** / `代码` / > 引用)…</string>
+    <string name="detail_markdown_empty">暂无 Markdown 笔记内容</string>
+
+    <!-- Calendar -->
+    <string name="cal_mode_month">月</string>
+    <string name="cal_mode_week">周</string>
+    <string name="cal_mode_day">日</string>
+    <string name="cal_today_short">今</string>
+    <string name="cal_weekday_mon">一</string>
+    <string name="cal_weekday_tue">二</string>
+    <string name="cal_weekday_wed">三</string>
+    <string name="cal_weekday_thu">四</string>
+    <string name="cal_weekday_fri">五</string>
+    <string name="cal_weekday_sat">六</string>
+    <string name="cal_weekday_sun">日</string>
+    <string name="cd_prev_period">上一周期</string>
+    <string name="cd_next_period">下一周期</string>
+    <string name="cal_pending_count">%1$s 待办</string>
+    <string name="cal_day_empty">当日无日程任务</string>
+    <string name="cal_all_day_header">全天 · 仅日期</string>
+    <string name="cal_all_day_empty">暂无全天任务</string>
+
+    <!-- Focus Mode -->
+    <string name="focus_header_label">SINGLE FOCUS</string>
+    <string name="focus_today_minutes">今日 %1$sm</string>
+    <string name="cd_exit_focus">退出专注模式</string>
+    <string name="focus_tab_two_min">先做 2 分钟</string>
+    <string name="focus_tab_pomodoro">25m 番茄</string>
+    <string name="focus_tab_stopwatch">正计时</string>
+    <string name="focus_free_session">自由专注时段</string>
+    <string name="focus_hint_two_min">打破启动阻力，只需 2 分钟</string>
+    <string name="focus_hint_pomodoro">25 分钟深度专注</string>
+    <string name="focus_hint_stopwatch">无压正计时</string>
+    <string name="focus_status_running">专注进行中</string>
+    <string name="focus_status_paused">已暂停</string>
+    <string name="focus_status_two_min_done">2 分钟起步完成</string>
+    <string name="focus_status_pomodoro_done">番茄钟完成</string>
+    <string name="focus_prompt_continue_desc">状态已启动，是否乘势进入完整专注？</string>
+    <string name="focus_btn_continue_pomodoro">无缝续接 25 分钟番茄钟</string>
+    <string name="focus_btn_pause">暂停</string>
+    <string name="focus_btn_resume">继续专注</string>
+    <string name="focus_btn_start_two_min">先做 2 分钟</string>
+    <string name="focus_btn_start_pomodoro">开始番茄钟</string>
+    <string name="focus_btn_start_stopwatch">开始计时</string>
+    <string name="cd_reset_timer">重置计时</string>
+    <string name="cd_complete_task">完成任务</string>
+
+    <!-- Anti-Misclick Modes -->
+    <string name="antimisclick_hold_title">短按确认</string>
+    <string name="antimisclick_hold_desc">按住左侧复选框 0.3 秒径向蓄力完成，禁用滑动完成</string>
+    <string name="antimisclick_swipe_title">滑动阻尼</string>
+    <string name="antimisclick_swipe_desc">左右滑动卡片超过 30% 阻尼阈值触发完成，禁用按压复选框</string>
+    <string name="antimisclick_both_title">双模式</string>
+    <string name="antimisclick_both_desc">同时支持 0.3 秒短按蓄力与 30% 滑动阻尼完成</string>
+
+    <!-- Settings -->
+    <string name="settings_title">设置 · ZERO</string>
+    <string name="cd_close_settings">关闭设置</string>
+    <string name="settings_section_language">语言</string>
+    <string name="settings_section_theme">外观主题</string>
+    <string name="settings_theme_dark">深色 · 黑曜石</string>
+    <string name="settings_theme_light">浅色 · 冷纸白</string>
+    <string name="settings_section_accent">功能强调色</string>
+    <string name="settings_accent_orange">信号橙</string>
+    <string name="settings_accent_cyan">电子青</string>
+    <string name="settings_section_antimisclick">防误触完成模式</string>
+    <string name="settings_section_haptics">触觉与物理反馈</string>
+    <string name="settings_haptics_title">线性马达震动反馈</string>
+    <string name="settings_haptics_desc">任务完成、拖拽刻度、2 分钟起步柔和提示</string>
+    <string name="settings_toggle_on">开启</string>
+    <string name="settings_toggle_off">静音</string>
+    <string name="settings_section_backup">本地数据导入 / 导出</string>
+    <string name="settings_export_json_title">导出完整 JSON 备份</string>
+    <string name="settings_export_json_desc">完整保存多级目录、任务、子任务、标签与专注记录</string>
+    <string name="settings_import_json_title">从 JSON 备份恢复</string>
+    <string name="settings_import_json_desc">原子事务全量恢复并即时刷新目录树与桌面小组件</string>
+    <string name="settings_export_md_title">导出层级 Markdown (.md)</string>
+    <string name="settings_export_md_desc">按无限嵌套文件夹结构整理为可读 Markdown 文档</string>
+    <string name="settings_section_shortcuts">外接键盘快捷键（平板 / 桌面模式）</string>
+    <string name="shortcut_quick_input">聚焦底部极速输入胶囊</string>
+    <string name="shortcut_escape">关闭弹窗 / 退出专注 / 取消选中</string>
+    <string name="shortcut_settings">打开设置面板</string>
+    <string name="shortcut_smart_views">快速切换收集箱 / 今天 / 明天 / 7天 / 日历</string>
+    <string name="backup_export_json_ok">JSON 完整备份已导出</string>
+    <string name="backup_export_md_ok">层级 Markdown 文件已导出</string>
+    <string name="backup_import_ok">恢复成功：%1$d 目录 · %2$d 任务 · %3$d 标签</string>
+    <string name="backup_error">操作失败：%1$s</string>
+</resources>

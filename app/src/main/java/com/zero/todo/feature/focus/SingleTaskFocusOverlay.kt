@@ -41,9 +41,11 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.zero.todo.R
 import com.zero.todo.core.designsystem.ZeroCapsuleShape
 import com.zero.todo.core.designsystem.ZeroCardShape
 import com.zero.todo.core.designsystem.ZeroMotion
@@ -128,7 +130,7 @@ fun SingleTaskFocusOverlay(
                             .background(colors.accent)
                     )
                     Text(
-                        text = "SINGLE FOCUS",
+                        text = stringResource(R.string.focus_header_label),
                         style = tabular.dateCompact,
                         color = colors.textSecondary
                     )
@@ -139,7 +141,7 @@ fun SingleTaskFocusOverlay(
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     Text(
-                        text = "今日 ${todayMinutes.toString().padStart(2, '0')}m",
+                        text = stringResource(R.string.focus_today_minutes, todayMinutes.toString().padStart(2, '0')),
                         style = tabular.dateCompact,
                         color = colors.textMuted
                     )
@@ -149,7 +151,7 @@ fun SingleTaskFocusOverlay(
                     ) {
                         Icon(
                             imageVector = Icons.Rounded.Close,
-                            contentDescription = "退出专注模式",
+                            contentDescription = stringResource(R.string.cd_exit_focus),
                             tint = colors.textSecondary,
                             modifier = Modifier.size(20.dp)
                         )
@@ -175,7 +177,7 @@ fun SingleTaskFocusOverlay(
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     FocusModeTab(
-                        label = "先做 2 分钟",
+                        label = stringResource(R.string.focus_tab_two_min),
                         selected = state.mode == FocusMode.TWO_MIN_STARTER,
                         onClick = {
                             haptics.reorderTick()
@@ -183,7 +185,7 @@ fun SingleTaskFocusOverlay(
                         }
                     )
                     FocusModeTab(
-                        label = "25m 番茄",
+                        label = stringResource(R.string.focus_tab_pomodoro),
                         selected = state.mode == FocusMode.POMODORO,
                         onClick = {
                             haptics.reorderTick()
@@ -191,7 +193,7 @@ fun SingleTaskFocusOverlay(
                         }
                     )
                     FocusModeTab(
-                        label = "正计时",
+                        label = stringResource(R.string.focus_tab_stopwatch),
                         selected = state.mode == FocusMode.STOPWATCH,
                         onClick = {
                             haptics.reorderTick()
@@ -220,7 +222,7 @@ fun SingleTaskFocusOverlay(
                         )
                     }
                     Text(
-                        text = activeTask?.title ?: "自由专注时段",
+                        text = activeTask?.title ?: stringResource(R.string.focus_free_session),
                         style = MaterialTheme.typography.titleLarge,
                         color = colors.textPrimary,
                         textAlign = TextAlign.Center,
@@ -269,14 +271,14 @@ fun SingleTaskFocusOverlay(
                         Text(
                             text = when (state.phase) {
                                 FocusPhase.READY -> when (state.mode) {
-                                    FocusMode.TWO_MIN_STARTER -> "打破启动阻力，只需 2 分钟"
-                                    FocusMode.POMODORO -> "25 分钟深度专注"
-                                    FocusMode.STOPWATCH -> "无压正计时"
+                                    FocusMode.TWO_MIN_STARTER -> stringResource(R.string.focus_hint_two_min)
+                                    FocusMode.POMODORO -> stringResource(R.string.focus_hint_pomodoro)
+                                    FocusMode.STOPWATCH -> stringResource(R.string.focus_hint_stopwatch)
                                 }
-                                FocusPhase.RUNNING -> "专注进行中"
-                                FocusPhase.PAUSED -> "已暂停"
-                                FocusPhase.TWO_MIN_FINISHED_PROMPT -> "2 分钟起步完成"
-                                FocusPhase.POMODORO_COMPLETED -> "番茄钟完成"
+                                FocusPhase.RUNNING -> stringResource(R.string.focus_status_running)
+                                FocusPhase.PAUSED -> stringResource(R.string.focus_status_paused)
+                                FocusPhase.TWO_MIN_FINISHED_PROMPT -> stringResource(R.string.focus_status_two_min_done)
+                                FocusPhase.POMODORO_COMPLETED -> stringResource(R.string.focus_status_pomodoro_done)
                             },
                             style = MaterialTheme.typography.labelMedium,
                             color = if (state.phase == FocusPhase.TWO_MIN_FINISHED_PROMPT ||
@@ -299,7 +301,7 @@ fun SingleTaskFocusOverlay(
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         Text(
-                            text = "状态已启动，是否乘势进入完整专注？",
+                            text = stringResource(R.string.focus_prompt_continue_desc),
                             style = MaterialTheme.typography.bodyMedium,
                             color = colors.textPrimary,
                             textAlign = TextAlign.Center
@@ -317,7 +319,7 @@ fun SingleTaskFocusOverlay(
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
-                                text = "无缝续接 25 分钟番茄钟",
+                                text = stringResource(R.string.focus_btn_continue_pomodoro),
                                 style = MaterialTheme.typography.titleSmall,
                                 color = colors.onAccent
                             )
@@ -358,7 +360,7 @@ fun SingleTaskFocusOverlay(
                         } else {
                             Icons.Rounded.Refresh
                         },
-                        contentDescription = "重置计时",
+                        contentDescription = stringResource(R.string.cd_reset_timer),
                         tint = colors.textSecondary,
                         modifier = Modifier.size(20.dp)
                     )
@@ -392,11 +394,11 @@ fun SingleTaskFocusOverlay(
                     Spacer(modifier = Modifier.size(6.dp))
                     Text(
                         text = when {
-                            isRunning -> "暂停"
-                            state.phase == FocusPhase.PAUSED -> "继续专注"
-                            state.mode == FocusMode.TWO_MIN_STARTER -> "先做 2 分钟"
-                            state.mode == FocusMode.POMODORO -> "开始番茄钟"
-                            else -> "开始计时"
+                            isRunning -> stringResource(R.string.focus_btn_pause)
+                            state.phase == FocusPhase.PAUSED -> stringResource(R.string.focus_btn_resume)
+                            state.mode == FocusMode.TWO_MIN_STARTER -> stringResource(R.string.focus_btn_start_two_min)
+                            state.mode == FocusMode.POMODORO -> stringResource(R.string.focus_btn_start_pomodoro)
+                            else -> stringResource(R.string.focus_btn_start_stopwatch)
                         },
                         style = MaterialTheme.typography.titleSmall,
                         color = if (isRunning) colors.textPrimary else colors.onAccent
@@ -419,7 +421,7 @@ fun SingleTaskFocusOverlay(
                     ) {
                         Icon(
                             imageVector = Icons.Rounded.Check,
-                            contentDescription = "完成任务",
+                            contentDescription = stringResource(R.string.cd_complete_task),
                             tint = colors.accent,
                             modifier = Modifier.size(20.dp)
                         )

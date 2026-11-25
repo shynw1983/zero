@@ -1,23 +1,26 @@
 package com.zero.todo.domain.model
 
+import androidx.annotation.StringRes
+import com.zero.todo.R
+
 /**
  * Configurable anti-misclick completion mode for [com.zero.todo.feature.tasklist.AntiMisclickTaskCard].
  */
 enum class AntiMisclickMode(
-    val titleZh: String,
-    val descriptionZh: String
+    @StringRes val titleRes: Int,
+    @StringRes val descriptionRes: Int
 ) {
     HOLD_CONFIRM(
-        titleZh = "短按确认",
-        descriptionZh = "按住左侧复选框 0.3 秒径向蓄力完成，禁用滑动完成"
+        titleRes = R.string.antimisclick_hold_title,
+        descriptionRes = R.string.antimisclick_hold_desc
     ),
     SWIPE_DAMPED(
-        titleZh = "滑动阻尼",
-        descriptionZh = "左右滑动卡片超过 30% 阻尼阈值触发完成，禁用按压复选框"
+        titleRes = R.string.antimisclick_swipe_title,
+        descriptionRes = R.string.antimisclick_swipe_desc
     ),
     BOTH(
-        titleZh = "双模式",
-        descriptionZh = "同时支持 0.3 秒短按蓄力与 30% 滑动阻尼完成"
+        titleRes = R.string.antimisclick_both_title,
+        descriptionRes = R.string.antimisclick_both_desc
     );
 
     val allowHoldConfirm: Boolean

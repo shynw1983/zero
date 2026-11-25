@@ -1,7 +1,193 @@
 <resources>
     <string name="app_name">ZERO</string>
-    <string name="widget_today_label">ZERO · 今日任务</string>
-    <string name="widget_today_description">极简深色今日待办清单与快捷勾选</string>
-    <string name="widget_quick_capture_label">ZERO · 极速录入</string>
-    <string name="widget_quick_capture_description">1x1 桌面直达胶囊，一键打开收集箱极速录入</string>
+
+    <!-- Widgets -->
+    <string name="widget_today_label">ZERO · Today</string>
+    <string name="widget_today_description">Minimalist dark Today task list with quick check-off</string>
+    <string name="widget_quick_capture_label">ZERO · Quick Capture</string>
+    <string name="widget_quick_capture_description">1x1 home capsule to open Inbox quick capture instantly</string>
+    <string name="widget_today_header">ZERO · Today</string>
+    <string name="widget_today_empty">All clear today · Tap to capture</string>
+    <string name="widget_more_tasks">+%1$d more</string>
+
+    <!-- Languages -->
+    <string name="lang_system">System</string>
+    <string name="lang_ja">日本語</string>
+    <string name="lang_zh">简体中文</string>
+    <string name="lang_ko">한국어</string>
+    <string name="lang_en">English</string>
+
+    <!-- Smart Views & Folder Tree -->
+    <string name="nav_inbox">Inbox</string>
+    <string name="nav_today">Today</string>
+    <string name="nav_tomorrow">Tomorrow</string>
+    <string name="nav_next_7_days">Next 7 Days</string>
+    <string name="nav_calendar">Calendar</string>
+    <string name="section_folders">FOLDERS</string>
+    <string name="folders_empty_hint">No folders yet. Tap + above to create one.</string>
+    <string name="filter_current_folder">Current</string>
+    <string name="filter_include_subfolders">All Nested</string>
+    <string name="cd_toggle_theme">Toggle theme</string>
+    <string name="cd_open_settings">Open settings</string>
+    <string name="cd_create_root_folder">Create root folder</string>
+    <string name="cd_create_subfolder">Create sub-folder</string>
+    <string name="cd_delete_folder">Delete folder</string>
+    <string name="cd_expand">Expand</string>
+    <string name="cd_collapse">Collapse</string>
+    <string name="cd_open_drawer">Open folder tree</string>
+    <string name="cd_toggle_tree_panel">Toggle folder panel</string>
+    <string name="cd_enter_focus">Enter single-task focus mode</string>
+    <string name="dialog_create_folder_title">New Folder</string>
+    <string name="dialog_create_subfolder_title">New sub-folder in \"%1$s\"</string>
+    <string name="dialog_folder_name_placeholder">Folder name…</string>
+    <string name="action_cancel">Cancel</string>
+    <string name="action_create">Create</string>
+    <string name="action_apply">Apply</string>
+    <string name="action_undo">Undo</string>
+    <string name="action_done">Done</string>
+    <string name="action_completed">Done</string>
+    <string name="action_clear">Clear</string>
+
+    <!-- Task List, Anti-Misclick & Quick Input -->
+    <string name="empty_tasks_hint">Clear your mind. Capture below anytime.</string>
+    <string name="swipe_release_complete">Release to complete</string>
+    <string name="swipe_release_restore">Release to restore</string>
+    <string name="cd_drag_reorder">Drag to reorder</string>
+    <string name="undo_completed">Completed \"%1$s\"</string>
+    <string name="undo_restored">Restored \"%1$s\"</string>
+    <string name="undo_deleted">Deleted \"%1$s\"</string>
+    <string name="quick_input_placeholder">Capture… e.g. tomorrow 15:00 /Work !1 #tag</string>
+    <string name="quick_input_route">Route</string>
+    <string name="quick_input_voice_prompt">Speak a task, e.g. Tomorrow 3pm /Work Submit report !1 #urgent</string>
+    <string name="quick_input_voice_unavailable">System speech recognizer is unavailable on this device</string>
+    <string name="cd_continuous_on">Continuous entry enabled</string>
+    <string name="cd_continuous_off">Continuous entry disabled</string>
+    <string name="cd_voice_capture">Long-press for voice capture</string>
+    <string name="cd_save_task">Save task</string>
+
+    <!-- Task Detail -->
+    <string name="detail_no_selection_title">NO SELECTION</string>
+    <string name="detail_no_selection_hint">Select a task to edit subtasks, recurrence, and Markdown notes</string>
+    <string name="detail_start_2min">2-Min</string>
+    <string name="cd_back_to_list">Back to list</string>
+    <string name="cd_delete_task">Delete task</string>
+    <string name="detail_priority">Priority</string>
+    <string name="detail_no_due_date">No due date</string>
+    <string name="detail_date_only">Date Only</string>
+    <string name="detail_specific_time">Time</string>
+    <string name="quick_today">Today</string>
+    <string name="quick_tomorrow">Tomorrow</string>
+    <string name="quick_day_after">In 2d</string>
+    <string name="quick_next_monday">Next Mon</string>
+    <string name="quick_minus_day">-1d</string>
+    <string name="quick_plus_day">+1d</string>
+    <string name="detail_recurrence">Repeat</string>
+    <string name="recur_none">None</string>
+    <string name="recur_daily">Daily</string>
+    <string name="recur_weekdays">Weekdays</string>
+    <string name="recur_weekly">Weekly</string>
+    <string name="recur_monthly">Monthly</string>
+    <string name="recur_custom">Custom RRULE</string>
+    <string name="recur_parsed_preview">Parsed: %1$s</string>
+    <string name="recur_rrule_hint">e.g. FREQ=DAILY;INTERVAL=2 or FREQ=WEEKLY;BYDAY=MO,WE,FR</string>
+    <string name="detail_tags">Tags</string>
+    <string name="detail_add_tag_placeholder">+ Add tag</string>
+    <string name="cd_remove_tag">Remove tag</string>
+    <string name="detail_subtasks">Nested Subtasks</string>
+    <string name="detail_promote_subtask">Promote</string>
+    <string name="cd_promote_subtask">Promote subtask to top-level task</string>
+    <string name="cd_add_nested_subtask">Add nested subtask</string>
+    <string name="cd_delete_subtask">Delete subtask</string>
+    <string name="detail_add_child_subtask_placeholder">Add subtask under \"%1$s\"…</string>
+    <string name="detail_add_subtask_placeholder">Add subtask…</string>
+    <string name="detail_markdown_notes">MARKDOWN NOTES</string>
+    <string name="detail_mode_edit">Edit</string>
+    <string name="detail_mode_preview">Preview</string>
+    <string name="detail_markdown_placeholder">Markdown supported (# Heading / - [ ] Checklist / **Bold** / `Code` / > Quote)…</string>
+    <string name="detail_markdown_empty">No Markdown notes yet</string>
+
+    <!-- Calendar -->
+    <string name="cal_mode_month">M</string>
+    <string name="cal_mode_week">W</string>
+    <string name="cal_mode_day">D</string>
+    <string name="cal_today_short">T</string>
+    <string name="cal_weekday_mon">M</string>
+    <string name="cal_weekday_tue">T</string>
+    <string name="cal_weekday_wed">W</string>
+    <string name="cal_weekday_thu">T</string>
+    <string name="cal_weekday_fri">F</string>
+    <string name="cal_weekday_sat">S</string>
+    <string name="cal_weekday_sun">S</string>
+    <string name="cd_prev_period">Previous period</string>
+    <string name="cd_next_period">Next period</string>
+    <string name="cal_pending_count">%1$s open</string>
+    <string name="cal_day_empty">No scheduled tasks for this day</string>
+    <string name="cal_all_day_header">All-Day · Date Only</string>
+    <string name="cal_all_day_empty">No all-day tasks</string>
+
+    <!-- Focus Mode -->
+    <string name="focus_header_label">SINGLE FOCUS</string>
+    <string name="focus_today_minutes">Today %1$sm</string>
+    <string name="cd_exit_focus">Exit focus mode</string>
+    <string name="focus_tab_two_min">Just 2 Mins</string>
+    <string name="focus_tab_pomodoro">25m Focus</string>
+    <string name="focus_tab_stopwatch">Stopwatch</string>
+    <string name="focus_free_session">Open Focus Session</string>
+    <string name="focus_hint_two_min">Break inertia with just 2 minutes</string>
+    <string name="focus_hint_pomodoro">25-minute deep focus</string>
+    <string name="focus_hint_stopwatch">Pressure-free stopwatch</string>
+    <string name="focus_status_running">Focusing…</string>
+    <string name="focus_status_paused">Paused</string>
+    <string name="focus_status_two_min_done">2-Min Starter Complete</string>
+    <string name="focus_status_pomodoro_done">Pomodoro Complete</string>
+    <string name="focus_prompt_continue_desc">Momentum unlocked. Keep going into full focus?</string>
+    <string name="focus_btn_continue_pomodoro">Continue into 25-Min Pomodoro</string>
+    <string name="focus_btn_pause">Pause</string>
+    <string name="focus_btn_resume">Resume</string>
+    <string name="focus_btn_start_two_min">Start 2 Mins</string>
+    <string name="focus_btn_start_pomodoro">Start Pomodoro</string>
+    <string name="focus_btn_start_stopwatch">Start Timer</string>
+    <string name="cd_reset_timer">Reset timer</string>
+    <string name="cd_complete_task">Complete task</string>
+
+    <!-- Anti-Misclick Modes -->
+    <string name="antimisclick_hold_title">Hold to Confirm</string>
+    <string name="antimisclick_hold_desc">Hold left checkbox for 0.3s radial fill; swipe disabled</string>
+    <string name="antimisclick_swipe_title">Damped Swipe</string>
+    <string name="antimisclick_swipe_desc">Swipe left or right past 30% resistance; checkbox hold disabled</string>
+    <string name="antimisclick_both_title">Dual Mode</string>
+    <string name="antimisclick_both_desc">Enable both 0.3s radial hold and 30% damped swipe</string>
+
+    <!-- Settings -->
+    <string name="settings_title">Settings · ZERO</string>
+    <string name="cd_close_settings">Close settings</string>
+    <string name="settings_section_language">Language</string>
+    <string name="settings_section_theme">Appearance</string>
+    <string name="settings_theme_dark">Dark · Obsidian</string>
+    <string name="settings_theme_light">Light · Cool Paper</string>
+    <string name="settings_section_accent">Functional Accent</string>
+    <string name="settings_accent_orange">Signal Orange</string>
+    <string name="settings_accent_cyan">Cyber Cyan</string>
+    <string name="settings_section_antimisclick">Anti-Misclick Mode</string>
+    <string name="settings_section_haptics">Tactile &amp; Motion</string>
+    <string name="settings_haptics_title">Linear Motor Haptics</string>
+    <string name="settings_haptics_desc">Task completion, drag ticks, and gentle 2-min starter cues</string>
+    <string name="settings_toggle_on">On</string>
+    <string name="settings_toggle_off">Muted</string>
+    <string name="settings_section_backup">Local Backup &amp; Export</string>
+    <string name="settings_export_json_title">Export Full JSON Backup</string>
+    <string name="settings_export_json_desc">Saves nested folders, tasks, subtasks, tags, and focus history</string>
+    <string name="settings_import_json_title">Restore from JSON Backup</string>
+    <string name="settings_import_json_desc">Atomic restore refreshing folder tree and widgets immediately</string>
+    <string name="settings_export_md_title">Export Hierarchical Markdown (.md)</string>
+    <string name="settings_export_md_desc">Exports readable Markdown structured by your folder hierarchy</string>
+    <string name="settings_section_shortcuts">Hardware Keyboard Shortcuts</string>
+    <string name="shortcut_quick_input">Focus quick-input capsule</string>
+    <string name="shortcut_escape">Close overlay / exit focus / deselect</string>
+    <string name="shortcut_settings">Open settings</string>
+    <string name="shortcut_smart_views">Jump to Inbox / Today / Tomorrow / 7d / Calendar</string>
+    <string name="backup_export_json_ok">Full JSON backup exported</string>
+    <string name="backup_export_md_ok">Hierarchical Markdown exported</string>
+    <string name="backup_import_ok">Restored: %1$d folders · %2$d tasks · %3$d tags</string>
+    <string name="backup_error">Operation failed: %1$s</string>
 </resources>

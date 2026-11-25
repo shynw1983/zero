@@ -1,0 +1,193 @@
+<resources>
+    <string name="app_name">ZERO</string>
+
+    <!-- Widgets -->
+    <string name="widget_today_label">ZERO · 今日のタスク</string>
+    <string name="widget_today_description">ミニマルなダークテーマの今日のタスク一覧とワンタップ完了</string>
+    <string name="widget_quick_capture_label">ZERO · クイック入力</string>
+    <string name="widget_quick_capture_description">1x1 カプセルから受信箱の高速入力へ直接アクセス</string>
+    <string name="widget_today_header">ZERO · 今日</string>
+    <string name="widget_today_empty">今日のタスクは完了 · タップして追加</string>
+    <string name="widget_more_tasks">他 +%1$d 件</string>
+
+    <!-- Languages -->
+    <string name="lang_system">システムに従う</string>
+    <string name="lang_ja">日本語</string>
+    <string name="lang_zh">简体中文</string>
+    <string name="lang_ko">한국어</string>
+    <string name="lang_en">English</string>
+
+    <!-- Smart Views & Folder Tree -->
+    <string name="nav_inbox">受信箱</string>
+    <string name="nav_today">今日</string>
+    <string name="nav_tomorrow">明日</string>
+    <string name="nav_next_7_days">次の 7 日間</string>
+    <string name="nav_calendar">カレンダー</string>
+    <string name="section_folders">フォルダ</string>
+    <string name="folders_empty_hint">フォルダがありません。右上のボタンから作成できます</string>
+    <string name="filter_current_folder">現在のみ</string>
+    <string name="filter_include_subfolders">子フォルダ含む</string>
+    <string name="cd_toggle_theme">テーマ切替</string>
+    <string name="cd_open_settings">設定を開く</string>
+    <string name="cd_create_root_folder">ルートフォルダを作成</string>
+    <string name="cd_create_subfolder">サブフォルダを作成</string>
+    <string name="cd_delete_folder">フォルダを削除</string>
+    <string name="cd_expand">展開</string>
+    <string name="cd_collapse">折りたたむ</string>
+    <string name="cd_open_drawer">フォルダツリーを開く</string>
+    <string name="cd_toggle_tree_panel">フォルダパネルの開閉</string>
+    <string name="cd_enter_focus">単一タスク集中モードへ</string>
+    <string name="dialog_create_folder_title">新規フォルダ</string>
+    <string name="dialog_create_subfolder_title">「%1$s」内にサブフォルダを作成</string>
+    <string name="dialog_folder_name_placeholder">フォルダ名を入力…</string>
+    <string name="action_cancel">キャンセル</string>
+    <string name="action_create">作成</string>
+    <string name="action_apply">適用</string>
+    <string name="action_undo">元に戻す</string>
+    <string name="action_done">完了</string>
+    <string name="action_completed">完了済み</string>
+    <string name="action_clear">クリア</string>
+
+    <!-- Task List, Anti-Misclick & Quick Input -->
+    <string name="empty_tasks_hint">思考を空にして、下のカプセルからいつでも記録</string>
+    <string name="swipe_release_complete">離して完了</string>
+    <string name="swipe_release_restore">離して復元</string>
+    <string name="cd_drag_reorder">ドラッグして並べ替え</string>
+    <string name="undo_completed">「%1$s」を完了しました</string>
+    <string name="undo_restored">「%1$s」を復元しました</string>
+    <string name="undo_deleted">「%1$s」を削除しました</string>
+    <string name="quick_input_placeholder">高速入力… 例: 明日 15:00 /仕事 !1 #タグ</string>
+    <string name="quick_input_route">保存先</string>
+    <string name="quick_input_voice_prompt">タスクを話してください（例: 明日 15:00 /仕事 企画書提出 !1 #重要）</string>
+    <string name="quick_input_voice_unavailable">この端末では音声認識サービスを利用できません</string>
+    <string name="cd_continuous_on">連続入力オン</string>
+    <string name="cd_continuous_off">連続入力オフ</string>
+    <string name="cd_voice_capture">長押しで音声入力</string>
+    <string name="cd_save_task">タスクを保存</string>
+
+    <!-- Task Detail -->
+    <string name="detail_no_selection_title">NO SELECTION</string>
+    <string name="detail_no_selection_hint">タスクを選択してサブタスク・繰り返し・Markdownメモを編集</string>
+    <string name="detail_start_2min">2分だけ</string>
+    <string name="cd_back_to_list">一覧へ戻る</string>
+    <string name="cd_delete_task">タスクを削除</string>
+    <string name="detail_priority">優先度</string>
+    <string name="detail_no_due_date">期限なし</string>
+    <string name="detail_date_only">日付のみ</string>
+    <string name="detail_specific_time">時刻指定</string>
+    <string name="quick_today">今日</string>
+    <string name="quick_tomorrow">明日</string>
+    <string name="quick_day_after">明後日</string>
+    <string name="quick_next_monday">来週月曜</string>
+    <string name="quick_minus_day">-1日</string>
+    <string name="quick_plus_day">+1日</string>
+    <string name="detail_recurrence">繰り返し</string>
+    <string name="recur_none">なし</string>
+    <string name="recur_daily">毎日</string>
+    <string name="recur_weekdays">平日</string>
+    <string name="recur_weekly">毎週</string>
+    <string name="recur_monthly">毎月</string>
+    <string name="recur_custom">カスタム RRULE</string>
+    <string name="recur_parsed_preview">解析結果: %1$s</string>
+    <string name="recur_rrule_hint">例: FREQ=DAILY;INTERVAL=2 または FREQ=WEEKLY;BYDAY=MO,WE,FR</string>
+    <string name="detail_tags">タグ</string>
+    <string name="detail_add_tag_placeholder">+ タグを追加</string>
+    <string name="cd_remove_tag">タグを削除</string>
+    <string name="detail_subtasks">階層サブタスク</string>
+    <string name="detail_promote_subtask">昇格</string>
+    <string name="cd_promote_subtask">メインタスクへ昇格</string>
+    <string name="cd_add_nested_subtask">下位サブタスクを追加</string>
+    <string name="cd_delete_subtask">サブタスクを削除</string>
+    <string name="detail_add_child_subtask_placeholder">「%1$s」の下にサブタスクを追加…</string>
+    <string name="detail_add_subtask_placeholder">サブタスクを追加…</string>
+    <string name="detail_markdown_notes">MARKDOWN メモ</string>
+    <string name="detail_mode_edit">編集</string>
+    <string name="detail_mode_preview">プレビュー</string>
+    <string name="detail_markdown_placeholder">Markdown 対応 (# 見出し / - [ ] チェック / **太字** / `コード` / > 引用)…</string>
+    <string name="detail_markdown_empty">Markdown メモはまだありません</string>
+
+    <!-- Calendar -->
+    <string name="cal_mode_month">月</string>
+    <string name="cal_mode_week">週</string>
+    <string name="cal_mode_day">日</string>
+    <string name="cal_today_short">今</string>
+    <string name="cal_weekday_mon">月</string>
+    <string name="cal_weekday_tue">火</string>
+    <string name="cal_weekday_wed">水</string>
+    <string name="cal_weekday_thu">木</string>
+    <string name="cal_weekday_fri">金</string>
+    <string name="cal_weekday_sat">土</string>
+    <string name="cal_weekday_sun">日</string>
+    <string name="cd_prev_period">前の期間</string>
+    <string name="cd_next_period">次の期間</string>
+    <string name="cal_pending_count">%1$s 件未完了</string>
+    <string name="cal_day_empty">この日の予定はありません</string>
+    <string name="cal_all_day_header">終日 · 日付のみ</string>
+    <string name="cal_all_day_empty">終日タスクはありません</string>
+
+    <!-- Focus Mode -->
+    <string name="focus_header_label">SINGLE FOCUS</string>
+    <string name="focus_today_minutes">今日 %1$sm</string>
+    <string name="cd_exit_focus">集中モードを終了</string>
+    <string name="focus_tab_two_min">まず 2 分</string>
+    <string name="focus_tab_pomodoro">25m 集中</string>
+    <string name="focus_tab_stopwatch">計測</string>
+    <string name="focus_free_session">フリー集中セッション</string>
+    <string name="focus_hint_two_min">先延ばしを破る最初の 2 分間</string>
+    <string name="focus_hint_pomodoro">25 分間のディープフォーカス</string>
+    <string name="focus_hint_stopwatch">プレッシャーのないカウントアップ</string>
+    <string name="focus_status_running">集中中…</string>
+    <string name="focus_status_paused">一時停止</string>
+    <string name="focus_status_two_min_done">2 分スタート完了</string>
+    <string name="focus_status_pomodoro_done">ポモドーロ完了</string>
+    <string name="focus_prompt_continue_desc">勢いがつきました。そのまま本格集中へ進みますか？</string>
+    <string name="focus_btn_continue_pomodoro">このまま 25 分ポモドーロへ続行</string>
+    <string name="focus_btn_pause">一時停止</string>
+    <string name="focus_btn_resume">再開</string>
+    <string name="focus_btn_start_two_min">まず 2 分始める</string>
+    <string name="focus_btn_start_pomodoro">ポモドーロ開始</string>
+    <string name="focus_btn_start_stopwatch">計測開始</string>
+    <string name="cd_reset_timer">タイマーをリセット</string>
+    <string name="cd_complete_task">タスクを完了</string>
+
+    <!-- Anti-Misclick Modes -->
+    <string name="antimisclick_hold_title">0.3秒長押し確認</string>
+    <string name="antimisclick_hold_desc">左のチェックを0.3秒長押しして完了（スワイプ完了は無効）</string>
+    <string name="antimisclick_swipe_title">スワイプ抵抗完了</string>
+    <string name="antimisclick_swipe_desc">左右に30%スワイプして完了（チェック長押しは無効）</string>
+    <string name="antimisclick_both_title">デュアルモード</string>
+    <string name="antimisclick_both_desc">0.3秒長押し確認と30%スワイプ完了の両方を有効化</string>
+
+    <!-- Settings -->
+    <string name="settings_title">設定 · ZERO</string>
+    <string name="cd_close_settings">設定を閉じる</string>
+    <string name="settings_section_language">言語</string>
+    <string name="settings_section_theme">外観テーマ</string>
+    <string name="settings_theme_dark">ダーク · オブシディアン</string>
+    <string name="settings_theme_light">ライト · クールペーパー</string>
+    <string name="settings_section_accent">アクセントカラー</string>
+    <string name="settings_accent_orange">シグナルオレンジ</string>
+    <string name="settings_accent_cyan">サイバーシアン</string>
+    <string name="settings_section_antimisclick">誤タップ防止モード</string>
+    <string name="settings_section_haptics">触覚フィードバック</string>
+    <string name="settings_haptics_title">リニアモーター振動</string>
+    <string name="settings_haptics_desc">完了スナップ・並べ替え刻み・2分終了時のソフト通知</string>
+    <string name="settings_toggle_on">オン</string>
+    <string name="settings_toggle_off">オフ</string>
+    <string name="settings_section_backup">ローカルデータのバックアップ / 出力</string>
+    <string name="settings_export_json_title">完全 JSON バックアップを書き出し</string>
+    <string name="settings_export_json_desc">階層フォルダ・タスク・サブタスク・タグ・集中履歴を完全保存</string>
+    <string name="settings_import_json_title">JSON バックアップから復元</string>
+    <string name="settings_import_json_desc">トランザクションで一括復元し、ツリーとウィジェットを即時更新</string>
+    <string name="settings_export_md_title">階層 Markdown (.md) を書き出し</string>
+    <string name="settings_export_md_desc">フォルダ構造に沿って整理された Markdown ファイルを出力</string>
+    <string name="settings_section_shortcuts">外部キーボードショートカット</string>
+    <string name="shortcut_quick_input">クイック入力カプセルにフォーカス</string>
+    <string name="shortcut_escape">モーダルを閉じる / 集中終了 / 選択解除</string>
+    <string name="shortcut_settings">設定画面を開く</string>
+    <string name="shortcut_smart_views">受信箱 / 今日 / 明日 / 7日間 / カレンダーへ移動</string>
+    <string name="backup_export_json_ok">JSON バックアップを書き出しました</string>
+    <string name="backup_export_md_ok">階層 Markdown ファイルを書き出しました</string>
+    <string name="backup_import_ok">復元完了: %1$d フォルダ · %2$d タスク · %3$d タグ</string>
+    <string name="backup_error">処理に失敗しました: %1$s</string>
+</resources>

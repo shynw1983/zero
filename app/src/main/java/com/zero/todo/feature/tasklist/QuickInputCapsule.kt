@@ -50,8 +50,10 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -61,6 +63,7 @@ import androidx.compose.ui.text.input.OffsetMapping
 import androidx.compose.ui.text.input.TransformedText
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
+import com.zero.todo.R
 import com.zero.todo.core.common.ZeroDateFormatter
 import com.zero.todo.core.designsystem.ZeroCapsuleShape
 import com.zero.todo.core.designsystem.ZeroCardShape
@@ -104,7 +107,10 @@ fun QuickInputCapsule(
     val tabular = ZeroTheme.tabularTypography
     val haptics = rememberZeroHaptics()
     val context = LocalContext.current
+    val activeLocale = LocalConfiguration.current.locales[0]
     val focusManager = LocalFocusManager.current
+    val voicePromptText = stringResource(R.string.quick_input_voice_prompt)
+    val voiceUnavailableText = stringResource(R.string.quick_input_voice_unavailable)
 
     var isFocused by remember { mutableStateOf(false) }
     var voiceStatusNotice by remember { mutableStateOf<String?>(null) }
@@ -127,13 +133,14 @@ fun QuickInputCapsule(
         haptics.heavyClick()
         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-            putExtra(RecognizerIntent.EXTRA_PROMPT, "说出任务，例如：明天下午3点 /工作 提交方案 !1 #紧急")
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, activeLocale.toLanguageTag())
+            putExtra(RecognizerIntent.EXTRA_PROMPT, voicePromptText)
         }
         if (intent.resolveActivity(context.packageManager) != null) {
             voiceStatusNotice = null
             speechLauncher.launch(intent)
         } else {
-            voiceStatusNotice = "当前设备未安装系统语音识别服务"
+            voiceStatusNotice = voiceUnavailableText
         }
     }
 
@@ -177,7 +184,7 @@ fun QuickInputCapsule(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "路由",
+                    text = stringResource(R.string.quick_input_route),
                     style = MaterialTheme.typography.labelSmall,
                     color = colors.textMuted
                 )
@@ -249,7 +256,9 @@ fun QuickInputCapsule(
                 ) {
                     Icon(
                         imageVector = Icons.Rounded.AllInclusive,
-                        contentDescription = if (continuousEntryEnabled) "连续录入已开启" else "连续录入已关闭",
+                        contentDescription = stringResource(
+                            if (continuousEntryEnabled) R.string.cd_continuous_on else R.string.cd_continuous_off
+                        ),
                         tint = if (continuousEntryEnabled) colors.accent else colors.textMuted,
                         modifier = Modifier.size(15.dp)
                     )
@@ -265,7 +274,7 @@ fun QuickInputCapsule(
                 ) {
                     if (text.isEmpty()) {
                         Text(
-                            text = "快速捕捉… 支持 明天 15:00 /目录 !1 #标签",
+                            text = stringResource(R.string.quick_input_placeholder),
                             style = MaterialTheme.typography.bodyMedium,
                             color = colors.textMuted,
                             maxLines = 1
@@ -308,7 +317,7 @@ fun QuickInputCapsule(
                     ) {
                         Icon(
                             imageVector = Icons.Rounded.Mic,
-                            contentDescription = "长按语音录入任务",
+                            contentDescription = stringResource(R.string.cd_voice_capture),
                             tint = colors.textSecondary,
                             modifier = Modifier.size(16.dp)
                         )
@@ -324,7 +333,7 @@ fun QuickInputCapsule(
                     ) {
                         Icon(
                             imageVector = Icons.Rounded.ArrowUpward,
-                            contentDescription = "保存任务",
+                            contentDescription = stringResource(R.string.cd_save_task),
                             tint = colors.onAccent,
                             modifier = Modifier.size(17.dp)
                         )
@@ -354,8 +363,9 @@ fun QuickInputCapsule(
                                 ParsedPreviewChip(
                                     icon = Icons.Rounded.Schedule,
                                     label = ZeroDateFormatter.formatDueDate(
-                                        parsed.dueDateMillis,
-                                        parsed.isAllDay
+                                        dueDateMillis = parsed.dueDateMillis,
+                                        isAllDay = parsed.isAllDay,
+                                        locale = activeLocale
                                     ),
                                     accent = colors.accent,
                                     useTabularFont = true

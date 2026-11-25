@@ -47,8 +47,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.zero.todo.R
 import com.zero.todo.core.designsystem.ZeroAccent
 import com.zero.todo.core.designsystem.ZeroDimens
 import com.zero.todo.core.designsystem.ZeroMotion
@@ -144,7 +146,7 @@ fun FolderTreePanel(
                 ) {
                     Icon(
                         imageVector = if (isDarkTheme) Icons.Rounded.LightMode else Icons.Rounded.DarkMode,
-                        contentDescription = "切换主题",
+                        contentDescription = stringResource(R.string.cd_toggle_theme),
                         tint = colors.textSecondary,
                         modifier = Modifier.size(14.dp)
                     )
@@ -161,7 +163,7 @@ fun FolderTreePanel(
                 ) {
                     Icon(
                         imageVector = Icons.Rounded.Settings,
-                        contentDescription = "打开设置",
+                        contentDescription = stringResource(R.string.cd_open_settings),
                         tint = colors.textSecondary,
                         modifier = Modifier.size(14.dp)
                     )
@@ -176,7 +178,7 @@ fun FolderTreePanel(
         ) {
             item(key = "smart_inbox") {
                 SmartViewRow(
-                    label = "收集箱",
+                    label = stringResource(R.string.nav_inbox),
                     icon = Icons.Rounded.Inbox,
                     count = smartViewCounts.inbox,
                     selected = selectedDestination == NavigationDestination.Inbox,
@@ -185,7 +187,7 @@ fun FolderTreePanel(
             }
             item(key = "smart_today") {
                 SmartViewRow(
-                    label = "今天",
+                    label = stringResource(R.string.nav_today),
                     icon = Icons.Rounded.Today,
                     count = smartViewCounts.today,
                     selected = selectedDestination == NavigationDestination.Today,
@@ -194,7 +196,7 @@ fun FolderTreePanel(
             }
             item(key = "smart_tomorrow") {
                 SmartViewRow(
-                    label = "明天",
+                    label = stringResource(R.string.nav_tomorrow),
                     icon = Icons.Rounded.WbSunny,
                     count = smartViewCounts.tomorrow,
                     selected = selectedDestination == NavigationDestination.Tomorrow,
@@ -203,7 +205,7 @@ fun FolderTreePanel(
             }
             item(key = "smart_next7") {
                 SmartViewRow(
-                    label = "最近 7 天",
+                    label = stringResource(R.string.nav_next_7_days),
                     icon = Icons.Rounded.CalendarMonth,
                     count = smartViewCounts.next7Days,
                     selected = selectedDestination == NavigationDestination.Next7Days,
@@ -212,7 +214,7 @@ fun FolderTreePanel(
             }
             item(key = "smart_calendar") {
                 SmartViewRow(
-                    label = "日历",
+                    label = stringResource(R.string.nav_calendar),
                     icon = Icons.Rounded.CalendarMonth,
                     count = 0,
                     selected = selectedDestination == NavigationDestination.Calendar,
@@ -232,7 +234,7 @@ fun FolderTreePanel(
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text(
-                        text = "文件夹",
+                        text = stringResource(R.string.section_folders),
                         style = MaterialTheme.typography.labelMedium,
                         color = colors.textMuted
                     )
@@ -248,7 +250,7 @@ fun FolderTreePanel(
                         ) {
                             Icon(
                                 imageVector = Icons.Rounded.CreateNewFolder,
-                                contentDescription = "新建根文件夹",
+                                contentDescription = stringResource(R.string.cd_create_root_folder),
                                 tint = colors.textSecondary,
                                 modifier = Modifier.size(16.dp)
                             )
@@ -260,7 +262,7 @@ fun FolderTreePanel(
             if (visibleNodes.isEmpty()) {
                 item(key = "folders_empty") {
                     Text(
-                        text = "暂无文件夹，点击右上角创建",
+                        text = stringResource(R.string.folders_empty_hint),
                         style = MaterialTheme.typography.bodySmall,
                         color = colors.textMuted,
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
@@ -332,7 +334,9 @@ fun IncludeSubfoldersPill(
         contentAlignment = Alignment.Center
     ) {
         Text(
-            text = if (includeSubfolders) "含子级" else "仅当前",
+            text = stringResource(
+                if (includeSubfolders) R.string.filter_include_subfolders else R.string.filter_current_folder
+            ),
             style = MaterialTheme.typography.labelSmall,
             color = textColor
         )
@@ -438,7 +442,9 @@ private fun FolderTreeRow(
             if (hasChildren) {
                 Icon(
                     imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
-                    contentDescription = if (node.folder.isExpanded) "折叠" else "展开",
+                    contentDescription = stringResource(
+                        if (node.folder.isExpanded) R.string.cd_collapse else R.string.cd_expand
+                    ),
                     tint = colors.textMuted,
                     modifier = Modifier
                         .size(16.dp)
@@ -510,7 +516,7 @@ private fun FolderTreeRow(
         ) {
             Icon(
                 imageVector = Icons.Rounded.Add,
-                contentDescription = "新建子文件夹",
+                contentDescription = stringResource(R.string.cd_create_subfolder),
                 tint = colors.textMuted,
                 modifier = Modifier.size(14.dp)
             )
@@ -526,7 +532,7 @@ private fun FolderTreeRow(
             ) {
                 Icon(
                     imageVector = Icons.Rounded.DeleteOutline,
-                    contentDescription = "删除文件夹",
+                    contentDescription = stringResource(R.string.cd_delete_folder),
                     tint = colors.textMuted,
                     modifier = Modifier.size(14.dp)
                 )

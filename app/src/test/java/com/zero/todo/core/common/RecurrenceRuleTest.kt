@@ -8,21 +8,31 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
+import java.util.Locale
 
 class RecurrenceRuleTest {
 
     private val zone = ZoneId.of("UTC")
 
     @Test
-    fun `parses and formats preset and custom RFC 5545 RRULE strings`() {
-        assertEquals("每天", RecurrenceRule.formatLabel("FREQ=DAILY"))
-        assertEquals("工作日", RecurrenceRule.formatLabel("FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR"))
-        assertEquals("每周", RecurrenceRule.formatLabel("FREQ=WEEKLY"))
-        assertEquals("每月", RecurrenceRule.formatLabel("FREQ=MONTHLY"))
-        assertEquals("每 2 天", RecurrenceRule.formatLabel("RRULE:FREQ=DAILY;INTERVAL=2"))
-        assertEquals("每周 (周一、周三、周五)", RecurrenceRule.formatLabel("FREQ=WEEKLY;BYDAY=MO,WE,FR"))
+    fun `parses and formats preset and custom RFC 5545 RRULE strings across ZH, JA, KO, and EN`() {
+        assertEquals("每天", RecurrenceRule.formatLabel("FREQ=DAILY", Locale.SIMPLIFIED_CHINESE))
+        assertEquals("工作日", RecurrenceRule.formatLabel("FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR", Locale.SIMPLIFIED_CHINESE))
+        assertEquals("每周", RecurrenceRule.formatLabel("FREQ=WEEKLY", Locale.SIMPLIFIED_CHINESE))
+        assertEquals("每月", RecurrenceRule.formatLabel("FREQ=MONTHLY", Locale.SIMPLIFIED_CHINESE))
+        assertEquals("每 2 天", RecurrenceRule.formatLabel("RRULE:FREQ=DAILY;INTERVAL=2", Locale.SIMPLIFIED_CHINESE))
+        assertEquals("每周 (周一、周三、周五)", RecurrenceRule.formatLabel("FREQ=WEEKLY;BYDAY=MO,WE,FR", Locale.SIMPLIFIED_CHINESE))
+        assertEquals("不重复", RecurrenceRule.formatLabel(null, Locale.SIMPLIFIED_CHINESE))
+
+        // Japanese / Korean / English
+        assertEquals("毎日", RecurrenceRule.formatLabel("FREQ=DAILY", Locale.JAPANESE))
+        assertEquals("平日", RecurrenceRule.formatLabel("FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR", Locale.JAPANESE))
+        assertEquals("매일", RecurrenceRule.formatLabel("FREQ=DAILY", Locale.KOREAN))
+        assertEquals("평일", RecurrenceRule.formatLabel("FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR", Locale.KOREAN))
+        assertEquals("Daily", RecurrenceRule.formatLabel("FREQ=DAILY", Locale.ENGLISH))
+        assertEquals("Weekdays", RecurrenceRule.formatLabel("FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR", Locale.ENGLISH))
+
         assertNull(RecurrenceRule.parse("INVALID_RULE"))
-        assertEquals("不重复", RecurrenceRule.formatLabel(null))
     }
 
     @Test

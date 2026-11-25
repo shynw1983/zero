@@ -1,18 +1,27 @@
 package com.zero.todo.feature.main
 
+import android.app.LocaleManager
+import android.content.res.Configuration
+import android.os.Build
+import android.os.LocaleList
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.zero.todo.core.designsystem.ZeroTheme
+import com.zero.todo.domain.model.AppLanguage
+import java.util.Locale
 
 object ZeroRoutes {
     const val MAIN = "main"
@@ -32,6 +41,26 @@ fun ZeroAppRoot(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val navController = rememberNavController()
+    val baseContext = LocalContext.current
+    val baseConfig = LocalConfiguration.current
+
+    // Sync Android 13+ per-app system locale when user switches language in Settings
+    LaunchedEffect(uiState.appLanguage) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            runCatching {
+                val localeManager = baseContext.getSystemService(LocaleManager::class.java)
+                val tag = uiState.appLanguage.languageTag
+                val targetList = if (tag == null) {
+                    LocaleList.getEmptyLocaleList()
+                } else {
+                    LocaleList.forLanguageTags(tag)
+                }
+                if (localeManager?.applicationLocales != targetList) {
+                    localeManager?.applicationLocales = targetList
+                }
+            }
+        }
+    }
 
     LaunchedEffect(widgetLaunchArgs?.id) {
         if (widgetLaunchArgs != null && widgetLaunchArgs.id > 0L) {
@@ -40,6 +69,25 @@ fun ZeroAppRoot(
                 taskId = widgetLaunchArgs.taskId,
                 launchQuickInput = widgetLaunchArgs.launchQuickInput
             )
+        }
+    }
+
+    val localizedConfig = remember(baseConfig, uiState.appLanguage) {
+        Configuration(baseConfig).apply {
+            val tag = uiState.appLanguage.languageTag
+            if (tag != null) {
+                val locale = Locale.forLanguageTag(tag)
+                setLocale(locale)
+                setLocales(LocaleList(locale))
+            }
+        }
+    }
+
+    val localizedContext = remember(baseContext, localizedConfig, uiState.appLanguage) {
+        if (uiState.appLanguage == AppLanguage.SYSTEM) {
+            baseContext
+        } else {
+            baseContext.createConfigurationContext(localizedConfig)
         }
     }
 
@@ -80,6 +128,7 @@ fun ZeroAppRoot(
             onSetAccent = viewModel::setAccent,
             onSetAntiMisclickMode = viewModel::setAntiMisclickMode,
             onSetHapticsEnabled = viewModel::setHapticsEnabled,
+            onSetAppLanguage = viewModel::setAppLanguage,
             onOpenSettings = viewModel::openSettings,
             onCloseSettings = viewModel::closeSettings,
             onGenerateJsonBackup = viewModel::generateJsonBackup,
@@ -98,24 +147,29 @@ fun ZeroAppRoot(
         )
     }
 
-    ZeroTheme(
-        darkTheme = uiState.isDarkTheme,
-        accent = uiState.activeAccent,
-        hapticsEnabled = uiState.hapticsEnabled
+    CompositionLocalProvider(
+        LocalConfiguration provides localizedConfig,
+        LocalContext provides localizedContext
     ) {
-        Surface(
-            modifier = Modifier.fillMaxSize(),
-            color = ZeroTheme.colors.background
+        ZeroTheme(
+            darkTheme = uiState.isDarkTheme,
+            accent = uiState.activeAccent,
+            hapticsEnabled = uiState.hapticsEnabled
         ) {
-            NavHost(
-                navController = navController,
-                startDestination = ZeroRoutes.MAIN
+            Surface(
+                modifier = Modifier.fillMaxSize(),
+                color = ZeroTheme.colors.background
             ) {
-                composable(ZeroRoutes.MAIN) {
-                    ZeroAdaptiveShell(
-                        uiState = uiState,
-                        callbacks = callbacks
-                    )
+                NavHost(
+                    navController = navController,
+                    startDestination = ZeroRoutes.MAIN
+                ) {
+                    composable(ZeroRoutes.MAIN) {
+                        ZeroAdaptiveShell(
+                            uiState = uiState,
+                            callbacks = callbacks
+                        )
+                    }
                 }
             }
         }

@@ -46,9 +46,11 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.window.core.layout.WindowWidthSizeClass
+import com.zero.todo.R
 import com.zero.todo.core.designsystem.ZeroAccent
 import com.zero.todo.core.designsystem.ZeroMotion
 import com.zero.todo.core.designsystem.ZeroTheme
@@ -57,6 +59,7 @@ import com.zero.todo.core.designsystem.hairlineDividerEnd
 import com.zero.todo.core.designsystem.hairlineDividerStart
 import com.zero.todo.core.nlp.QuickInputParser
 import com.zero.todo.domain.model.AntiMisclickMode
+import com.zero.todo.domain.model.AppLanguage
 import com.zero.todo.domain.model.FocusMode
 import com.zero.todo.domain.model.Folder
 import com.zero.todo.domain.model.FolderNode
@@ -69,6 +72,7 @@ import com.zero.todo.feature.folder.CreateFolderDialog
 import com.zero.todo.feature.folder.FolderTreePanel
 import com.zero.todo.feature.folder.NavigationDestination
 import com.zero.todo.feature.folder.SmartViewCounts
+import com.zero.todo.feature.settings.BackupUiStatus
 import com.zero.todo.feature.settings.SettingsOverlay
 import com.zero.todo.feature.taskdetail.TaskDetailPane
 import com.zero.todo.feature.tasklist.FolderPathSuggestion
@@ -113,12 +117,13 @@ data class ZeroShellCallbacks(
     val onSetAccent: (ZeroAccent) -> Unit = {},
     val onSetAntiMisclickMode: (AntiMisclickMode) -> Unit = {},
     val onSetHapticsEnabled: (Boolean) -> Unit = {},
+    val onSetAppLanguage: (AppLanguage) -> Unit = {},
     val onOpenSettings: () -> Unit = {},
     val onCloseSettings: () -> Unit = {},
     val onGenerateJsonBackup: suspend () -> String = { "{}" },
     val onGenerateMarkdownExport: suspend () -> String = { "" },
     val onImportJsonBackup: (String) -> Unit = {},
-    val onReportBackupStatus: (String) -> Unit = {},
+    val onReportBackupStatus: (BackupUiStatus) -> Unit = {},
     val onStartFocus: (task: TaskItem?, mode: FocusMode) -> Unit = { _, _ -> },
     val onSelectFocusMode: (FocusMode) -> Unit = {},
     val onStartOrResumeFocus: () -> Unit = {},
@@ -293,11 +298,13 @@ fun ZeroAdaptiveShell(
                 activeAccent = uiState.activeAccent,
                 antiMisclickMode = uiState.antiMisclickMode,
                 hapticsEnabled = uiState.hapticsEnabled,
-                backupStatusMessage = uiState.backupStatusMessage,
+                appLanguage = uiState.appLanguage,
+                backupStatus = uiState.backupStatus,
                 onSetDarkTheme = callbacks.onSetDarkTheme,
                 onSetAccent = callbacks.onSetAccent,
                 onSetAntiMisclickMode = callbacks.onSetAntiMisclickMode,
                 onSetHapticsEnabled = callbacks.onSetHapticsEnabled,
+                onSetAppLanguage = callbacks.onSetAppLanguage,
                 onGenerateJsonBackup = callbacks.onGenerateJsonBackup,
                 onGenerateMarkdownExport = callbacks.onGenerateMarkdownExport,
                 onImportJsonBackup = callbacks.onImportJsonBackup,
@@ -362,8 +369,17 @@ private fun CenterWorkspacePane(
             modifier = modifier
         )
     } else {
+        val localizedDestinationTitle = when (val dest = uiState.selectedDestination) {
+            NavigationDestination.Inbox -> stringResource(R.string.nav_inbox)
+            NavigationDestination.Today -> stringResource(R.string.nav_today)
+            NavigationDestination.Tomorrow -> stringResource(R.string.nav_tomorrow)
+            NavigationDestination.Next7Days -> stringResource(R.string.nav_next_7_days)
+            NavigationDestination.Calendar -> stringResource(R.string.nav_calendar)
+            is NavigationDestination.FolderView ->
+                uiState.folderNameById[dest.folderId] ?: stringResource(R.string.nav_inbox)
+        }
         TaskListPane(
-            title = uiState.destinationTitle,
+            title = localizedDestinationTitle,
             breadcrumbs = uiState.breadcrumbs,
             selectedDestination = uiState.selectedDestination,
             includeSubfolders = uiState.includeSubfolders,
