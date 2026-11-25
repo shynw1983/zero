@@ -330,10 +330,11 @@ class MainViewModelStateTest {
 
         // Delete moves to Trash and restore brings it back
         vm.deleteTask(tLow)
-        val inTrash = withTimeout(5_000L) {
-            vm.uiState.first { it.deletedTasks.any { d -> d.id == tLow.id } }
+        withTimeout(5_000L) {
+            vm.uiState.first { state ->
+                state.smartViewCounts.trash == 1 && state.deletedTasks.any { it.id == tLow.id }
+            }
         }
-        assertEquals(1, inTrash.smartViewCounts.trash)
 
         vm.restoreDeletedTask(tLow.id)
         withTimeout(5_000L) {
