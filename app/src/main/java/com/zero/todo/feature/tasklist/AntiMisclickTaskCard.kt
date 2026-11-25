@@ -28,6 +28,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Undo
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.DragHandle
+import androidx.compose.material.icons.rounded.NotificationsActive
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -98,6 +99,7 @@ fun AntiMisclickTaskCard(
     antiMisclickMode: AntiMisclickMode = AntiMisclickMode.BOTH,
     onToggleComplete: (TaskItem) -> Unit,
     onSelectTask: (TaskItem) -> Unit,
+    onTagClick: ((tagId: String) -> Unit)? = null,
     onReorderDragStart: () -> Unit,
     onReorderDragDelta: (Float) -> Unit,
     onReorderDragEnd: () -> Unit,
@@ -362,7 +364,16 @@ fun AntiMisclickTaskCard(
                                     locale = activeLocale
                                 ),
                                 style = tabular.dateCompact,
-                                color = if (overdue) colors.accent else colors.textSecondary
+                                color = if (overdue) colors.priorityUrgent else colors.textSecondary
+                            )
+                        }
+
+                        if (task.reminderAt != null && !task.isCompleted) {
+                            Icon(
+                                imageVector = Icons.Rounded.NotificationsActive,
+                                contentDescription = null,
+                                tint = colors.accent,
+                                modifier = Modifier.size(12.dp)
                             )
                         }
 
@@ -384,6 +395,13 @@ fun AntiMisclickTaskCard(
                                 modifier = Modifier
                                     .clip(ZeroSmallShape)
                                     .background(colors.surfaceElevated)
+                                    .then(
+                                        if (onTagClick != null) {
+                                            Modifier.clickable { onTagClick(tag.id) }
+                                        } else {
+                                            Modifier
+                                        }
+                                    )
                                     .padding(horizontal = 5.dp, vertical = 1.dp)
                             )
                         }

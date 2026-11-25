@@ -10,10 +10,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -22,7 +20,9 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.AllInbox
 import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material.icons.rounded.CreateNewFolder
 import androidx.compose.material.icons.rounded.DarkMode
@@ -30,10 +30,12 @@ import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Folder
 import androidx.compose.material.icons.rounded.FolderOpen
-import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
+import androidx.compose.material.icons.rounded.GridView
 import androidx.compose.material.icons.rounded.Inbox
 import androidx.compose.material.icons.rounded.LightMode
 import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.material.icons.rounded.SwapVert
+import androidx.compose.material.icons.rounded.Tag
 import androidx.compose.material.icons.rounded.Today
 import androidx.compose.material.icons.rounded.WbSunny
 import androidx.compose.material3.Icon
@@ -60,6 +62,7 @@ import com.zero.todo.core.designsystem.ZeroTheme
 import com.zero.todo.core.designsystem.hairlineBorder
 import com.zero.todo.core.designsystem.hairlineDividerBottom
 import com.zero.todo.core.designsystem.hairlineDividerTop
+import com.zero.todo.data.repository.TagWithCount
 import com.zero.todo.domain.model.Folder
 import com.zero.todo.domain.model.FolderNode
 import com.zero.todo.domain.model.FolderTreeBuilder
@@ -67,6 +70,7 @@ import com.zero.todo.domain.model.FolderTreeBuilder
 @Composable
 fun FolderTreePanel(
     folderTree: List<FolderNode>,
+    tagsWithCounts: List<TagWithCount>,
     selectedDestination: NavigationDestination,
     smartViewCounts: SmartViewCounts,
     includeSubfolders: Boolean,
@@ -76,7 +80,8 @@ fun FolderTreePanel(
     onToggleFolderExpanded: (folderId: String, isExpanded: Boolean) -> Unit,
     onRequestCreateFolder: (parentFolder: Folder?) -> Unit,
     onRequestRenameFolder: (folder: Folder) -> Unit,
-    onDeleteFolder: (folderId: String) -> Unit,
+    onRequestOrganizeFolder: (folder: Folder) -> Unit,
+    onRequestDeleteFolder: (folder: Folder) -> Unit,
     onToggleIncludeSubfolders: () -> Unit,
     onToggleTheme: () -> Unit,
     onToggleAccent: () -> Unit,
@@ -120,7 +125,7 @@ fun FolderTreePanel(
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Switch Signal Orange / Cyber Cyan
+                // Switch Calm Accent Palette
                 Box(
                     modifier = Modifier
                         .size(26.dp)
@@ -154,7 +159,7 @@ fun FolderTreePanel(
                     )
                 }
 
-                // Open Settings (Accent / Anti-Misclick / Backup & Export)
+                // Open Settings
                 Box(
                     modifier = Modifier
                         .size(26.dp)
@@ -173,7 +178,7 @@ fun FolderTreePanel(
             }
         }
 
-        // Scrollable Smart Views + Infinite Folder Tree
+        // Scrollable Smart Views + Infinite Folder Tree + Tags
         LazyColumn(
             modifier = Modifier.weight(1f),
             contentPadding = PaddingValues(vertical = 8.dp)
@@ -192,6 +197,7 @@ fun FolderTreePanel(
                     label = stringResource(R.string.nav_today),
                     icon = Icons.Rounded.Today,
                     count = smartViewCounts.today,
+                    hasAlertDot = smartViewCounts.overdue > 0,
                     selected = selectedDestination == NavigationDestination.Today,
                     onClick = { onSelectDestination(NavigationDestination.Today) }
                 )
@@ -221,6 +227,24 @@ fun FolderTreePanel(
                     count = 0,
                     selected = selectedDestination == NavigationDestination.Calendar,
                     onClick = { onSelectDestination(NavigationDestination.Calendar) }
+                )
+            }
+            item(key = "smart_all") {
+                SmartViewRow(
+                    label = stringResource(R.string.nav_all_tasks),
+                    icon = Icons.Rounded.AllInbox,
+                    count = smartViewCounts.all,
+                    selected = selectedDestination == NavigationDestination.All,
+                    onClick = { onSelectDestination(NavigationDestination.All) }
+                )
+            }
+            item(key = "smart_matrix") {
+                SmartViewRow(
+                    label = stringResource(R.string.nav_matrix),
+                    icon = Icons.Rounded.GridView,
+                    count = 0,
+                    selected = selectedDestination == NavigationDestination.Matrix,
+                    onClick = { onSelectDestination(NavigationDestination.Matrix) }
                 )
             }
 
@@ -286,32 +310,114 @@ fun FolderTreePanel(
                             onToggleFolderExpanded(node.folder.id, !node.folder.isExpanded)
                         },
                         onCreateSubfolder = { onRequestCreateFolder(node.folder) },
+                        onOrganize = { onRequestOrganizeFolder(node.folder) },
                         onRename = { onRequestRenameFolder(node.folder) },
-                        onDelete = { onDeleteFolder(node.folder.id) }
+                        onDelete = { onRequestDeleteFolder(node.folder) }
+                    )
+                }
+            }
+
+            // Tags Section
+            if (tagsWithCounts.isNotEmpty()) {
+                item(key = "tags_header") {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 12.dp, bottom = 4.dp)
+                            .hairlineDividerTop()
+                            .padding(start = 16.dp, end = 12.dp, top = 12.dp, bottom = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = stringResource(R.string.section_tags),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = colors.textMuted
+                        )
+                        Text(
+                            text = tagsWithCounts.size.toString().padStart(2, '0'),
+                            style = tabular.dateCompact,
+                            color = colors.textMuted
+                        )
+                    }
+                }
+
+                items(
+                    items = tagsWithCounts,
+                    key = { "tag_${it.tag.id}" }
+                ) { item ->
+                    val isSelected = selectedDestination is NavigationDestination.TagView &&
+                        selectedDestination.tagId == item.tag.id
+                    SmartViewRow(
+                        label = "#${item.tag.name}",
+                        icon = Icons.Rounded.Tag,
+                        count = item.activeTaskCount,
+                        selected = isSelected,
+                        onClick = { onSelectDestination(NavigationDestination.TagView(item.tag.id)) }
                     )
                 }
             }
         }
 
-        // Minimalist status footer
+        // Minimalist status footer with Recycle Bin shortcut
+        val trashSelected = selectedDestination == NavigationDestination.Trash
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .hairlineDividerTop()
-                .padding(horizontal = 16.dp, vertical = 10.dp),
+                .padding(horizontal = 12.dp, vertical = 8.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                text = "FOLDERS",
-                style = tabular.dateCompact,
-                color = colors.textMuted
-            )
-            Text(
-                text = visibleNodes.size.toString().padStart(2, '0'),
-                style = tabular.counter,
-                color = colors.textSecondary
-            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                modifier = Modifier.padding(start = 4.dp)
+            ) {
+                Text(
+                    text = "FOLDERS",
+                    style = tabular.dateCompact,
+                    color = colors.textMuted
+                )
+                Text(
+                    text = visibleNodes.size.toString().padStart(2, '0'),
+                    style = tabular.counter,
+                    color = colors.textSecondary
+                )
+            }
+
+            Row(
+                modifier = Modifier
+                    .clip(ZeroSmallShape)
+                    .background(if (trashSelected) colors.accentSubtle else colors.background)
+                    .then(
+                        if (trashSelected) Modifier.hairlineBorder(shape = ZeroSmallShape, color = colors.accent)
+                        else Modifier
+                    )
+                    .clickable { onSelectDestination(NavigationDestination.Trash) }
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.DeleteOutline,
+                    contentDescription = stringResource(R.string.nav_trash),
+                    tint = if (trashSelected) colors.accent else colors.textMuted,
+                    modifier = Modifier.size(14.dp)
+                )
+                Text(
+                    text = stringResource(R.string.nav_trash),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = if (trashSelected) colors.accent else colors.textSecondary
+                )
+                if (smartViewCounts.trash > 0) {
+                    Text(
+                        text = smartViewCounts.trash.toString(),
+                        style = tabular.dateCompact,
+                        color = if (trashSelected) colors.accent else colors.textMuted
+                    )
+                }
+            }
         }
     }
 }
@@ -352,6 +458,7 @@ private fun SmartViewRow(
     icon: ImageVector,
     count: Int,
     selected: Boolean,
+    hasAlertDot: Boolean = false,
     onClick: () -> Unit
 ) {
     val colors = ZeroTheme.colors
@@ -367,14 +474,14 @@ private fun SmartViewRow(
                 if (selected) Modifier.hairlineBorder(shape = ZeroSmallShape) else Modifier
             )
             .clickable(onClick = onClick)
-            .padding(horizontal = 10.dp, vertical = 9.dp),
+            .padding(horizontal = 10.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(
             imageVector = icon,
             contentDescription = null,
             tint = if (selected) colors.accent else colors.textSecondary,
-            modifier = Modifier.size(17.dp)
+            modifier = Modifier.size(16.dp)
         )
         Spacer(modifier = Modifier.width(10.dp))
         Text(
@@ -385,6 +492,15 @@ private fun SmartViewRow(
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f)
         )
+        if (hasAlertDot) {
+            Box(
+                modifier = Modifier
+                    .size(6.dp)
+                    .clip(CircleShape)
+                    .background(colors.priorityUrgent)
+            )
+            Spacer(modifier = Modifier.width(6.dp))
+        }
         if (count > 0) {
             Text(
                 text = count.toString(),
@@ -403,6 +519,7 @@ private fun FolderTreeRow(
     onSelect: () -> Unit,
     onToggleExpand: () -> Unit,
     onCreateSubfolder: () -> Unit,
+    onOrganize: () -> Unit,
     onRename: () -> Unit,
     onDelete: () -> Unit
 ) {
@@ -470,7 +587,6 @@ private fun FolderTreeRow(
 
         Spacer(modifier = Modifier.width(8.dp))
 
-        // Depth indicator for levels > 4 to prevent horizontal clipping
         if (node.depth > ZeroDimens.MaxVisibleTreeDepth) {
             Text(
                 text = "L${node.depth + 1}",
@@ -484,7 +600,6 @@ private fun FolderTreeRow(
             Spacer(modifier = Modifier.width(4.dp))
         }
 
-        // Folder name (horizontal scroll fallback for deep nested names)
         Box(
             modifier = Modifier
                 .weight(1f)
@@ -510,10 +625,9 @@ private fun FolderTreeRow(
             )
         }
 
-        // Create Subfolder action
         Box(
             modifier = Modifier
-                .size(24.dp)
+                .size(22.dp)
                 .clip(ZeroSmallShape)
                 .clickable(onClick = onCreateSubfolder),
             contentAlignment = Alignment.Center
@@ -529,7 +643,21 @@ private fun FolderTreeRow(
         if (isSelected) {
             Box(
                 modifier = Modifier
-                    .size(24.dp)
+                    .size(22.dp)
+                    .clip(ZeroSmallShape)
+                    .clickable(onClick = onOrganize),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.SwapVert,
+                    contentDescription = stringResource(R.string.cd_organize_folder),
+                    tint = colors.textMuted,
+                    modifier = Modifier.size(14.dp)
+                )
+            }
+            Box(
+                modifier = Modifier
+                    .size(22.dp)
                     .clip(ZeroSmallShape)
                     .clickable(onClick = onRename),
                 contentAlignment = Alignment.Center
@@ -543,7 +671,7 @@ private fun FolderTreeRow(
             }
             Box(
                 modifier = Modifier
-                    .size(24.dp)
+                    .size(22.dp)
                     .clip(ZeroSmallShape)
                     .clickable(onClick = onDelete),
                 contentAlignment = Alignment.Center

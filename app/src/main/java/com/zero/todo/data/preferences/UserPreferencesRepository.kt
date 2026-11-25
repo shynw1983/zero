@@ -2,8 +2,10 @@ package com.zero.todo.data.preferences
 
 import android.content.Context
 import com.zero.todo.core.designsystem.ZeroAccent
+import com.zero.todo.data.backup.WebDavConfig
 import com.zero.todo.domain.model.AntiMisclickMode
 import com.zero.todo.domain.model.AppLanguage
+import com.zero.todo.domain.model.TaskSortMode
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -17,7 +19,9 @@ data class UserPreferences(
     val accent: ZeroAccent = ZeroAccent.SlateBlue,
     val antiMisclickMode: AntiMisclickMode = AntiMisclickMode.BOTH,
     val hapticsEnabled: Boolean = true,
-    val appLanguage: AppLanguage = AppLanguage.SYSTEM
+    val appLanguage: AppLanguage = AppLanguage.SYSTEM,
+    val taskSortMode: TaskSortMode = TaskSortMode.MANUAL,
+    val webDavConfig: WebDavConfig = WebDavConfig()
 )
 
 interface UserPreferencesRepository {
@@ -28,6 +32,8 @@ interface UserPreferencesRepository {
     fun setAntiMisclickMode(mode: AntiMisclickMode)
     fun setHapticsEnabled(enabled: Boolean)
     fun setAppLanguage(language: AppLanguage)
+    fun setTaskSortMode(sortMode: TaskSortMode)
+    fun setWebDavConfig(config: WebDavConfig)
 }
 
 @Singleton
@@ -65,6 +71,21 @@ class SharedPrefsUserPreferencesRepository @Inject constructor(
         _preferences.update { it.copy(appLanguage = language) }
     }
 
+    override fun setTaskSortMode(sortMode: TaskSortMode) {
+        prefs.edit().putString(KEY_TASK_SORT_MODE, sortMode.name).apply()
+        _preferences.update { it.copy(taskSortMode = sortMode) }
+    }
+
+    override fun setWebDavConfig(config: WebDavConfig) {
+        prefs.edit()
+            .putString(KEY_WEBDAV_URL, config.serverUrl)
+            .putString(KEY_WEBDAV_USER, config.username)
+            .putString(KEY_WEBDAV_PASS, config.password)
+            .putString(KEY_WEBDAV_FILE, config.remoteFileName)
+            .apply()
+        _preferences.update { it.copy(webDavConfig = config) }
+    }
+
     private fun loadInitial(): UserPreferences {
         val isDark = prefs.getBoolean(KEY_DARK_THEME, true)
         val accentName = prefs.getString(KEY_ACCENT, ZeroAccent.SlateBlue.name)
@@ -76,12 +97,25 @@ class SharedPrefsUserPreferencesRepository @Inject constructor(
         val appLanguage = AppLanguage.fromStorage(
             prefs.getString(KEY_APP_LANGUAGE, AppLanguage.SYSTEM.name)
         )
+        val sortMode = TaskSortMode.fromStorage(
+            prefs.getString(KEY_TASK_SORT_MODE, TaskSortMode.MANUAL.name)
+        )
+        val webDavConfig = WebDavConfig(
+            serverUrl = prefs.getString(KEY_WEBDAV_URL, "").orEmpty(),
+            username = prefs.getString(KEY_WEBDAV_USER, "").orEmpty(),
+            password = prefs.getString(KEY_WEBDAV_PASS, "").orEmpty(),
+            remoteFileName = prefs.getString(KEY_WEBDAV_FILE, WebDavConfig.DEFAULT_REMOTE_FILE)
+                .orEmpty()
+                .ifBlank { WebDavConfig.DEFAULT_REMOTE_FILE }
+        )
         return UserPreferences(
             isDarkTheme = isDark,
             accent = accent,
             antiMisclickMode = antiMisclickMode,
             hapticsEnabled = hapticsEnabled,
-            appLanguage = appLanguage
+            appLanguage = appLanguage,
+            taskSortMode = sortMode,
+            webDavConfig = webDavConfig
         )
     }
 
@@ -91,7 +125,12 @@ class SharedPrefsUserPreferencesRepository @Inject constructor(
         private const val KEY_ACCENT = "accent"
         private const val KEY_ANTI_MISCLICK_MODE = "anti_misclick_mode"
         private const val KEY_HAPTICS_ENABLED = "haptics_enabled"
-        const val KEY_APP_LANGUAGE = "app_language"
+        private const val KEY_APP_LANGUAGE = "app_language"
+        private const val KEY_TASK_SORT_MODE = "task_sort_mode"
+        private const val KEY_WEBDAV_URL = "webdav_url"
+        private const val KEY_WEBDAV_USER = "webdav_user"
+        private const val KEY_WEBDAV_PASS = "webdav_pass"
+        private const val KEY_WEBDAV_FILE = "webdav_file"
     }
 }
 
@@ -119,5 +158,13 @@ class InMemoryUserPreferencesRepository(
 
     override fun setAppLanguage(language: AppLanguage) {
         _preferences.update { it.copy(appLanguage = language) }
+    }
+
+    override fun setTaskSortMode(sortMode: TaskSortMode) {
+        _preferences.update { it.copy(taskSortMode = sortMode) }
+    }
+
+    override fun setWebDavConfig(config: WebDavConfig) {
+        _preferences.update { it.copy(webDavConfig = config) }
     }
 }

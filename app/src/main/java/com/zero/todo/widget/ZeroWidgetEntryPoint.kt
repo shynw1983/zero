@@ -2,6 +2,7 @@ package com.zero.todo.widget
 
 import android.content.Context
 import androidx.glance.appwidget.updateAll
+import com.zero.todo.core.notification.ReminderScheduler
 import com.zero.todo.data.local.dao.TaskDao
 import com.zero.todo.data.repository.TaskRepository
 import dagger.hilt.EntryPoint
@@ -14,6 +15,7 @@ import dagger.hilt.components.SingletonComponent
 interface ZeroWidgetEntryPoint {
     fun taskDao(): TaskDao
     fun taskRepository(): TaskRepository
+    fun reminderScheduler(): ReminderScheduler
 }
 
 object ZeroWidgetIntents {

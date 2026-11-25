@@ -19,6 +19,8 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.ArrowDownward
+import androidx.compose.material.icons.rounded.ArrowUpward
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Folder
 import androidx.compose.material.icons.rounded.Inbox
@@ -295,6 +297,292 @@ fun RenameFolderDialog(
                         text = stringResource(R.string.action_save),
                         style = MaterialTheme.typography.labelLarge,
                         color = if (canSave) colors.onAccent else colors.textMuted
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Anti-misclick confirmation dialog before deleting a folder.
+ * Explains clearly that contained tasks are safely returned to Inbox.
+ */
+@Composable
+fun DeleteFolderConfirmDialog(
+    folder: Folder,
+    onDismiss: () -> Unit,
+    onConfirmDelete: (folderId: String) -> Unit
+) {
+    val colors = ZeroTheme.colors
+    Dialog(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(ZeroCardShape)
+                .background(colors.surfaceElevated)
+                .hairlineBorder(shape = ZeroCardShape)
+                .padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text(
+                text = stringResource(R.string.dialog_delete_folder_title, folder.name),
+                style = MaterialTheme.typography.titleMedium,
+                color = colors.textPrimary
+            )
+            Text(
+                text = stringResource(R.string.dialog_delete_folder_message),
+                style = MaterialTheme.typography.bodySmall,
+                color = colors.textSecondary
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End
+            ) {
+                Box(
+                    modifier = Modifier
+                        .clip(ZeroSmallShape)
+                        .hairlineBorder(shape = ZeroSmallShape)
+                        .clickable(onClick = onDismiss)
+                        .padding(horizontal = 14.dp, vertical = 8.dp)
+                ) {
+                    Text(
+                        text = stringResource(R.string.action_cancel),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = colors.textSecondary
+                    )
+                }
+                Spacer(modifier = Modifier.width(8.dp))
+                Box(
+                    modifier = Modifier
+                        .clip(ZeroSmallShape)
+                        .background(colors.priorityUrgent)
+                        .clickable {
+                            onConfirmDelete(folder.id)
+                            onDismiss()
+                        }
+                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                ) {
+                    Text(
+                        text = stringResource(R.string.action_delete),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = colors.onAccent
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Dialog to reorganize a folder: reorder among siblings (Up / Down) OR re-parent under Root /
+ * any non-descendant parent folder.
+ */
+@Composable
+fun MoveFolderDialog(
+    folder: Folder,
+    folderTree: List<FolderNode>,
+    onMoveOrder: (folderId: String, direction: Int) -> Unit,
+    onMoveToParent: (folderId: String, targetParentId: String?) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val colors = ZeroTheme.colors
+
+    // Exclude the folder itself and all its descendants to prevent invalid cycles.
+    val validTargets = remember(folder.id, folderTree) {
+        buildList {
+            fun walk(nodes: List<FolderNode>) {
+                for (node in nodes) {
+                    if (node.folder.id == folder.id) continue
+                    add(node)
+                    walk(node.children)
+                }
+            }
+            walk(folderTree)
+        }
+    }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(ZeroCardShape)
+                .background(colors.surfaceElevated)
+                .hairlineBorder(shape = ZeroCardShape)
+                .padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text(
+                text = stringResource(R.string.dialog_organize_folder_title, folder.name),
+                style = MaterialTheme.typography.titleMedium,
+                color = colors.textPrimary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+
+            // Reorder among siblings
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(ZeroSmallShape)
+                        .background(colors.surface)
+                        .hairlineBorder(shape = ZeroSmallShape)
+                        .clickable { onMoveOrder(folder.id, -1) }
+                        .padding(horizontal = 10.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.ArrowUpward,
+                        contentDescription = null,
+                        tint = colors.textSecondary,
+                        modifier = Modifier.size(15.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = stringResource(R.string.action_move_up),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = colors.textPrimary
+                    )
+                }
+                Row(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(ZeroSmallShape)
+                        .background(colors.surface)
+                        .hairlineBorder(shape = ZeroSmallShape)
+                        .clickable { onMoveOrder(folder.id, 1) }
+                        .padding(horizontal = 10.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.ArrowDownward,
+                        contentDescription = null,
+                        tint = colors.textSecondary,
+                        modifier = Modifier.size(15.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = stringResource(R.string.action_move_down),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = colors.textPrimary
+                    )
+                }
+            }
+
+            Text(
+                text = stringResource(R.string.dialog_move_folder_parent_hint),
+                style = MaterialTheme.typography.labelSmall,
+                color = colors.textMuted
+            )
+
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 260.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                item(key = "parent_root") {
+                    val isCurrent = folder.parentId == null
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(ZeroSmallShape)
+                            .background(if (isCurrent) colors.accentSubtle else colors.surface)
+                            .hairlineBorder(
+                                shape = ZeroSmallShape,
+                                color = if (isCurrent) colors.accent else colors.hairlineBorder
+                            )
+                            .clickable {
+                                onMoveToParent(folder.id, null)
+                                onDismiss()
+                            }
+                            .padding(horizontal = 12.dp, vertical = 9.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = stringResource(R.string.folder_root_level),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = if (isCurrent) colors.accent else colors.textPrimary,
+                            modifier = Modifier.weight(1f)
+                        )
+                        if (isCurrent) {
+                            Icon(
+                                imageVector = Icons.Rounded.Check,
+                                contentDescription = null,
+                                tint = colors.accent,
+                                modifier = Modifier.size(15.dp)
+                            )
+                        }
+                    }
+                }
+
+                items(items = validTargets, key = { it.folder.id }) { node ->
+                    val isCurrent = node.folder.id == folder.parentId
+                    val indent = ZeroDimens.TreeIndentPerLevel * node.depth.coerceAtMost(ZeroDimens.MaxVisibleTreeDepth)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(ZeroSmallShape)
+                            .background(if (isCurrent) colors.accentSubtle else colors.surface)
+                            .hairlineBorder(
+                                shape = ZeroSmallShape,
+                                color = if (isCurrent) colors.accent else colors.hairlineBorder
+                            )
+                            .clickable {
+                                onMoveToParent(folder.id, node.folder.id)
+                                onDismiss()
+                            }
+                            .padding(start = 12.dp + indent, end = 12.dp, top = 9.dp, bottom = 9.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Folder,
+                            contentDescription = null,
+                            tint = if (isCurrent) colors.accent else colors.textSecondary,
+                            modifier = Modifier.size(15.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = node.folder.name,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = if (isCurrent) colors.accent else colors.textPrimary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f)
+                        )
+                        if (isCurrent) {
+                            Icon(
+                                imageVector = Icons.Rounded.Check,
+                                contentDescription = null,
+                                tint = colors.accent,
+                                modifier = Modifier.size(15.dp)
+                            )
+                        }
+                    }
+                }
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End
+            ) {
+                Box(
+                    modifier = Modifier
+                        .clip(ZeroSmallShape)
+                        .hairlineBorder(shape = ZeroSmallShape)
+                        .clickable(onClick = onDismiss)
+                        .padding(horizontal = 14.dp, vertical = 8.dp)
+                ) {
+                    Text(
+                        text = stringResource(R.string.action_close),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = colors.textSecondary
                     )
                 }
             }

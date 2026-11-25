@@ -87,6 +87,7 @@ private val WEEKDAY_HEADER_RES = listOf(
  */
 @Composable
 fun CalendarPane(
+    currentDate: LocalDate,
     selectedDate: LocalDate,
     viewMode: CalendarViewMode,
     allActiveTasks: List<TaskItem>,
@@ -107,6 +108,7 @@ fun CalendarPane(
     onSelectViewMode: (CalendarViewMode) -> Unit,
     onToggleTaskComplete: (TaskItem) -> Unit,
     onSelectTask: (TaskItem) -> Unit,
+    onSelectTag: (String) -> Unit,
     onQuickInputChange: (String) -> Unit,
     onQuickInputSubmit: () -> Unit,
     onSelectFolderSuggestion: (FolderPathSuggestion) -> Unit,
@@ -119,7 +121,7 @@ fun CalendarPane(
     val colors = ZeroTheme.colors
     val tabular = ZeroTheme.tabularTypography
     val zoneId = ZoneId.systemDefault()
-    val today = remember { LocalDate.now() }
+    val today = currentDate
 
     val tasksByDate = remember(allActiveTasks) {
         allActiveTasks
@@ -278,6 +280,7 @@ fun CalendarPane(
                         antiMisclickMode = antiMisclickMode,
                         onToggleTaskComplete = onToggleTaskComplete,
                         onSelectTask = onSelectTask,
+                        onSelectTag = onSelectTag,
                         modifier = Modifier.weight(1f)
                     )
                 }
@@ -297,6 +300,7 @@ fun CalendarPane(
                         antiMisclickMode = antiMisclickMode,
                         onToggleTaskComplete = onToggleTaskComplete,
                         onSelectTask = onSelectTask,
+                        onSelectTag = onSelectTag,
                         modifier = Modifier.weight(1f)
                     )
                 }
@@ -305,10 +309,13 @@ fun CalendarPane(
                     DayTimelineSection(
                         selectedDate = selectedDate,
                         tasks = selectedDayTasks,
+                        folderNameById = folderNameById,
                         selectedTaskId = selectedTaskId,
+                        antiMisclickMode = antiMisclickMode,
                         zoneId = zoneId,
                         onSelectTask = onSelectTask,
                         onToggleTaskComplete = onToggleTaskComplete,
+                        onSelectTag = onSelectTag,
                         modifier = Modifier.weight(1f)
                     )
                 }
@@ -340,7 +347,8 @@ fun CalendarPane(
                 onSubmit = onQuickInputSubmit,
                 onSelectFolderSuggestion = onSelectFolderSuggestion,
                 onToggleContinuousEntry = onToggleContinuousEntry,
-                onVoiceInputRecognized = onVoiceInputRecognized
+                onVoiceInputRecognized = onVoiceInputRecognized,
+                currentDate = today
             )
         }
     }
@@ -515,6 +523,7 @@ private fun SelectedDayTaskList(
     antiMisclickMode: AntiMisclickMode,
     onToggleTaskComplete: (TaskItem) -> Unit,
     onSelectTask: (TaskItem) -> Unit,
+    onSelectTag: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val colors = ZeroTheme.colors
@@ -579,6 +588,7 @@ private fun SelectedDayTaskList(
                         antiMisclickMode = antiMisclickMode,
                         onToggleComplete = onToggleTaskComplete,
                         onSelectTask = onSelectTask,
+                        onTagClick = onSelectTag,
                         onReorderDragStart = {},
                         onReorderDragDelta = {},
                         onReorderDragEnd = {},
@@ -594,14 +604,18 @@ private fun SelectedDayTaskList(
 private fun DayTimelineSection(
     selectedDate: LocalDate,
     tasks: List<TaskItem>,
+    folderNameById: Map<String, String>,
     selectedTaskId: String?,
+    antiMisclickMode: AntiMisclickMode,
     zoneId: ZoneId,
     onSelectTask: (TaskItem) -> Unit,
     onToggleTaskComplete: (TaskItem) -> Unit,
+    onSelectTag: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val colors = ZeroTheme.colors
     val tabular = ZeroTheme.tabularTypography
+    val listState = rememberLazyListState()
     val allDayTasks = remember(tasks) { tasks.filter { it.isAllDay } }
     val timedTasksByHour = remember(tasks) {
         tasks.filter { !it.isAllDay && it.dueDate != null }.groupBy { task ->
@@ -611,11 +625,12 @@ private fun DayTimelineSection(
     val timeFormatter = remember { DateTimeFormatter.ofPattern("HH:mm") }
 
     LazyColumn(
+        state = listState,
         modifier = modifier.fillMaxWidth(),
         contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = 10.dp, bottom = 140.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
-        // Lightweight All-Day tray
+        // Lightweight All-Day tray (uses AntiMisclickTaskCard — no fragile single-tap complete!)
         item(key = "all_day_tray") {
             Column(
                 modifier = Modifier
@@ -649,35 +664,21 @@ private fun DayTimelineSection(
                     )
                 } else {
                     allDayTasks.forEach { task ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(ZeroSmallShape)
-                                .background(if (task.id == selectedTaskId) colors.accentSubtle else colors.surfaceElevated)
-                                .hairlineBorder(
-                                    shape = ZeroSmallShape,
-                                    color = if (task.id == selectedTaskId) colors.accent else colors.hairlineBorder
-                                )
-                                .clickable { onSelectTask(task) }
-                                .padding(horizontal = 10.dp, vertical = 7.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Text(
-                                text = task.title,
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = if (task.isCompleted) colors.textMuted else colors.textPrimary,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.weight(1f)
-                            )
-                            Text(
-                                text = if (task.isCompleted) stringResource(R.string.action_completed) else "P${task.priority.value}",
-                                style = tabular.dateCompact,
-                                color = if (task.isCompleted) colors.textMuted else colors.accent,
-                                modifier = Modifier.clickable { onToggleTaskComplete(task) }
-                            )
-                        }
+                        AntiMisclickTaskCard(
+                            task = task,
+                            isSelected = task.id == selectedTaskId,
+                            isListScrolling = listState.isScrollInProgress,
+                            isDragging = false,
+                            dragOffsetY = 0f,
+                            folderBadgeName = task.folderId?.let { folderNameById[it] },
+                            antiMisclickMode = antiMisclickMode,
+                            onToggleComplete = onToggleTaskComplete,
+                            onSelectTask = onSelectTask,
+                            onTagClick = onSelectTag,
+                            onReorderDragStart = {},
+                            onReorderDragDelta = {},
+                            onReorderDragEnd = {}
+                        )
                     }
                 }
             }

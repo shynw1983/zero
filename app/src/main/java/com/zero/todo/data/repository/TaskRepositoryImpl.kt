@@ -2,6 +2,7 @@ package com.zero.todo.data.repository
 
 import androidx.room.withTransaction
 import com.zero.todo.core.common.FractionalIndex
+import com.zero.todo.core.common.ZeroDateFormatter
 import com.zero.todo.data.local.ZeroDatabase
 import com.zero.todo.data.local.dao.FolderDao
 import com.zero.todo.data.local.dao.TaskDao
@@ -10,6 +11,10 @@ import com.zero.todo.domain.model.TaskItem
 import com.zero.todo.domain.model.TaskPriority
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import java.time.Instant
+import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.ZoneId
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -45,14 +50,30 @@ class TaskRepositoryImpl @Inject constructor(
     override fun observeTasksDueBetween(startMillis: Long, endMillis: Long): Flow<List<TaskItem>> =
         taskDao.observeTasksDueBetween(startMillis, endMillis).map { list -> list.map { it.toDomain() } }
 
+    override fun observeTodayAndOverdueTasks(
+        todayStartMillis: Long,
+        tomorrowStartMillis: Long
+    ): Flow<List<TaskItem>> =
+        taskDao.observeTodayAndOverdueTasks(todayStartMillis, tomorrowStartMillis)
+            .map { list -> list.map { it.toDomain() } }
+
     override fun observeAllActiveTopLevelTasks(): Flow<List<TaskItem>> =
         taskDao.observeAllActiveTopLevelTasks().map { list -> list.map { it.toDomain() } }
+
+    override fun observeDeletedTasks(): Flow<List<TaskItem>> =
+        taskDao.observeDeletedTopLevelTasks().map { list -> list.map { it.toDomain() } }
 
     override fun observeTaskWithTags(taskId: String): Flow<TaskItem?> =
         taskDao.observeTaskWithTags(taskId).map { it?.toDomain() }
 
     override suspend fun getTaskById(taskId: String): TaskItem? =
         taskDao.getTaskWithTags(taskId)?.toDomain()
+
+    override suspend fun getDescendantSubtasksSnapshot(rootTaskId: String): List<TaskItem> =
+        taskDao.getDescendantSubtasksSnapshot(rootTaskId).map { it.toDomain() }
+
+    override suspend fun getUpcomingReminderTasks(nowMillis: Long): List<TaskItem> =
+        taskDao.getUpcomingReminderTasks(nowMillis).map { it.toDomain() }
 
     override suspend fun createTask(
         title: String,
@@ -207,12 +228,41 @@ class TaskRepositoryImpl @Inject constructor(
         }
     }
 
+    override suspend fun rescheduleTasksToDate(taskIds: List<String>, targetDate: LocalDate) {
+        if (taskIds.isEmpty()) return
+        val zoneId = ZoneId.systemDefault()
+        val now = System.currentTimeMillis()
+        database.withTransaction {
+            for (taskId in taskIds) {
+                val entity = taskDao.getTaskById(taskId) ?: continue
+                val newDueMillis = if (entity.isAllDay || entity.dueDate == null) {
+                    ZeroDateFormatter.startOfDayMillis(targetDate, zoneId)
+                } else {
+                    val existingTime = Instant.ofEpochMilli(entity.dueDate).atZone(zoneId).toLocalTime()
+                    LocalDateTime.of(targetDate, existingTime).atZone(zoneId).toInstant().toEpochMilli()
+                }
+                val newReminder = if (entity.reminderAt != null && entity.dueDate != null) {
+                    val offset = entity.dueDate - entity.reminderAt
+                    newDueMillis - offset
+                } else {
+                    entity.reminderAt
+                }
+                taskDao.updateTask(
+                    entity.copy(
+                        dueDate = newDueMillis,
+                        reminderAt = newReminder,
+                        updatedAt = now
+                    )
+                )
+            }
+        }
+    }
+
     override suspend fun promoteSubtaskToTopLevel(subtaskId: String): TaskItem? {
         return database.withTransaction {
             val subtask = taskDao.getTaskById(subtaskId) ?: return@withTransaction null
             if (subtask.parentTaskId == null) return@withTransaction subtask.toDomain()
 
-            // Walk up to root task to inherit its folder placement (or Inbox if null).
             var cursor = subtask
             var inheritedFolderId: String? = subtask.folderId
             val visited = hashSetOf(subtask.id)
@@ -250,6 +300,18 @@ class TaskRepositoryImpl @Inject constructor(
             if (ids.isEmpty()) return@withTransaction
             taskDao.restoreTasks(ids, System.currentTimeMillis())
         }
+    }
+
+    override suspend fun permanentlyDeleteTask(taskId: String) {
+        database.withTransaction {
+            val ids = taskDao.getDescendantTaskIdsIncludingDeleted(taskId)
+            if (ids.isEmpty()) return@withTransaction
+            taskDao.permanentlyDeleteTasks(ids)
+        }
+    }
+
+    override suspend fun emptyTrash() {
+        taskDao.emptyTrash()
     }
 
     private suspend fun applyTaskOrderUpdate(

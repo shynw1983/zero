@@ -4,8 +4,14 @@ import com.zero.todo.domain.model.TagItem
 import com.zero.todo.domain.model.TaskItem
 import kotlinx.coroutines.flow.Flow
 
+data class TagWithCount(
+    val tag: TagItem,
+    val activeTaskCount: Int
+)
+
 interface TagRepository {
     fun observeActiveTags(): Flow<List<TagItem>>
+    fun observeActiveTagsWithCounts(): Flow<List<TagWithCount>>
     fun observeTagsForTask(taskId: String): Flow<List<TagItem>>
     fun observeTasksByTag(tagId: String): Flow<List<TaskItem>>
 

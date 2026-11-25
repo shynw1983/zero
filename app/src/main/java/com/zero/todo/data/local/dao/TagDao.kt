@@ -1,19 +1,40 @@
 package com.zero.todo.data.local.dao
 
 import androidx.room.Dao
+import androidx.room.Embedded
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Transaction
 import com.zero.todo.data.local.entity.TagEntity
-import com.zero.todo.data.local.entity.TaskEntity
 import com.zero.todo.data.local.entity.TaskTagCrossRef
+import com.zero.todo.data.local.entity.TaskWithTags
 import kotlinx.coroutines.flow.Flow
+
+data class TagWithTaskCountRow(
+    @Embedded val tag: TagEntity,
+    val activeTaskCount: Int
+)
 
 @Dao
 interface TagDao {
 
     @Query("SELECT * FROM tags WHERE isDeleted = 0 ORDER BY name COLLATE NOCASE ASC")
     fun observeActiveTags(): Flow<List<TagEntity>>
+
+    @Query(
+        """
+        SELECT tg.*, COUNT(t.id) AS activeTaskCount
+        FROM tags tg
+        LEFT JOIN task_tag_cross_ref ref ON tg.id = ref.tagId
+        LEFT JOIN tasks t ON t.id = ref.taskId
+            AND t.isDeleted = 0 AND t.isCompleted = 0 AND t.parentTaskId IS NULL
+        WHERE tg.isDeleted = 0
+        GROUP BY tg.id
+        ORDER BY tg.name COLLATE NOCASE ASC
+        """
+    )
+    fun observeActiveTagsWithCounts(): Flow<List<TagWithTaskCountRow>>
 
     @Query("SELECT * FROM tags WHERE isDeleted = 0 AND LOWER(name) = LOWER(:name) LIMIT 1")
     suspend fun getTagByName(name: String): TagEntity?
@@ -43,6 +64,7 @@ interface TagDao {
     )
     fun observeTagsForTask(taskId: String): Flow<List<TagEntity>>
 
+    @Transaction
     @Query(
         """
         SELECT t.* FROM tasks t
@@ -52,7 +74,7 @@ interface TagDao {
         ORDER BY t.isCompleted ASC, t.sortOrder ASC, t.createdAt ASC
         """
     )
-    fun observeTasksByTag(tagId: String): Flow<List<TaskEntity>>
+    fun observeTasksByTag(tagId: String): Flow<List<TaskWithTags>>
 
     @Query("SELECT * FROM tags ORDER BY createdAt ASC")
     suspend fun getAllTagsSnapshot(): List<TagEntity>

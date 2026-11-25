@@ -85,4 +85,33 @@ class FocusTimerControllerTest {
         assertTrue(allSessions.any { it.mode == FocusMode.TWO_MIN_STARTER })
         assertTrue(allSessions.any { it.mode == FocusMode.POMODORO && it.durationSeconds == 3 })
     }
+
+    @Test
+    fun `wall clock anchoring keeps countdown accurate across background or lock screen`() = runBlocking {
+        var fakeClockMs = 1_000_000L
+        val controller = FocusTimerController(
+            scope = this,
+            focusRepository = focusRepository,
+            twoMinSeconds = 120,
+            pomodoroSeconds = 1500,
+            tickIntervalMs = 1_000L,
+            wallClockMillis = { fakeClockMs }
+        )
+
+        controller.openFocus(task = null, initialMode = FocusMode.TWO_MIN_STARTER, autoStart = true)
+        // Simulate 45 seconds passing while screen was off / app backgrounded
+        fakeClockMs += 45_000L
+        controller.syncWithWallClock()
+        assertEquals(75, controller.state.value.remainingSeconds)
+        assertEquals(45, controller.state.value.elapsedSeconds)
+
+        // Simulate remaining 75+ seconds passing while screen off -> finishes & persists
+        fakeClockMs += 80_000L
+        controller.syncWithWallClock()
+        val done = withTimeout(5_000L) {
+            controller.state.first { it.phase == FocusPhase.TWO_MIN_FINISHED_PROMPT }
+        }
+        assertEquals(0, done.remainingSeconds)
+        controller.exitFocus()
+    }
 }

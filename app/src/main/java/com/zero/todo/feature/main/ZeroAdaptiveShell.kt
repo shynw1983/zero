@@ -58,6 +58,7 @@ import com.zero.todo.core.designsystem.hairlineDividerBottom
 import com.zero.todo.core.designsystem.hairlineDividerEnd
 import com.zero.todo.core.designsystem.hairlineDividerStart
 import com.zero.todo.core.nlp.QuickInputParser
+import com.zero.todo.data.backup.WebDavConfig
 import com.zero.todo.domain.model.AntiMisclickMode
 import com.zero.todo.domain.model.AppLanguage
 import com.zero.todo.domain.model.FocusMode
@@ -69,16 +70,20 @@ import com.zero.todo.feature.calendar.CalendarPane
 import com.zero.todo.feature.calendar.CalendarViewMode
 import com.zero.todo.feature.focus.SingleTaskFocusOverlay
 import com.zero.todo.feature.folder.CreateFolderDialog
+import com.zero.todo.feature.folder.DeleteFolderConfirmDialog
 import com.zero.todo.feature.folder.FolderTreePanel
+import com.zero.todo.feature.folder.MoveFolderDialog
 import com.zero.todo.feature.folder.NavigationDestination
 import com.zero.todo.feature.folder.RenameFolderDialog
 import com.zero.todo.feature.folder.SmartViewCounts
+import com.zero.todo.feature.matrix.MatrixPane
 import com.zero.todo.feature.settings.BackupUiStatus
 import com.zero.todo.feature.settings.SettingsOverlay
 import com.zero.todo.feature.taskdetail.TaskDetailPane
 import com.zero.todo.feature.tasklist.FolderPathSuggestion
 import com.zero.todo.feature.tasklist.TaskListPane
 import com.zero.todo.feature.tasklist.UndoBannerState
+import com.zero.todo.feature.trash.TrashPane
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 
@@ -89,9 +94,16 @@ data class ZeroShellCallbacks(
     val onSelectTask: (String?) -> Unit = {},
     val onToggleIncludeSubfolders: () -> Unit = {},
     val onToggleMediumTreeExpanded: () -> Unit = {},
+    val onToggleSearch: (Boolean) -> Unit = {},
+    val onSearchQueryChange: (String) -> Unit = {},
+    val onCycleSortMode: () -> Unit = {},
+    val onRescheduleOverdueToToday: () -> Unit = {},
+    val onPrefillQuickInputPriority: (TaskPriority) -> Unit = {},
     val onToggleFolderExpanded: (folderId: String, isExpanded: Boolean) -> Unit = { _, _ -> },
     val onCreateFolder: (name: String, parentId: String?) -> Unit = { _, _ -> },
     val onRenameFolder: (folderId: String, newName: String) -> Unit = { _, _ -> },
+    val onMoveFolderOrder: (folderId: String, direction: Int) -> Unit = { _, _ -> },
+    val onMoveFolderToParent: (folderId: String, targetParentId: String?) -> Unit = { _, _ -> },
     val onDeleteFolder: (folderId: String) -> Unit = {},
     val onToggleTaskComplete: (TaskItem) -> Unit = {},
     val onMoveTaskToFolder: (taskId: String, targetFolderId: String?) -> Unit = { _, _ -> },
@@ -99,6 +111,7 @@ data class ZeroShellCallbacks(
     val onUpdateTaskTitleAndDescription: (task: TaskItem, title: String, description: String) -> Unit = { _, _, _ -> },
     val onUpdateTaskPriority: (task: TaskItem, priority: TaskPriority) -> Unit = { _, _ -> },
     val onUpdateTaskDueDate: (task: TaskItem, dueDateMillis: Long?, isAllDay: Boolean) -> Unit = { _, _, _ -> },
+    val onUpdateTaskReminder: (task: TaskItem, reminderAtMillis: Long?) -> Unit = { _, _ -> },
     val onUpdateTaskRecurrenceRule: (task: TaskItem, rrule: String?) -> Unit = { _, _ -> },
     val onAddSubtask: (parentTaskId: String, title: String) -> Unit = { _, _ -> },
     val onToggleSubtask: (TaskItem) -> Unit = {},
@@ -107,6 +120,9 @@ data class ZeroShellCallbacks(
     val onAddTag: (taskId: String, tagName: String) -> Unit = { _, _ -> },
     val onRemoveTag: (taskId: String, tagId: String) -> Unit = { _, _ -> },
     val onDeleteTask: (TaskItem) -> Unit = {},
+    val onRestoreDeletedTask: (String) -> Unit = {},
+    val onPermanentlyDeleteTask: (String) -> Unit = {},
+    val onEmptyTrash: () -> Unit = {},
     val onQuickInputChange: (String) -> Unit = {},
     val onQuickInputSubmit: () -> Unit = {},
     val onSelectFolderSuggestion: (FolderPathSuggestion) -> Unit = {},
@@ -121,6 +137,10 @@ data class ZeroShellCallbacks(
     val onSetAntiMisclickMode: (AntiMisclickMode) -> Unit = {},
     val onSetHapticsEnabled: (Boolean) -> Unit = {},
     val onSetAppLanguage: (AppLanguage) -> Unit = {},
+    val onUpdateWebDavConfig: (WebDavConfig) -> Unit = {},
+    val onTestWebDav: () -> Unit = {},
+    val onPushWebDav: () -> Unit = {},
+    val onPullWebDav: () -> Unit = {},
     val onOpenSettings: () -> Unit = {},
     val onCloseSettings: () -> Unit = {},
     val onGenerateJsonBackup: suspend () -> String = { "{}" },
@@ -152,6 +172,8 @@ fun ZeroAdaptiveShell(
     var createFolderParent by remember { mutableStateOf<Folder?>(null) }
     var showCreateFolderDialog by remember { mutableStateOf(false) }
     var renameTargetFolder by remember { mutableStateOf<Folder?>(null) }
+    var organizeTargetFolder by remember { mutableStateOf<Folder?>(null) }
+    var deleteTargetFolder by remember { mutableStateOf<Folder?>(null) }
 
     LaunchedEffect(uiState.quickInputFocusRequestTick) {
         if (uiState.quickInputFocusRequestTick > 0L) {
@@ -168,7 +190,15 @@ fun ZeroAdaptiveShell(
         renameTargetFolder = folder
     }
 
-    // Tablet & Desktop external keyboard shortcuts (Ctrl/Cmd + N, Esc, Ctrl/Cmd + ',', Ctrl/Cmd + 1..5)
+    val openOrganizeFolderDialog: (Folder) -> Unit = { folder ->
+        organizeTargetFolder = folder
+    }
+
+    val openDeleteFolderDialog: (Folder) -> Unit = { folder ->
+        deleteTargetFolder = folder
+    }
+
+    // Tablet & Desktop external keyboard shortcuts (Ctrl/Cmd + N, Ctrl/Cmd + F, Esc, Ctrl/Cmd + ',', Ctrl/Cmd + 1..5)
     val rootKeyboardModifier = modifier
         .fillMaxSize()
         .onPreviewKeyEvent { keyEvent ->
@@ -180,6 +210,11 @@ fun ZeroAdaptiveShell(
                     if (uiState.isSettingsOpen) callbacks.onCloseSettings()
                     if (uiState.focusState.isActive) callbacks.onExitFocus()
                     runCatching { quickInputFocusRequester.requestFocus() }
+                    true
+                }
+                modPressed && keyEvent.key == Key.F -> {
+                    if (uiState.isSettingsOpen) callbacks.onCloseSettings()
+                    callbacks.onToggleSearch(!uiState.isSearchOpen)
                     true
                 }
                 modPressed && keyEvent.key == Key.Comma -> {
@@ -220,6 +255,18 @@ fun ZeroAdaptiveShell(
                             renameTargetFolder = null
                             true
                         }
+                        organizeTargetFolder != null -> {
+                            organizeTargetFolder = null
+                            true
+                        }
+                        deleteTargetFolder != null -> {
+                            deleteTargetFolder = null
+                            true
+                        }
+                        uiState.isSearchOpen -> {
+                            callbacks.onToggleSearch(false)
+                            true
+                        }
                         uiState.focusState.isActive -> {
                             callbacks.onExitFocus()
                             true
@@ -252,6 +299,8 @@ fun ZeroAdaptiveShell(
                     quickInputFocusRequester = quickInputFocusRequester,
                     onRequestCreateFolder = openCreateFolderDialog,
                     onRequestRenameFolder = openRenameFolderDialog,
+                    onRequestOrganizeFolder = openOrganizeFolderDialog,
+                    onRequestDeleteFolder = openDeleteFolderDialog,
                     modifier = contentSurfaceModifier
                 )
             }
@@ -263,6 +312,8 @@ fun ZeroAdaptiveShell(
                     quickInputFocusRequester = quickInputFocusRequester,
                     onRequestCreateFolder = openCreateFolderDialog,
                     onRequestRenameFolder = openRenameFolderDialog,
+                    onRequestOrganizeFolder = openOrganizeFolderDialog,
+                    onRequestDeleteFolder = openDeleteFolderDialog,
                     modifier = contentSurfaceModifier
                 )
             }
@@ -274,12 +325,14 @@ fun ZeroAdaptiveShell(
                     quickInputFocusRequester = quickInputFocusRequester,
                     onRequestCreateFolder = openCreateFolderDialog,
                     onRequestRenameFolder = openRenameFolderDialog,
+                    onRequestOrganizeFolder = openOrganizeFolderDialog,
+                    onRequestDeleteFolder = openDeleteFolderDialog,
                     modifier = contentSurfaceModifier
                 )
             }
         }
 
-        // Full-Screen Single-Task Focus Mode Overlay (Spring physical motion)
+        // Full-Screen Single-Task Focus Mode Overlay
         AnimatedVisibility(
             visible = uiState.focusState.isActive,
             enter = fadeIn(animationSpec = ZeroMotion.FloatSpring) +
@@ -300,7 +353,7 @@ fun ZeroAdaptiveShell(
             )
         }
 
-        // Settings Overlay (Theme / Accent / Anti-Misclick / Haptics / JSON & Markdown Backup)
+        // Settings Overlay
         AnimatedVisibility(
             visible = uiState.isSettingsOpen,
             enter = fadeIn(animationSpec = ZeroMotion.FloatSpring) +
@@ -314,12 +367,18 @@ fun ZeroAdaptiveShell(
                 antiMisclickMode = uiState.antiMisclickMode,
                 hapticsEnabled = uiState.hapticsEnabled,
                 appLanguage = uiState.appLanguage,
+                webDavConfig = uiState.webDavConfig,
+                webDavStatus = uiState.webDavStatus,
                 backupStatus = uiState.backupStatus,
                 onSetDarkTheme = callbacks.onSetDarkTheme,
                 onSetAccent = callbacks.onSetAccent,
                 onSetAntiMisclickMode = callbacks.onSetAntiMisclickMode,
                 onSetHapticsEnabled = callbacks.onSetHapticsEnabled,
                 onSetAppLanguage = callbacks.onSetAppLanguage,
+                onUpdateWebDavConfig = callbacks.onUpdateWebDavConfig,
+                onTestWebDav = callbacks.onTestWebDav,
+                onPushWebDav = callbacks.onPushWebDav,
+                onPullWebDav = callbacks.onPullWebDav,
                 onGenerateJsonBackup = callbacks.onGenerateJsonBackup,
                 onGenerateMarkdownExport = callbacks.onGenerateMarkdownExport,
                 onImportJsonBackup = callbacks.onImportJsonBackup,
@@ -351,6 +410,29 @@ fun ZeroAdaptiveShell(
             }
         )
     }
+
+    val folderToOrganize = organizeTargetFolder
+    if (folderToOrganize != null) {
+        MoveFolderDialog(
+            folder = folderToOrganize,
+            folderTree = uiState.folderTree,
+            onMoveOrder = callbacks.onMoveFolderOrder,
+            onMoveToParent = callbacks.onMoveFolderToParent,
+            onDismiss = { organizeTargetFolder = null }
+        )
+    }
+
+    val folderToDelete = deleteTargetFolder
+    if (folderToDelete != null) {
+        DeleteFolderConfirmDialog(
+            folder = folderToDelete,
+            onDismiss = { deleteTargetFolder = null },
+            onConfirmDelete = { id ->
+                deleteTargetFolder = null
+                callbacks.onDeleteFolder(id)
+            }
+        )
+    }
 }
 
 @Composable
@@ -364,82 +446,130 @@ private fun CenterWorkspacePane(
     onRequestCreateFolder: (Folder?) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    if (uiState.selectedDestination == NavigationDestination.Calendar) {
-        CalendarPane(
-            selectedDate = uiState.calendarSelectedDate,
-            viewMode = uiState.calendarViewMode,
-            allActiveTasks = uiState.allActiveTopLevelTasks,
-            folderNameById = uiState.folderNameById,
-            selectedTaskId = uiState.selectedTaskId,
-            antiMisclickMode = uiState.antiMisclickMode,
-            quickInputText = uiState.quickInputText,
-            parsedQuickInput = uiState.parsedQuickInput,
-            folderSuggestions = uiState.folderSuggestions,
-            continuousEntryEnabled = uiState.continuousEntryEnabled,
-            undoBanner = uiState.undoBanner,
-            quickInputFocusRequester = quickInputFocusRequester,
-            showDrawerButton = showDrawerButton,
-            showTreeToggleButton = showTreeToggleButton,
-            onOpenDrawer = onOpenDrawer,
-            onToggleTreePanel = callbacks.onToggleMediumTreeExpanded,
-            onSelectDate = callbacks.onSelectCalendarDate,
-            onSelectViewMode = callbacks.onSelectCalendarViewMode,
-            onToggleTaskComplete = callbacks.onToggleTaskComplete,
-            onSelectTask = { task -> callbacks.onSelectTask(task.id) },
-            onQuickInputChange = callbacks.onQuickInputChange,
-            onQuickInputSubmit = callbacks.onQuickInputSubmit,
-            onSelectFolderSuggestion = callbacks.onSelectFolderSuggestion,
-            onToggleContinuousEntry = callbacks.onToggleContinuousEntry,
-            onVoiceInputRecognized = callbacks.onVoiceInputRecognized,
-            onUndo = callbacks.onUndo,
-            onUndoTimeout = callbacks.onUndoTimeout,
-            modifier = modifier
-        )
-    } else {
-        val localizedDestinationTitle = when (val dest = uiState.selectedDestination) {
-            NavigationDestination.Inbox -> stringResource(R.string.nav_inbox)
-            NavigationDestination.Today -> stringResource(R.string.nav_today)
-            NavigationDestination.Tomorrow -> stringResource(R.string.nav_tomorrow)
-            NavigationDestination.Next7Days -> stringResource(R.string.nav_next_7_days)
-            NavigationDestination.Calendar -> stringResource(R.string.nav_calendar)
-            is NavigationDestination.FolderView ->
-                uiState.folderNameById[dest.folderId] ?: stringResource(R.string.nav_inbox)
+    when (val dest = uiState.selectedDestination) {
+        NavigationDestination.Calendar -> {
+            CalendarPane(
+                currentDate = uiState.currentDate,
+                selectedDate = uiState.calendarSelectedDate,
+                viewMode = uiState.calendarViewMode,
+                allActiveTasks = uiState.allActiveTopLevelTasks,
+                folderNameById = uiState.folderNameById,
+                selectedTaskId = uiState.selectedTaskId,
+                antiMisclickMode = uiState.antiMisclickMode,
+                quickInputText = uiState.quickInputText,
+                parsedQuickInput = uiState.parsedQuickInput,
+                folderSuggestions = uiState.folderSuggestions,
+                continuousEntryEnabled = uiState.continuousEntryEnabled,
+                undoBanner = uiState.undoBanner,
+                quickInputFocusRequester = quickInputFocusRequester,
+                showDrawerButton = showDrawerButton,
+                showTreeToggleButton = showTreeToggleButton,
+                onOpenDrawer = onOpenDrawer,
+                onToggleTreePanel = callbacks.onToggleMediumTreeExpanded,
+                onSelectDate = callbacks.onSelectCalendarDate,
+                onSelectViewMode = callbacks.onSelectCalendarViewMode,
+                onToggleTaskComplete = callbacks.onToggleTaskComplete,
+                onSelectTask = { task -> callbacks.onSelectTask(task.id) },
+                onSelectTag = { tagId -> callbacks.onSelectDestination(NavigationDestination.TagView(tagId)) },
+                onQuickInputChange = callbacks.onQuickInputChange,
+                onQuickInputSubmit = callbacks.onQuickInputSubmit,
+                onSelectFolderSuggestion = callbacks.onSelectFolderSuggestion,
+                onToggleContinuousEntry = callbacks.onToggleContinuousEntry,
+                onVoiceInputRecognized = callbacks.onVoiceInputRecognized,
+                onUndo = callbacks.onUndo,
+                onUndoTimeout = callbacks.onUndoTimeout,
+                modifier = modifier
+            )
         }
-        TaskListPane(
-            title = localizedDestinationTitle,
-            breadcrumbs = uiState.breadcrumbs,
-            selectedDestination = uiState.selectedDestination,
-            includeSubfolders = uiState.includeSubfolders,
-            tasks = uiState.tasks,
-            folderNameById = uiState.folderNameById,
-            selectedTaskId = uiState.selectedTaskId,
-            antiMisclickMode = uiState.antiMisclickMode,
-            quickInputText = uiState.quickInputText,
-            parsedQuickInput = uiState.parsedQuickInput,
-            folderSuggestions = uiState.folderSuggestions,
-            continuousEntryEnabled = uiState.continuousEntryEnabled,
-            undoBanner = uiState.undoBanner,
-            quickInputFocusRequester = quickInputFocusRequester,
-            showDrawerButton = showDrawerButton,
-            showTreeToggleButton = showTreeToggleButton,
-            onOpenDrawer = onOpenDrawer,
-            onToggleTreePanel = callbacks.onToggleMediumTreeExpanded,
-            onSelectBreadcrumb = { id -> callbacks.onSelectDestination(NavigationDestination.FolderView(id)) },
-            onToggleIncludeSubfolders = callbacks.onToggleIncludeSubfolders,
-            onRequestCreateSubfolder = { onRequestCreateFolder(uiState.breadcrumbs.lastOrNull()) },
-            onOpenFocusMode = { callbacks.onStartFocus(null, FocusMode.TWO_MIN_STARTER) },
-            onToggleTaskComplete = callbacks.onToggleTaskComplete,
-            onSelectTask = { task -> callbacks.onSelectTask(task.id) },
-            onReorderTask = callbacks.onReorderTask,
-            onQuickInputChange = callbacks.onQuickInputChange,
-            onQuickInputSubmit = callbacks.onQuickInputSubmit,
-            onSelectFolderSuggestion = callbacks.onSelectFolderSuggestion,
-            onToggleContinuousEntry = callbacks.onToggleContinuousEntry,
-            onVoiceInputRecognized = callbacks.onVoiceInputRecognized,
-            onUndo = callbacks.onUndo,
-            onUndoTimeout = callbacks.onUndoTimeout,
-            modifier = modifier
-        )
+
+        NavigationDestination.Matrix -> {
+            MatrixPane(
+                allActiveTasks = uiState.allActiveTopLevelTasks,
+                selectedTaskId = uiState.selectedTaskId,
+                showDrawerButton = showDrawerButton,
+                showTreeToggleButton = showTreeToggleButton,
+                onOpenDrawer = onOpenDrawer,
+                onToggleTreePanel = callbacks.onToggleMediumTreeExpanded,
+                onSelectTask = { task -> callbacks.onSelectTask(task.id) },
+                onQuickAddWithPriority = callbacks.onPrefillQuickInputPriority,
+                modifier = modifier
+            )
+        }
+
+        NavigationDestination.Trash -> {
+            TrashPane(
+                deletedTasks = uiState.deletedTasks,
+                showDrawerButton = showDrawerButton,
+                showTreeToggleButton = showTreeToggleButton,
+                onOpenDrawer = onOpenDrawer,
+                onToggleTreePanel = callbacks.onToggleMediumTreeExpanded,
+                onRestoreTask = callbacks.onRestoreDeletedTask,
+                onPermanentlyDeleteTask = callbacks.onPermanentlyDeleteTask,
+                onEmptyTrash = callbacks.onEmptyTrash,
+                modifier = modifier
+            )
+        }
+
+        else -> {
+            val localizedDestinationTitle = when (dest) {
+                NavigationDestination.Inbox -> stringResource(R.string.nav_inbox)
+                NavigationDestination.Today -> stringResource(R.string.nav_today)
+                NavigationDestination.Tomorrow -> stringResource(R.string.nav_tomorrow)
+                NavigationDestination.Next7Days -> stringResource(R.string.nav_next_7_days)
+                NavigationDestination.Calendar -> stringResource(R.string.nav_calendar)
+                NavigationDestination.All -> stringResource(R.string.nav_all_tasks)
+                NavigationDestination.Matrix -> stringResource(R.string.nav_matrix)
+                NavigationDestination.Trash -> stringResource(R.string.nav_trash)
+                is NavigationDestination.FolderView ->
+                    uiState.folderNameById[dest.folderId] ?: stringResource(R.string.nav_inbox)
+                is NavigationDestination.TagView ->
+                    uiState.tagNameById[dest.tagId]?.let { "#$it" } ?: stringResource(R.string.nav_inbox)
+            }
+            TaskListPane(
+                currentDate = uiState.currentDate,
+                title = localizedDestinationTitle,
+                breadcrumbs = uiState.breadcrumbs,
+                selectedDestination = uiState.selectedDestination,
+                includeSubfolders = uiState.includeSubfolders,
+                isSearchOpen = uiState.isSearchOpen,
+                searchQuery = uiState.searchQuery,
+                taskSortMode = uiState.taskSortMode,
+                tasks = uiState.tasks,
+                folderNameById = uiState.folderNameById,
+                selectedTaskId = uiState.selectedTaskId,
+                antiMisclickMode = uiState.antiMisclickMode,
+                quickInputText = uiState.quickInputText,
+                parsedQuickInput = uiState.parsedQuickInput,
+                folderSuggestions = uiState.folderSuggestions,
+                continuousEntryEnabled = uiState.continuousEntryEnabled,
+                undoBanner = uiState.undoBanner,
+                quickInputFocusRequester = quickInputFocusRequester,
+                showDrawerButton = showDrawerButton,
+                showTreeToggleButton = showTreeToggleButton,
+                onOpenDrawer = onOpenDrawer,
+                onToggleTreePanel = callbacks.onToggleMediumTreeExpanded,
+                onSelectBreadcrumb = { id -> callbacks.onSelectDestination(NavigationDestination.FolderView(id)) },
+                onToggleIncludeSubfolders = callbacks.onToggleIncludeSubfolders,
+                onToggleSearch = callbacks.onToggleSearch,
+                onSearchQueryChange = callbacks.onSearchQueryChange,
+                onCycleSortMode = callbacks.onCycleSortMode,
+                onRescheduleOverdueToToday = callbacks.onRescheduleOverdueToToday,
+                onSelectTag = { tagId -> callbacks.onSelectDestination(NavigationDestination.TagView(tagId)) },
+                onRequestCreateSubfolder = { onRequestCreateFolder(uiState.breadcrumbs.lastOrNull()) },
+                onOpenFocusMode = { callbacks.onStartFocus(null, FocusMode.TWO_MIN_STARTER) },
+                onToggleTaskComplete = callbacks.onToggleTaskComplete,
+                onSelectTask = { task -> callbacks.onSelectTask(task.id) },
+                onReorderTask = callbacks.onReorderTask,
+                onQuickInputChange = callbacks.onQuickInputChange,
+                onQuickInputSubmit = callbacks.onQuickInputSubmit,
+                onSelectFolderSuggestion = callbacks.onSelectFolderSuggestion,
+                onToggleContinuousEntry = callbacks.onToggleContinuousEntry,
+                onVoiceInputRecognized = callbacks.onVoiceInputRecognized,
+                onUndo = callbacks.onUndo,
+                onUndoTimeout = callbacks.onUndoTimeout,
+                modifier = modifier
+            )
+        }
     }
 }
 
@@ -453,6 +583,7 @@ private fun BoundTaskDetailPane(
 ) {
     TaskDetailPane(
         task = uiState.selectedTask,
+        currentDate = uiState.currentDate,
         folderName = uiState.selectedTask?.folderId?.let { uiState.folderNameById[it] },
         folderTree = uiState.folderTree,
         subtasks = uiState.selectedTaskSubtasks,
@@ -464,6 +595,7 @@ private fun BoundTaskDetailPane(
         onUpdateTitleAndDescription = callbacks.onUpdateTaskTitleAndDescription,
         onUpdatePriority = callbacks.onUpdateTaskPriority,
         onUpdateDueDate = callbacks.onUpdateTaskDueDate,
+        onUpdateReminder = callbacks.onUpdateTaskReminder,
         onUpdateRecurrenceRule = callbacks.onUpdateTaskRecurrenceRule,
         onAddSubtask = callbacks.onAddSubtask,
         onToggleSubtask = callbacks.onToggleSubtask,
@@ -471,6 +603,10 @@ private fun BoundTaskDetailPane(
         onDeleteSubtask = callbacks.onDeleteSubtask,
         onAddTag = callbacks.onAddTag,
         onRemoveTag = callbacks.onRemoveTag,
+        onSelectTag = { tagId ->
+            callbacks.onSelectDestination(NavigationDestination.TagView(tagId))
+            onNavigateBack()
+        },
         onDeleteTask = callbacks.onDeleteTask,
         modifier = modifier
     )
@@ -484,6 +620,8 @@ private fun CompactSinglePaneLayout(
     quickInputFocusRequester: FocusRequester,
     onRequestCreateFolder: (Folder?) -> Unit,
     onRequestRenameFolder: (Folder) -> Unit,
+    onRequestOrganizeFolder: (Folder) -> Unit,
+    onRequestDeleteFolder: (Folder) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val colors = ZeroTheme.colors
@@ -517,6 +655,7 @@ private fun CompactSinglePaneLayout(
             ) {
                 FolderTreePanel(
                     folderTree = uiState.folderTree,
+                    tagsWithCounts = uiState.tagsWithCounts,
                     selectedDestination = uiState.selectedDestination,
                     smartViewCounts = uiState.smartViewCounts,
                     includeSubfolders = uiState.includeSubfolders,
@@ -529,7 +668,8 @@ private fun CompactSinglePaneLayout(
                     onToggleFolderExpanded = callbacks.onToggleFolderExpanded,
                     onRequestCreateFolder = onRequestCreateFolder,
                     onRequestRenameFolder = onRequestRenameFolder,
-                    onDeleteFolder = callbacks.onDeleteFolder,
+                    onRequestOrganizeFolder = onRequestOrganizeFolder,
+                    onRequestDeleteFolder = onRequestDeleteFolder,
                     onToggleIncludeSubfolders = callbacks.onToggleIncludeSubfolders,
                     onToggleTheme = callbacks.onToggleTheme,
                     onToggleAccent = callbacks.onToggleAccent,
@@ -584,6 +724,8 @@ private fun MediumTwoPaneLayout(
     quickInputFocusRequester: FocusRequester,
     onRequestCreateFolder: (Folder?) -> Unit,
     onRequestRenameFolder: (Folder) -> Unit,
+    onRequestOrganizeFolder: (Folder) -> Unit,
+    onRequestDeleteFolder: (Folder) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val baseDirective = calculatePaneScaffoldDirective(currentWindowAdaptiveInfo())
@@ -611,6 +753,7 @@ private fun MediumTwoPaneLayout(
                     ) {
                         FolderTreePanel(
                             folderTree = uiState.folderTree,
+                            tagsWithCounts = uiState.tagsWithCounts,
                             selectedDestination = uiState.selectedDestination,
                             smartViewCounts = uiState.smartViewCounts,
                             includeSubfolders = uiState.includeSubfolders,
@@ -620,7 +763,8 @@ private fun MediumTwoPaneLayout(
                             onToggleFolderExpanded = callbacks.onToggleFolderExpanded,
                             onRequestCreateFolder = onRequestCreateFolder,
                             onRequestRenameFolder = onRequestRenameFolder,
-                            onDeleteFolder = callbacks.onDeleteFolder,
+                            onRequestOrganizeFolder = onRequestOrganizeFolder,
+                            onRequestDeleteFolder = onRequestDeleteFolder,
                             onToggleIncludeSubfolders = callbacks.onToggleIncludeSubfolders,
                             onToggleTheme = callbacks.onToggleTheme,
                             onToggleAccent = callbacks.onToggleAccent,
@@ -666,11 +810,14 @@ private fun ExpandedThreePaneLayout(
     quickInputFocusRequester: FocusRequester,
     onRequestCreateFolder: (Folder?) -> Unit,
     onRequestRenameFolder: (Folder) -> Unit,
+    onRequestOrganizeFolder: (Folder) -> Unit,
+    onRequestDeleteFolder: (Folder) -> Unit,
     modifier: Modifier = Modifier
 ) {
     Row(modifier = modifier.fillMaxSize()) {
         FolderTreePanel(
             folderTree = uiState.folderTree,
+            tagsWithCounts = uiState.tagsWithCounts,
             selectedDestination = uiState.selectedDestination,
             smartViewCounts = uiState.smartViewCounts,
             includeSubfolders = uiState.includeSubfolders,
@@ -680,7 +827,8 @@ private fun ExpandedThreePaneLayout(
             onToggleFolderExpanded = callbacks.onToggleFolderExpanded,
             onRequestCreateFolder = onRequestCreateFolder,
             onRequestRenameFolder = onRequestRenameFolder,
-            onDeleteFolder = callbacks.onDeleteFolder,
+            onRequestOrganizeFolder = onRequestOrganizeFolder,
+            onRequestDeleteFolder = onRequestDeleteFolder,
             onToggleIncludeSubfolders = callbacks.onToggleIncludeSubfolders,
             onToggleTheme = callbacks.onToggleTheme,
             onToggleAccent = callbacks.onToggleAccent,
@@ -761,7 +909,7 @@ private fun samplePreviewState(): MainUiState {
             )
         ),
         folderNameById = mapOf("f1" to "工作", "f2" to "财务", "f3" to "报销"),
-        smartViewCounts = SmartViewCounts(inbox = 3, today = 2, tomorrow = 1, next7Days = 5),
+        smartViewCounts = SmartViewCounts(inbox = 3, today = 2, tomorrow = 1, next7Days = 5, all = 6),
         tasks = listOf(t1, t2),
         allActiveTopLevelTasks = listOf(t1, t2),
         selectedTaskId = t1.id,

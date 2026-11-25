@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface TaskDao {
 
+    @Transaction
     @Query(
         """
         SELECT * FROM tasks
@@ -20,8 +21,9 @@ interface TaskDao {
         ORDER BY isCompleted ASC, sortOrder ASC, createdAt ASC
         """
     )
-    fun observeInboxTasks(): Flow<List<TaskEntity>>
+    fun observeInboxTasks(): Flow<List<TaskWithTags>>
 
+    @Transaction
     @Query(
         """
         SELECT * FROM tasks
@@ -29,11 +31,12 @@ interface TaskDao {
         ORDER BY isCompleted ASC, sortOrder ASC, createdAt ASC
         """
     )
-    fun observeTasksByFolder(folderId: String): Flow<List<TaskEntity>>
+    fun observeTasksByFolder(folderId: String): Flow<List<TaskWithTags>>
 
     /**
      * Observes all top-level active tasks inside [rootFolderId] and all of its non-deleted sub-folders.
      */
+    @Transaction
     @Query(
         """
         WITH RECURSIVE folder_tree(id) AS (
@@ -49,7 +52,7 @@ interface TaskDao {
         ORDER BY t.isCompleted ASC, t.sortOrder ASC, t.createdAt ASC
         """
     )
-    fun observeTasksInFolderSubtree(rootFolderId: String): Flow<List<TaskEntity>>
+    fun observeTasksInFolderSubtree(rootFolderId: String): Flow<List<TaskWithTags>>
 
     @Query(
         """
@@ -81,6 +84,22 @@ interface TaskDao {
 
     @Query(
         """
+        WITH RECURSIVE subtask_tree(id, depth) AS (
+            SELECT id, 1 FROM tasks WHERE parentTaskId = :rootTaskId AND isDeleted = 0
+            UNION ALL
+            SELECT t.id, st.depth + 1 FROM tasks t
+            INNER JOIN subtask_tree st ON t.parentTaskId = st.id
+            WHERE t.isDeleted = 0
+        )
+        SELECT t.* FROM tasks t
+        INNER JOIN subtask_tree st ON t.id = st.id
+        ORDER BY st.depth ASC, t.sortOrder ASC, t.createdAt ASC
+        """
+    )
+    suspend fun getDescendantSubtasksSnapshot(rootTaskId: String): List<TaskEntity>
+
+    @Query(
+        """
         SELECT * FROM tasks
         WHERE isDeleted = 0 AND parentTaskId IS NULL
           AND dueDate IS NOT NULL AND dueDate >= :startMillis AND dueDate < :endMillis
@@ -88,6 +107,16 @@ interface TaskDao {
         """
     )
     suspend fun getTasksDueBetween(startMillis: Long, endMillis: Long): List<TaskEntity>
+
+    @Query(
+        """
+        SELECT * FROM tasks
+        WHERE isDeleted = 0 AND isCompleted = 0 AND parentTaskId IS NULL
+          AND dueDate IS NOT NULL AND dueDate < :endMillis
+        ORDER BY dueDate ASC, priority ASC, sortOrder ASC
+        """
+    )
+    suspend fun getActiveTasksDueBefore(endMillis: Long): List<TaskEntity>
 
     @Query(
         """
@@ -103,6 +132,7 @@ interface TaskDao {
         updatedAt: Long
     )
 
+    @Transaction
     @Query(
         """
         SELECT * FROM tasks
@@ -111,8 +141,28 @@ interface TaskDao {
         ORDER BY isCompleted ASC, dueDate ASC, priority ASC, sortOrder ASC
         """
     )
-    fun observeTasksDueBetween(startMillis: Long, endMillis: Long): Flow<List<TaskEntity>>
+    fun observeTasksDueBetween(startMillis: Long, endMillis: Long): Flow<List<TaskWithTags>>
 
+    /**
+     * Observes both overdue incomplete tasks (dueDate < [todayStartMillis]) AND all tasks due today.
+     */
+    @Transaction
+    @Query(
+        """
+        SELECT * FROM tasks
+        WHERE isDeleted = 0 AND parentTaskId IS NULL
+          AND dueDate IS NOT NULL
+          AND ((dueDate < :todayStartMillis AND isCompleted = 0)
+               OR (dueDate >= :todayStartMillis AND dueDate < :tomorrowStartMillis))
+        ORDER BY isCompleted ASC, dueDate ASC, priority ASC, sortOrder ASC
+        """
+    )
+    fun observeTodayAndOverdueTasks(
+        todayStartMillis: Long,
+        tomorrowStartMillis: Long
+    ): Flow<List<TaskWithTags>>
+
+    @Transaction
     @Query(
         """
         SELECT * FROM tasks
@@ -120,7 +170,27 @@ interface TaskDao {
         ORDER BY isCompleted ASC, sortOrder ASC, createdAt ASC
         """
     )
-    fun observeAllActiveTopLevelTasks(): Flow<List<TaskEntity>>
+    fun observeAllActiveTopLevelTasks(): Flow<List<TaskWithTags>>
+
+    @Transaction
+    @Query(
+        """
+        SELECT * FROM tasks
+        WHERE isDeleted = 1 AND parentTaskId IS NULL
+        ORDER BY updatedAt DESC
+        """
+    )
+    fun observeDeletedTopLevelTasks(): Flow<List<TaskWithTags>>
+
+    @Query(
+        """
+        SELECT * FROM tasks
+        WHERE isDeleted = 0 AND isCompleted = 0
+          AND reminderAt IS NOT NULL AND reminderAt > :nowMillis
+        ORDER BY reminderAt ASC
+        """
+    )
+    suspend fun getUpcomingReminderTasks(nowMillis: Long): List<TaskEntity>
 
     @Transaction
     @Query("SELECT * FROM tasks WHERE id = :taskId AND isDeleted = 0 LIMIT 1")
@@ -232,6 +302,12 @@ interface TaskDao {
 
     @Query("UPDATE tasks SET isDeleted = 0, updatedAt = :updatedAt WHERE id IN (:taskIds)")
     suspend fun restoreTasks(taskIds: List<String>, updatedAt: Long)
+
+    @Query("DELETE FROM tasks WHERE id IN (:taskIds)")
+    suspend fun permanentlyDeleteTasks(taskIds: List<String>)
+
+    @Query("DELETE FROM tasks WHERE isDeleted = 1")
+    suspend fun emptyTrash()
 
     @Query("SELECT * FROM tasks ORDER BY createdAt ASC, sortOrder ASC")
     suspend fun getAllTasksSnapshot(): List<TaskEntity>

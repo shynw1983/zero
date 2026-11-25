@@ -105,6 +105,7 @@ fun QuickInputCapsule(
     onSelectFolderSuggestion: (FolderPathSuggestion) -> Unit,
     onToggleContinuousEntry: () -> Unit,
     onVoiceInputRecognized: (String) -> Unit,
+    currentDate: LocalDate = LocalDate.now(),
     modifier: Modifier = Modifier
 ) {
     val colors = ZeroTheme.colors
@@ -123,6 +124,30 @@ fun QuickInputCapsule(
     fun appendToken(token: String) {
         val current = text.trimEnd()
         val updated = if (current.isEmpty()) "$token " else "$current $token "
+        onTextChange(updated)
+        focusRequester.requestFocus()
+    }
+
+    /**
+     * Replaces existing date/time tokens instead of stacking duplicate dates when tapping quick date chips.
+     */
+    fun setOrReplaceDateToken(dateToken: String) {
+        val dateRanges = parsed.tokens
+            .filter { it.type == QuickInputTokenType.DATE_TIME }
+            .map { it.range }
+            .sortedByDescending { it.first }
+        if (dateRanges.isEmpty() || parsed.rawInput != text) {
+            appendToken(dateToken)
+            return
+        }
+        val sb = StringBuilder(text)
+        for (range in dateRanges) {
+            val start = range.first.coerceIn(0, sb.length)
+            val endExclusive = (range.last + 1).coerceIn(start, sb.length)
+            sb.replace(start, endExclusive, " ")
+        }
+        val cleaned = sb.toString().replace(Regex("\\s{2,}"), " ").trim()
+        val updated = if (cleaned.isEmpty()) "$dateToken " else "$cleaned $dateToken "
         onTextChange(updated)
         focusRequester.requestFocus()
     }
@@ -423,7 +448,7 @@ fun QuickInputCapsule(
 
             // Intuitive 1-Tap Quick-Insert Toolbar when focused (no syntax memorization required)
             AnimatedVisibility(visible = isFocused) {
-                val today = remember { LocalDate.now() }
+                val today = currentDate
                 val tomorrow = remember(today) { today.plusDays(1) }
                 val isoFmt = remember { DateTimeFormatter.ISO_LOCAL_DATE }
                 Column {
@@ -439,14 +464,14 @@ fun QuickInputCapsule(
                             label = "${stringResource(R.string.quick_today)} ${ZeroDateFormatter.formatMonthDayWeekday(today, activeLocale)}",
                             onClick = {
                                 haptics.reorderTick()
-                                appendToken(today.format(isoFmt))
+                                setOrReplaceDateToken(today.format(isoFmt))
                             }
                         )
                         QuickHelperChip(
                             label = "${stringResource(R.string.quick_tomorrow)} ${ZeroDateFormatter.formatMonthDayWeekday(tomorrow, activeLocale)}",
                             onClick = {
                                 haptics.reorderTick()
-                                appendToken(tomorrow.format(isoFmt))
+                                setOrReplaceDateToken(tomorrow.format(isoFmt))
                             }
                         )
                         QuickHelperChip(
@@ -485,7 +510,7 @@ fun QuickInputCapsule(
         ZeroMiniCalendarDialog(
             selectedDate = null,
             onSelectDate = { picked ->
-                appendToken(picked.format(DateTimeFormatter.ISO_LOCAL_DATE))
+                setOrReplaceDateToken(picked.format(DateTimeFormatter.ISO_LOCAL_DATE))
             },
             onDismiss = { showDatePickerDialog = false }
         )

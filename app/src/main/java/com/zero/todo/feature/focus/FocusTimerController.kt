@@ -1,5 +1,7 @@
 package com.zero.todo.feature.focus
 
+import com.zero.todo.core.notification.NoOpReminderScheduler
+import com.zero.todo.core.notification.ReminderScheduler
 import com.zero.todo.data.repository.FocusRepository
 import com.zero.todo.domain.model.FocusMode
 import com.zero.todo.domain.model.TaskItem
@@ -63,23 +65,28 @@ data class FocusUiState(
 }
 
 /**
- * Self-contained state machine & ticker for ZERO's Anti-Procrastination Focus System:
+ * Self-contained wall-clock-anchored state machine for ZERO's Anti-Procrastination Focus System:
  * - Single-task distraction-free focus
  * - "Just 2 Mins" starter (`TWO_MIN_STARTER`) with gentle haptic prompt & one-tap seamless
  *   continuation into a 25-minute `POMODORO`
+ * - Background/screen-off accuracy via real wall-clock anchoring + AlarmManager completion alert
  * - Automatic persistence to `FocusSessionEntity` via [FocusRepository]
  */
 class FocusTimerController(
     private val scope: CoroutineScope,
     private val focusRepository: FocusRepository,
+    private val reminderScheduler: ReminderScheduler = NoOpReminderScheduler,
     private val twoMinSeconds: Int = FocusUiState.DEFAULT_TWO_MIN_SECONDS,
     private val pomodoroSeconds: Int = FocusUiState.DEFAULT_POMODORO_SECONDS,
-    private val tickIntervalMs: Long = 1_000L
+    private val tickIntervalMs: Long = 1_000L,
+    private val wallClockMillis: () -> Long = { System.currentTimeMillis() }
 ) {
     private val _state = MutableStateFlow(FocusUiState())
     val state: StateFlow<FocusUiState> = _state.asStateFlow()
 
     private var tickerJob: Job? = null
+    private var runAnchorWallMillis: Long = 0L
+    private var runStartElapsedSeconds: Int = 0
 
     fun updateTodayFocusSeconds(seconds: Int) {
         _state.update { it.copy(todayFocusSeconds = seconds) }
@@ -95,12 +102,43 @@ class FocusTimerController(
         }
     }
 
+    /**
+     * Re-syncs running countdown/stopwatch against wall clock (e.g. after returning from lock screen).
+     */
+    fun syncWithWallClock() {
+        val current = _state.value
+        if (current.phase != FocusPhase.RUNNING || runAnchorWallMillis <= 0L) return
+        val deltaSec = ((wallClockMillis() - runAnchorWallMillis) / tickIntervalMs.coerceAtLeast(1L))
+            .toInt()
+            .coerceAtLeast(0)
+        val totalElapsed = runStartElapsedSeconds + deltaSec
+        if (current.mode == FocusMode.STOPWATCH) {
+            _state.update { it.copy(elapsedSeconds = totalElapsed) }
+        } else {
+            val remaining = (current.totalDurationSeconds - totalElapsed).coerceAtLeast(0)
+            if (remaining == 0) {
+                stopTicker()
+                scope.launch {
+                    onCountdownCompleted(current, current.totalDurationSeconds)
+                }
+            } else {
+                _state.update {
+                    it.copy(
+                        elapsedSeconds = totalElapsed,
+                        remainingSeconds = remaining
+                    )
+                }
+            }
+        }
+    }
+
     fun openFocus(
         task: TaskItem?,
         initialMode: FocusMode = FocusMode.TWO_MIN_STARTER,
         autoStart: Boolean = true
     ) {
         stopTicker()
+        reminderScheduler.cancelFocusAlert()
         val duration = durationForMode(initialMode)
         _state.update { current ->
             current.copy(
@@ -121,6 +159,7 @@ class FocusTimerController(
 
     fun selectMode(mode: FocusMode) {
         stopTicker()
+        reminderScheduler.cancelFocusAlert()
         val duration = durationForMode(mode)
         _state.update { current ->
             current.copy(
@@ -154,7 +193,9 @@ class FocusTimerController(
     }
 
     fun pause() {
+        syncWithWallClock()
         stopTicker()
+        reminderScheduler.cancelFocusAlert()
         _state.update { current ->
             if (current.phase == FocusPhase.RUNNING) current.copy(phase = FocusPhase.PAUSED) else current
         }
@@ -162,6 +203,7 @@ class FocusTimerController(
 
     fun reset() {
         stopTicker()
+        reminderScheduler.cancelFocusAlert()
         _state.update { current ->
             val duration = durationForMode(current.mode)
             current.copy(
@@ -179,6 +221,7 @@ class FocusTimerController(
      */
     fun continueToPomodoro() {
         stopTicker()
+        reminderScheduler.cancelFocusAlert()
         _state.update { current ->
             current.copy(
                 isActive = true,
@@ -194,8 +237,10 @@ class FocusTimerController(
     }
 
     fun stopAndRecordStopwatchIfElapsed() {
+        syncWithWallClock()
         val current = _state.value
         stopTicker()
+        reminderScheduler.cancelFocusAlert()
         if (current.mode == FocusMode.STOPWATCH && current.elapsedSeconds > 0) {
             val taskId = current.task?.id
             val elapsed = current.elapsedSeconds
@@ -217,8 +262,10 @@ class FocusTimerController(
     }
 
     fun exitFocus() {
+        syncWithWallClock()
         val current = _state.value
         stopTicker()
+        reminderScheduler.cancelFocusAlert()
         if (current.mode == FocusMode.STOPWATCH && current.elapsedSeconds >= 10) {
             val taskId = current.task?.id
             val elapsed = current.elapsedSeconds
@@ -240,19 +287,37 @@ class FocusTimerController(
 
     private fun startTicker() {
         stopTicker()
+        val snapshot = _state.value
+        runAnchorWallMillis = wallClockMillis()
+        runStartElapsedSeconds = snapshot.elapsedSeconds
+
+        // Schedule background/screen-off completion notification for countdown modes
+        if (snapshot.mode != FocusMode.STOPWATCH && snapshot.remainingSeconds > 0) {
+            val triggerAt = runAnchorWallMillis + snapshot.remainingSeconds.toLong() * tickIntervalMs
+            reminderScheduler.scheduleFocusAlert(
+                mode = snapshot.mode,
+                taskTitle = snapshot.task?.title,
+                triggerAtMillis = triggerAt
+            )
+        }
+
         tickerJob = scope.launch {
             while (true) {
                 delay(tickIntervalMs)
                 val current = _state.value
                 if (current.phase != FocusPhase.RUNNING) break
 
-                val nextElapsed = current.elapsedSeconds + 1
+                val deltaSec = ((wallClockMillis() - runAnchorWallMillis) / tickIntervalMs.coerceAtLeast(1L))
+                    .toInt()
+                    .coerceAtLeast(current.elapsedSeconds - runStartElapsedSeconds + 1)
+                val nextElapsed = runStartElapsedSeconds + deltaSec
+
                 if (current.mode == FocusMode.STOPWATCH) {
                     _state.update { it.copy(elapsedSeconds = nextElapsed) }
                 } else {
-                    val nextRemaining = (current.remainingSeconds - 1).coerceAtLeast(0)
+                    val nextRemaining = (current.totalDurationSeconds - nextElapsed).coerceAtLeast(0)
                     if (nextRemaining == 0) {
-                        onCountdownCompleted(current, nextElapsed)
+                        onCountdownCompleted(current, current.totalDurationSeconds)
                         break
                     } else {
                         _state.update {
@@ -268,6 +333,7 @@ class FocusTimerController(
     }
 
     private suspend fun onCountdownCompleted(snapshot: FocusUiState, completedSeconds: Int) {
+        reminderScheduler.cancelFocusAlert()
         val recordedSeconds = completedSeconds.coerceAtLeast(1)
         focusRepository.recordSession(
             taskId = snapshot.task?.id,

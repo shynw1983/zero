@@ -19,6 +19,11 @@ class TagRepositoryImpl @Inject constructor(
     override fun observeActiveTags(): Flow<List<TagItem>> =
         tagDao.observeActiveTags().map { list -> list.map { it.toDomain() } }
 
+    override fun observeActiveTagsWithCounts(): Flow<List<TagWithCount>> =
+        tagDao.observeActiveTagsWithCounts().map { rows ->
+            rows.map { row -> TagWithCount(tag = row.tag.toDomain(), activeTaskCount = row.activeTaskCount) }
+        }
+
     override fun observeTagsForTask(taskId: String): Flow<List<TagItem>> =
         tagDao.observeTagsForTask(taskId).map { list -> list.map { it.toDomain() } }
 

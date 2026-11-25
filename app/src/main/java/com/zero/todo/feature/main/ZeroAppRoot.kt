@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -15,6 +16,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -43,6 +47,18 @@ fun ZeroAppRoot(
     val navController = rememberNavController()
     val baseContext = LocalContext.current
     val baseConfig = LocalConfiguration.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+
+    // Sync midnight date & wall-clock focus timer whenever app returns to foreground
+    DisposableEffect(lifecycleOwner, viewModel) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                viewModel.refreshCurrentDate()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     // Sync Android 13+ per-app system locale when user switches language in Settings
     LaunchedEffect(uiState.appLanguage) {
@@ -99,9 +115,16 @@ fun ZeroAppRoot(
             onSelectTask = viewModel::selectTask,
             onToggleIncludeSubfolders = viewModel::toggleIncludeSubfolders,
             onToggleMediumTreeExpanded = viewModel::toggleMediumTreeExpanded,
+            onToggleSearch = viewModel::setSearchOpen,
+            onSearchQueryChange = viewModel::updateSearchQuery,
+            onCycleSortMode = viewModel::cycleTaskSortMode,
+            onRescheduleOverdueToToday = viewModel::rescheduleOverdueToToday,
+            onPrefillQuickInputPriority = viewModel::prefillQuickInputPriority,
             onToggleFolderExpanded = viewModel::setFolderExpanded,
             onCreateFolder = viewModel::createFolder,
             onRenameFolder = viewModel::renameFolder,
+            onMoveFolderOrder = viewModel::moveFolderOrder,
+            onMoveFolderToParent = viewModel::moveFolderToParent,
             onDeleteFolder = viewModel::deleteFolder,
             onToggleTaskComplete = viewModel::toggleTaskCompletion,
             onMoveTaskToFolder = viewModel::moveTaskToFolder,
@@ -109,6 +132,7 @@ fun ZeroAppRoot(
             onUpdateTaskTitleAndDescription = viewModel::updateTaskTitleAndDescription,
             onUpdateTaskPriority = viewModel::updateTaskPriority,
             onUpdateTaskDueDate = viewModel::updateTaskDueDate,
+            onUpdateTaskReminder = viewModel::updateTaskReminder,
             onUpdateTaskRecurrenceRule = viewModel::updateTaskRecurrenceRule,
             onAddSubtask = viewModel::addSubtask,
             onToggleSubtask = viewModel::toggleSubtaskCompletion,
@@ -117,6 +141,9 @@ fun ZeroAppRoot(
             onAddTag = viewModel::addTagToTask,
             onRemoveTag = viewModel::removeTagFromTask,
             onDeleteTask = viewModel::deleteTask,
+            onRestoreDeletedTask = viewModel::restoreDeletedTask,
+            onPermanentlyDeleteTask = viewModel::permanentlyDeleteTask,
+            onEmptyTrash = viewModel::emptyTrash,
             onQuickInputChange = viewModel::updateQuickInputText,
             onQuickInputSubmit = viewModel::submitQuickInput,
             onSelectFolderSuggestion = viewModel::applyFolderSuggestion,
@@ -131,6 +158,10 @@ fun ZeroAppRoot(
             onSetAntiMisclickMode = viewModel::setAntiMisclickMode,
             onSetHapticsEnabled = viewModel::setHapticsEnabled,
             onSetAppLanguage = viewModel::setAppLanguage,
+            onUpdateWebDavConfig = viewModel::updateWebDavConfig,
+            onTestWebDav = viewModel::testWebDavConnection,
+            onPushWebDav = viewModel::pushWebDavBackup,
+            onPullWebDav = viewModel::pullWebDavBackup,
             onOpenSettings = viewModel::openSettings,
             onCloseSettings = viewModel::closeSettings,
             onGenerateJsonBackup = viewModel::generateJsonBackup,

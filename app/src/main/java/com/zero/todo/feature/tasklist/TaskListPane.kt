@@ -1,5 +1,6 @@
 package com.zero.todo.feature.tasklist
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -20,17 +21,23 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.rounded.Sort
 import androidx.compose.material.icons.automirrored.rounded.ViewSidebar
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.CreateNewFolder
 import androidx.compose.material.icons.rounded.Menu
+import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Timer
+import androidx.compose.material.icons.rounded.Update
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -42,11 +49,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import com.zero.todo.R
+import com.zero.todo.core.common.ZeroDateFormatter
 import com.zero.todo.core.designsystem.ZeroMotion
 import com.zero.todo.core.designsystem.ZeroSmallShape
 import com.zero.todo.core.designsystem.ZeroTheme
@@ -57,15 +67,21 @@ import com.zero.todo.core.nlp.ParsedQuickInput
 import com.zero.todo.domain.model.AntiMisclickMode
 import com.zero.todo.domain.model.Folder
 import com.zero.todo.domain.model.TaskItem
+import com.zero.todo.domain.model.TaskSortMode
 import com.zero.todo.feature.folder.IncludeSubfoldersPill
 import com.zero.todo.feature.folder.NavigationDestination
+import java.time.LocalDate
 
 @Composable
 fun TaskListPane(
+    currentDate: LocalDate,
     title: String,
     breadcrumbs: List<Folder>,
     selectedDestination: NavigationDestination,
     includeSubfolders: Boolean,
+    isSearchOpen: Boolean,
+    searchQuery: String,
+    taskSortMode: TaskSortMode,
     tasks: List<TaskItem>,
     folderNameById: Map<String, String>,
     selectedTaskId: String?,
@@ -82,6 +98,11 @@ fun TaskListPane(
     onToggleTreePanel: () -> Unit,
     onSelectBreadcrumb: (String) -> Unit,
     onToggleIncludeSubfolders: () -> Unit,
+    onToggleSearch: (Boolean) -> Unit,
+    onSearchQueryChange: (String) -> Unit,
+    onCycleSortMode: () -> Unit,
+    onRescheduleOverdueToToday: () -> Unit,
+    onSelectTag: (String) -> Unit,
     onRequestCreateSubfolder: () -> Unit,
     onOpenFocusMode: () -> Unit,
     onToggleTaskComplete: (TaskItem) -> Unit,
@@ -100,12 +121,37 @@ fun TaskListPane(
     val tabular = ZeroTheme.tabularTypography
     val haptics = rememberZeroHaptics()
     val lazyListState = rememberLazyListState()
+    val searchFocusRequester = remember { FocusRequester() }
 
     var draggingTaskId by remember { mutableStateOf<String?>(null) }
     var draggingOffsetY by remember { mutableFloatStateOf(0f) }
     var showCompletedSection by rememberSaveable { mutableStateOf(false) }
 
+    LaunchedEffect(isSearchOpen) {
+        if (isSearchOpen) {
+            runCatching { searchFocusRequester.requestFocus() }
+        }
+    }
+
+    val todayStartMillis = remember(currentDate) { ZeroDateFormatter.startOfDayMillis(currentDate) }
+    val showOverdueSplit = selectedDestination == NavigationDestination.Today &&
+        (!isSearchOpen || searchQuery.isBlank())
+
     val activeTasks = remember(tasks) { tasks.filterNot { it.isCompleted } }
+    val overdueTasks = remember(activeTasks, showOverdueSplit, todayStartMillis) {
+        if (showOverdueSplit) {
+            activeTasks.filter { it.dueDate != null && it.dueDate < todayStartMillis }
+        } else {
+            emptyList()
+        }
+    }
+    val regularActiveTasks = remember(activeTasks, showOverdueSplit, todayStartMillis) {
+        if (showOverdueSplit) {
+            activeTasks.filterNot { it.dueDate != null && it.dueDate < todayStartMillis }
+        } else {
+            activeTasks
+        }
+    }
     val completedTasks = remember(tasks) { tasks.filter { it.isCompleted } }
     val incompleteCount = activeTasks.size
 
@@ -168,21 +214,64 @@ fun TaskListPane(
                             includeSubfolders = includeSubfolders,
                             onToggle = onToggleIncludeSubfolders
                         )
-                        Spacer(modifier = Modifier.width(6.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
                         IconButton(
                             onClick = onRequestCreateSubfolder,
-                            modifier = Modifier.size(30.dp)
+                            modifier = Modifier.size(28.dp)
                         ) {
                             Icon(
                                 imageVector = Icons.Rounded.CreateNewFolder,
                                 contentDescription = stringResource(R.string.cd_create_subfolder),
                                 tint = colors.textSecondary,
-                                modifier = Modifier.size(17.dp)
+                                modifier = Modifier.size(16.dp)
                             )
                         }
                     }
 
-                    Spacer(modifier = Modifier.width(4.dp))
+                    // Sort Mode Cycle Pill
+                    Row(
+                        modifier = Modifier
+                            .padding(start = 4.dp)
+                            .clip(ZeroSmallShape)
+                            .background(if (taskSortMode != TaskSortMode.MANUAL) colors.accentSubtle else colors.surface)
+                            .hairlineBorder(
+                                shape = ZeroSmallShape,
+                                color = if (taskSortMode != TaskSortMode.MANUAL) colors.accent else colors.hairlineBorder
+                            )
+                            .clickable {
+                                haptics.reorderTick()
+                                onCycleSortMode()
+                            }
+                            .padding(horizontal = 6.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(3.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Rounded.Sort,
+                            contentDescription = stringResource(R.string.cd_cycle_sort),
+                            tint = if (taskSortMode != TaskSortMode.MANUAL) colors.accent else colors.textSecondary,
+                            modifier = Modifier.size(13.dp)
+                        )
+                        Text(
+                            text = stringResource(taskSortMode.labelRes),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = if (taskSortMode != TaskSortMode.MANUAL) colors.accent else colors.textSecondary
+                        )
+                    }
+
+                    // Global Search Toggle
+                    IconButton(
+                        onClick = { onToggleSearch(!isSearchOpen) },
+                        modifier = Modifier.size(30.dp)
+                    ) {
+                        Icon(
+                            imageVector = if (isSearchOpen) Icons.Rounded.Close else Icons.Rounded.Search,
+                            contentDescription = stringResource(R.string.cd_search_tasks),
+                            tint = if (isSearchOpen) colors.accent else colors.textSecondary,
+                            modifier = Modifier.size(17.dp)
+                        )
+                    }
+
                     IconButton(
                         onClick = onOpenFocusMode,
                         modifier = Modifier.size(30.dp)
@@ -195,7 +284,7 @@ fun TaskListPane(
                         )
                     }
 
-                    Spacer(modifier = Modifier.width(4.dp))
+                    Spacer(modifier = Modifier.width(2.dp))
                     Text(
                         text = incompleteCount.toString().padStart(2, '0'),
                         style = tabular.counter,
@@ -203,8 +292,62 @@ fun TaskListPane(
                     )
                 }
 
+                // Inline Global Search Bar
+                AnimatedVisibility(visible = isSearchOpen) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 8.dp)
+                            .clip(ZeroSmallShape)
+                            .background(colors.surface)
+                            .hairlineBorder(
+                                shape = ZeroSmallShape,
+                                color = if (searchQuery.isNotBlank()) colors.accent else colors.hairlineBorder
+                            )
+                            .padding(horizontal = 10.dp, vertical = 7.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Search,
+                            contentDescription = null,
+                            tint = colors.textMuted,
+                            modifier = Modifier.size(15.dp)
+                        )
+                        Box(modifier = Modifier.weight(1f)) {
+                            if (searchQuery.isEmpty()) {
+                                Text(
+                                    text = stringResource(R.string.search_placeholder),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = colors.textMuted
+                                )
+                            }
+                            BasicTextField(
+                                value = searchQuery,
+                                onValueChange = onSearchQueryChange,
+                                singleLine = true,
+                                textStyle = MaterialTheme.typography.bodySmall.copy(color = colors.textPrimary),
+                                cursorBrush = SolidColor(colors.accent),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .focusRequester(searchFocusRequester)
+                            )
+                        }
+                        if (searchQuery.isNotEmpty()) {
+                            Icon(
+                                imageVector = Icons.Rounded.Close,
+                                contentDescription = stringResource(R.string.action_clear),
+                                tint = colors.textMuted,
+                                modifier = Modifier
+                                    .size(15.dp)
+                                    .clickable { onSearchQueryChange("") }
+                            )
+                        }
+                    }
+                }
+
                 // Breadcrumb trail for nested folders
-                if (breadcrumbs.size > 1) {
+                if (breadcrumbs.size > 1 && !isSearchOpen) {
                     Spacer(modifier = Modifier.height(4.dp))
                     Row(
                         modifier = Modifier.padding(start = if (showDrawerButton || showTreeToggleButton) 38.dp else 0.dp),
@@ -249,7 +392,10 @@ fun TaskListPane(
                             color = colors.textMuted
                         )
                         Text(
-                            text = stringResource(R.string.empty_tasks_hint),
+                            text = stringResource(
+                                if (isSearchOpen && searchQuery.isNotBlank()) R.string.search_empty_hint
+                                else R.string.empty_tasks_hint
+                            ),
                             style = MaterialTheme.typography.bodySmall,
                             color = colors.textMuted
                         )
@@ -269,12 +415,119 @@ fun TaskListPane(
                     ),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
+                    // Overdue Section (Today smart view only) with 1-Tap Reschedule to Today
+                    if (overdueTasks.isNotEmpty()) {
+                        item(key = "overdue_section_header") {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(ZeroSmallShape)
+                                    .background(colors.priorityUrgent.copy(alpha = 0.10f))
+                                    .hairlineBorder(
+                                        shape = ZeroSmallShape,
+                                        color = colors.priorityUrgent.copy(alpha = 0.45f)
+                                    )
+                                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Text(
+                                        text = stringResource(R.string.section_overdue_tasks),
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = colors.priorityUrgent
+                                    )
+                                    Text(
+                                        text = overdueTasks.size.toString().padStart(2, '0'),
+                                        style = tabular.dateCompact,
+                                        color = colors.priorityUrgent
+                                    )
+                                }
+                                Row(
+                                    modifier = Modifier
+                                        .clip(ZeroSmallShape)
+                                        .background(colors.surface)
+                                        .hairlineBorder(shape = ZeroSmallShape, color = colors.priorityUrgent.copy(alpha = 0.5f))
+                                        .clickable {
+                                            haptics.confirm()
+                                            onRescheduleOverdueToToday()
+                                        }
+                                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.Update,
+                                        contentDescription = null,
+                                        tint = colors.priorityUrgent,
+                                        modifier = Modifier.size(13.dp)
+                                    )
+                                    Text(
+                                        text = stringResource(R.string.action_reschedule_today),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = colors.priorityUrgent
+                                    )
+                                }
+                            }
+                        }
+
+                        itemsIndexed(
+                            items = overdueTasks,
+                            key = { _, task -> "overdue_${task.id}" }
+                        ) { _, task ->
+                            AntiMisclickTaskCard(
+                                task = task,
+                                isSelected = task.id == selectedTaskId,
+                                isListScrolling = lazyListState.isScrollInProgress,
+                                isDragging = false,
+                                dragOffsetY = 0f,
+                                folderBadgeName = task.folderId?.let { folderNameById[it] },
+                                antiMisclickMode = antiMisclickMode,
+                                onToggleComplete = onToggleTaskComplete,
+                                onSelectTask = onSelectTask,
+                                onTagClick = onSelectTag,
+                                onReorderDragStart = {},
+                                onReorderDragDelta = {},
+                                onReorderDragEnd = {},
+                                modifier = Modifier.animateItem(placementSpec = ZeroMotion.IntOffsetSpring)
+                            )
+                        }
+
+                        if (regularActiveTasks.isNotEmpty()) {
+                            item(key = "today_section_header") {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(top = 6.dp, bottom = 2.dp, start = 4.dp, end = 4.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = stringResource(R.string.nav_today),
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = colors.textSecondary
+                                    )
+                                    Text(
+                                        text = regularActiveTasks.size.toString().padStart(2, '0'),
+                                        style = tabular.dateCompact,
+                                        color = colors.textMuted
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    // Active Tasks
                     itemsIndexed(
-                        items = activeTasks,
+                        items = regularActiveTasks,
                         key = { _, task -> task.id }
                     ) { index, task ->
                         val isDragging = draggingTaskId == task.id
-                        val showFolderBadge = selectedDestination !is NavigationDestination.FolderView ||
+                        val showFolderBadge = isSearchOpen ||
+                            selectedDestination !is NavigationDestination.FolderView ||
                             (includeSubfolders && task.folderId != selectedDestination.folderId)
 
                         AntiMisclickTaskCard(
@@ -287,15 +540,18 @@ fun TaskListPane(
                             antiMisclickMode = antiMisclickMode,
                             onToggleComplete = onToggleTaskComplete,
                             onSelectTask = onSelectTask,
+                            onTagClick = onSelectTag,
                             onReorderDragStart = {
-                                draggingTaskId = task.id
-                                draggingOffsetY = 0f
+                                if (taskSortMode == TaskSortMode.MANUAL) {
+                                    draggingTaskId = task.id
+                                    draggingOffsetY = 0f
+                                }
                             },
                             onReorderDragDelta = { deltaY ->
-                                if (draggingTaskId == task.id) {
+                                if (draggingTaskId == task.id && taskSortMode == TaskSortMode.MANUAL) {
                                     draggingOffsetY += deltaY
                                     val stepPx = 140f
-                                    if (draggingOffsetY > stepPx && index < activeTasks.lastIndex) {
+                                    if (draggingOffsetY > stepPx && index < regularActiveTasks.lastIndex) {
                                         draggingOffsetY -= stepPx
                                         haptics.reorderTick()
                                         onReorderTask(task.id, index + 1)
@@ -370,7 +626,8 @@ fun TaskListPane(
                                 items = completedTasks,
                                 key = { _, task -> task.id }
                             ) { _, task ->
-                                val showFolderBadge = selectedDestination !is NavigationDestination.FolderView ||
+                                val showFolderBadge = isSearchOpen ||
+                                    selectedDestination !is NavigationDestination.FolderView ||
                                     (includeSubfolders && task.folderId != selectedDestination.folderId)
                                 AntiMisclickTaskCard(
                                     task = task,
@@ -382,6 +639,7 @@ fun TaskListPane(
                                     antiMisclickMode = antiMisclickMode,
                                     onToggleComplete = onToggleTaskComplete,
                                     onSelectTask = onSelectTask,
+                                    onTagClick = onSelectTag,
                                     onReorderDragStart = {},
                                     onReorderDragDelta = {},
                                     onReorderDragEnd = {},
@@ -419,7 +677,8 @@ fun TaskListPane(
                 onSubmit = onQuickInputSubmit,
                 onSelectFolderSuggestion = onSelectFolderSuggestion,
                 onToggleContinuousEntry = onToggleContinuousEntry,
-                onVoiceInputRecognized = onVoiceInputRecognized
+                onVoiceInputRecognized = onVoiceInputRecognized,
+                currentDate = currentDate
             )
         }
     }

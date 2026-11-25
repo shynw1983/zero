@@ -1,5 +1,7 @@
 package com.zero.todo.data.repository
 
+import com.zero.todo.core.notification.AlarmReminderScheduler
+import com.zero.todo.core.notification.ReminderScheduler
 import com.zero.todo.data.preferences.SharedPrefsUserPreferencesRepository
 import com.zero.todo.data.preferences.UserPreferencesRepository
 import com.zero.todo.widget.GlanceWidgetRefresher
@@ -33,6 +35,10 @@ abstract class RepositoryModule {
     @Binds
     @Singleton
     abstract fun bindWidgetRefresher(impl: GlanceWidgetRefresher): WidgetRefresher
+
+    @Binds
+    @Singleton
+    abstract fun bindReminderScheduler(impl: AlarmReminderScheduler): ReminderScheduler
 
     @Binds
     @Singleton

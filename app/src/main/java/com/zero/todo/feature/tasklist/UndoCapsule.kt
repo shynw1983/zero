@@ -44,6 +44,7 @@ data class UndoBannerState(
     val taskId: String,
     val taskTitle: String,
     val undoType: UndoType,
+    val spawnedTaskId: String? = null,
     val durationMillis: Long = 3_000L
 )
 

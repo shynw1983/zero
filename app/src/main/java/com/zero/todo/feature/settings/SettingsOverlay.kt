@@ -22,11 +22,15 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.CloudDownload
+import androidx.compose.material.icons.rounded.CloudUpload
 import androidx.compose.material.icons.rounded.Description
 import androidx.compose.material.icons.rounded.Download
+import androidx.compose.material.icons.rounded.Link
 import androidx.compose.material.icons.rounded.Upload
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -34,13 +38,20 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import com.zero.todo.R
 import com.zero.todo.core.designsystem.ZeroAccent
@@ -51,6 +62,7 @@ import com.zero.todo.core.designsystem.hairlineBorder
 import com.zero.todo.core.designsystem.hairlineDividerBottom
 import com.zero.todo.core.designsystem.rememberZeroHaptics
 import com.zero.todo.data.backup.BackupSummary
+import com.zero.todo.data.backup.WebDavConfig
 import com.zero.todo.domain.model.AntiMisclickMode
 import com.zero.todo.domain.model.AppLanguage
 import kotlinx.coroutines.Dispatchers
@@ -66,6 +78,14 @@ sealed interface BackupUiStatus {
     data class Error(val detail: String) : BackupUiStatus
 }
 
+sealed interface WebDavUiStatus {
+    data object Working : WebDavUiStatus
+    data object TestSuccess : WebDavUiStatus
+    data object PushSuccess : WebDavUiStatus
+    data class PullSuccess(val summary: BackupSummary) : WebDavUiStatus
+    data class Error(val detail: String) : WebDavUiStatus
+}
+
 @Composable
 fun SettingsOverlay(
     isDarkTheme: Boolean,
@@ -73,12 +93,18 @@ fun SettingsOverlay(
     antiMisclickMode: AntiMisclickMode,
     hapticsEnabled: Boolean,
     appLanguage: AppLanguage,
+    webDavConfig: WebDavConfig,
+    webDavStatus: WebDavUiStatus?,
     backupStatus: BackupUiStatus?,
     onSetDarkTheme: (Boolean) -> Unit,
     onSetAccent: (ZeroAccent) -> Unit,
     onSetAntiMisclickMode: (AntiMisclickMode) -> Unit,
     onSetHapticsEnabled: (Boolean) -> Unit,
     onSetAppLanguage: (AppLanguage) -> Unit,
+    onUpdateWebDavConfig: (WebDavConfig) -> Unit,
+    onTestWebDav: () -> Unit,
+    onPushWebDav: () -> Unit,
+    onPullWebDav: () -> Unit,
     onGenerateJsonBackup: suspend () -> String,
     onGenerateMarkdownExport: suspend () -> String,
     onImportJsonBackup: (String) -> Unit,
@@ -443,10 +469,115 @@ fun SettingsOverlay(
                     }
                 }
 
-                // 6. Hardware Keyboard Shortcuts
+                // 6. Lightweight WebDAV Cross-Device Sync (Phone / Foldable / Tablet)
+                SettingsSectionCard(title = stringResource(R.string.settings_section_webdav)) {
+                    var urlDraft by remember(webDavConfig.serverUrl) { mutableStateOf(webDavConfig.serverUrl) }
+                    var userDraft by remember(webDavConfig.username) { mutableStateOf(webDavConfig.username) }
+                    var passDraft by remember(webDavConfig.password) { mutableStateOf(webDavConfig.password) }
+                    val isBusy = webDavStatus == WebDavUiStatus.Working
+
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(
+                            text = stringResource(R.string.settings_webdav_desc),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = colors.textSecondary
+                        )
+                        WebDavInputField(
+                            value = urlDraft,
+                            placeholder = stringResource(R.string.settings_webdav_url_hint),
+                            onValueChange = {
+                                urlDraft = it
+                                onUpdateWebDavConfig(webDavConfig.copy(serverUrl = it))
+                            }
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            WebDavInputField(
+                                value = userDraft,
+                                placeholder = stringResource(R.string.settings_webdav_user_hint),
+                                onValueChange = {
+                                    userDraft = it
+                                    onUpdateWebDavConfig(webDavConfig.copy(username = it))
+                                },
+                                modifier = Modifier.weight(1f)
+                            )
+                            WebDavInputField(
+                                value = passDraft,
+                                placeholder = stringResource(R.string.settings_webdav_pass_hint),
+                                isPassword = true,
+                                onValueChange = {
+                                    passDraft = it
+                                    onUpdateWebDavConfig(webDavConfig.copy(password = it))
+                                },
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            WebDavActionChip(
+                                icon = Icons.Rounded.Link,
+                                label = stringResource(R.string.settings_webdav_test),
+                                enabled = !isBusy && urlDraft.isNotBlank(),
+                                onClick = {
+                                    haptics.reorderTick()
+                                    onTestWebDav()
+                                },
+                                modifier = Modifier.weight(1f)
+                            )
+                            WebDavActionChip(
+                                icon = Icons.Rounded.CloudUpload,
+                                label = stringResource(R.string.settings_webdav_push),
+                                enabled = !isBusy && urlDraft.isNotBlank(),
+                                onClick = {
+                                    haptics.confirm()
+                                    onPushWebDav()
+                                },
+                                modifier = Modifier.weight(1f)
+                            )
+                            WebDavActionChip(
+                                icon = Icons.Rounded.CloudDownload,
+                                label = stringResource(R.string.settings_webdav_pull),
+                                enabled = !isBusy && urlDraft.isNotBlank(),
+                                onClick = {
+                                    haptics.confirm()
+                                    onPullWebDav()
+                                },
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+
+                        if (webDavStatus != null) {
+                            val davText = when (webDavStatus) {
+                                WebDavUiStatus.Working -> stringResource(R.string.webdav_status_working)
+                                WebDavUiStatus.TestSuccess -> stringResource(R.string.webdav_status_test_ok)
+                                WebDavUiStatus.PushSuccess -> stringResource(R.string.webdav_status_push_ok)
+                                is WebDavUiStatus.PullSuccess -> stringResource(
+                                    R.string.backup_import_ok,
+                                    webDavStatus.summary.foldersCount,
+                                    webDavStatus.summary.tasksCount,
+                                    webDavStatus.summary.tagsCount
+                                )
+                                is WebDavUiStatus.Error -> stringResource(R.string.backup_error, webDavStatus.detail)
+                            }
+                            Text(
+                                text = davText,
+                                style = tabular.dateCompact,
+                                color = if (webDavStatus is WebDavUiStatus.Error) colors.priorityUrgent else colors.accent
+                            )
+                        }
+                    }
+                }
+
+                // 7. Hardware Keyboard Shortcuts
                 SettingsSectionCard(title = stringResource(R.string.settings_section_shortcuts)) {
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         ShortcutRow("Ctrl / Cmd + N", stringResource(R.string.shortcut_quick_input))
+                        ShortcutRow("Ctrl / Cmd + F", stringResource(R.string.shortcut_search))
                         ShortcutRow("Esc", stringResource(R.string.shortcut_escape))
                         ShortcutRow("Ctrl / Cmd + ,", stringResource(R.string.shortcut_settings))
                         ShortcutRow("Ctrl / Cmd + 1..5", stringResource(R.string.shortcut_smart_views))
@@ -624,6 +755,79 @@ private fun BackupActionButton(
                 color = colors.textSecondary
             )
         }
+    }
+}
+
+@Composable
+private fun WebDavInputField(
+    value: String,
+    placeholder: String,
+    onValueChange: (String) -> Unit,
+    isPassword: Boolean = false,
+    modifier: Modifier = Modifier
+) {
+    val colors = ZeroTheme.colors
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(ZeroSmallShape)
+            .background(colors.background)
+            .hairlineBorder(shape = ZeroSmallShape)
+            .padding(horizontal = 10.dp, vertical = 9.dp)
+    ) {
+        if (value.isEmpty()) {
+            Text(
+                text = placeholder,
+                style = MaterialTheme.typography.bodySmall,
+                color = colors.textMuted
+            )
+        }
+        BasicTextField(
+            value = value,
+            onValueChange = onValueChange,
+            singleLine = true,
+            textStyle = MaterialTheme.typography.bodySmall.copy(color = colors.textPrimary),
+            cursorBrush = SolidColor(colors.accent),
+            visualTransformation = if (isPassword) PasswordVisualTransformation() else VisualTransformation.None,
+            modifier = Modifier.fillMaxWidth()
+        )
+    }
+}
+
+@Composable
+private fun WebDavActionChip(
+    icon: ImageVector,
+    label: String,
+    enabled: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val colors = ZeroTheme.colors
+    Row(
+        modifier = modifier
+            .clip(ZeroSmallShape)
+            .background(colors.background)
+            .hairlineBorder(
+                shape = ZeroSmallShape,
+                color = if (enabled) colors.hairlineBorder else colors.hairlineBorder.copy(alpha = 0.5f)
+            )
+            .clickable(enabled = enabled, onClick = onClick)
+            .padding(horizontal = 8.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = if (enabled) colors.accent else colors.textMuted,
+            modifier = Modifier.size(14.dp)
+        )
+        Spacer(modifier = Modifier.width(5.dp))
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            color = if (enabled) colors.textPrimary else colors.textMuted
+        )
     }
 }
 

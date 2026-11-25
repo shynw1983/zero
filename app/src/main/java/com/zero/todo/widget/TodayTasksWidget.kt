@@ -62,14 +62,12 @@ class TodayTasksWidget : GlanceAppWidget() {
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val today = LocalDate.now()
-        val start = ZeroDateFormatter.startOfDayMillis(today)
         val end = ZeroDateFormatter.endOfDayExclusiveMillis(today)
 
         val todayTasks = runCatching {
             ZeroWidgetUpdater.entryPoint(context)
                 .taskDao()
-                .getTasksDueBetween(start, end)
-                .filter { !it.isCompleted }
+                .getActiveTasksDueBefore(end)
         }.getOrDefault(emptyList())
 
         provideContent {

@@ -4,7 +4,11 @@ import android.content.Context
 import androidx.lifecycle.SavedStateHandle
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
+import com.zero.todo.core.common.RecurrenceRule
+import com.zero.todo.core.common.ZeroDateFormatter
 import com.zero.todo.core.designsystem.ZeroAccent
+import com.zero.todo.core.notification.NoOpReminderScheduler
+import com.zero.todo.data.backup.WebDavSyncManager
 import com.zero.todo.data.backup.ZeroBackupManager
 import com.zero.todo.data.local.ZeroDatabase
 import com.zero.todo.data.preferences.InMemoryUserPreferencesRepository
@@ -14,6 +18,7 @@ import com.zero.todo.data.repository.TagRepositoryImpl
 import com.zero.todo.data.repository.TaskRepositoryImpl
 import com.zero.todo.domain.model.AntiMisclickMode
 import com.zero.todo.domain.model.TaskPriority
+import com.zero.todo.domain.model.TaskSortMode
 import com.zero.todo.domain.usecase.GetFolderTreeUseCase
 import com.zero.todo.feature.folder.NavigationDestination
 import com.zero.todo.widget.NoOpWidgetRefresher
@@ -37,6 +42,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import java.time.LocalDate
 
 @OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)
@@ -50,6 +56,7 @@ class MainViewModelStateTest {
     private lateinit var focusRepository: FocusRepositoryImpl
     private lateinit var preferencesRepository: InMemoryUserPreferencesRepository
     private lateinit var backupManager: ZeroBackupManager
+    private lateinit var webDavSyncManager: WebDavSyncManager
     private lateinit var getFolderTreeUseCase: GetFolderTreeUseCase
 
     @Before
@@ -71,6 +78,7 @@ class MainViewModelStateTest {
             tagDao = database.tagDao(),
             focusSessionDao = database.focusSessionDao()
         )
+        webDavSyncManager = WebDavSyncManager()
         getFolderTreeUseCase = GetFolderTreeUseCase(folderRepository, taskRepository)
     }
 
@@ -80,13 +88,8 @@ class MainViewModelStateTest {
         Dispatchers.resetMain()
     }
 
-    @Test
-    fun `SavedStateHandle preserves selected folder, selected task, includeSubfolders, and quick input across recreation`() = runBlocking {
-        val folder = folderRepository.createFolder("Work")
-        val task = taskRepository.createTask("Draft spec", folderId = folder.id)
-
-        val savedStateHandle = SavedStateHandle()
-        val vm1 = MainViewModel(
+    private fun newViewModel(savedStateHandle: SavedStateHandle = SavedStateHandle()): MainViewModel =
+        MainViewModel(
             savedStateHandle = savedStateHandle,
             folderRepository = folderRepository,
             taskRepository = taskRepository,
@@ -94,9 +97,19 @@ class MainViewModelStateTest {
             focusRepository = focusRepository,
             userPreferencesRepository = preferencesRepository,
             backupManager = backupManager,
+            webDavSyncManager = webDavSyncManager,
+            reminderScheduler = NoOpReminderScheduler,
             widgetRefresher = NoOpWidgetRefresher,
             getFolderTreeUseCase = getFolderTreeUseCase
         )
+
+    @Test
+    fun `SavedStateHandle preserves selected folder, selected task, includeSubfolders, and quick input across recreation`() = runBlocking {
+        val folder = folderRepository.createFolder("Work")
+        val task = taskRepository.createTask("Draft spec", folderId = folder.id)
+
+        val savedStateHandle = SavedStateHandle()
+        val vm1 = newViewModel(savedStateHandle)
         val collectJob1 = launch(Dispatchers.Default) { vm1.uiState.collect {} }
 
         vm1.selectDestination(NavigationDestination.FolderView(folder.id))
@@ -112,21 +125,10 @@ class MainViewModelStateTest {
         }
         collectJob1.cancel()
 
-        // Simulate Activity/ViewModel recreation across rotation or foldable hinge fold/unfold
         val restoredHandle = SavedStateHandle(
             savedStateHandle.keys().associateWith { key -> savedStateHandle.get<Any?>(key) }
         )
-        val vm2 = MainViewModel(
-            savedStateHandle = restoredHandle,
-            folderRepository = folderRepository,
-            taskRepository = taskRepository,
-            tagRepository = tagRepository,
-            focusRepository = focusRepository,
-            userPreferencesRepository = preferencesRepository,
-            backupManager = backupManager,
-            widgetRefresher = NoOpWidgetRefresher,
-            getFolderTreeUseCase = getFolderTreeUseCase
-        )
+        val vm2 = newViewModel(restoredHandle)
         val collectJob2 = launch(Dispatchers.Default) { vm2.uiState.collect {} }
         val state = withTimeout(5_000L) {
             vm2.uiState.first { it.selectedTask?.id == task.id }
@@ -142,26 +144,14 @@ class MainViewModelStateTest {
 
     @Test
     fun `submitQuickInput routes into nested folder path, attaches tags, and undo reverts completion`() = runBlocking {
-        val vm = MainViewModel(
-            savedStateHandle = SavedStateHandle(),
-            folderRepository = folderRepository,
-            taskRepository = taskRepository,
-            tagRepository = tagRepository,
-            focusRepository = focusRepository,
-            userPreferencesRepository = preferencesRepository,
-            backupManager = backupManager,
-            widgetRefresher = NoOpWidgetRefresher,
-            getFolderTreeUseCase = getFolderTreeUseCase
-        )
+        val vm = newViewModel()
         val collectJob = launch(Dispatchers.Default) { vm.uiState.collect {} }
 
         vm.updateQuickInputText("明天 15:00 提交报销 /财务/差旅 !1 #紧急 #票据")
         vm.submitQuickInput()
 
-        // Input cleared immediately for continuous entry mode
         assertEquals("", vm.uiState.value.quickInputText)
 
-        // Await Room async nested folder creation: 财务 -> 差旅
         val folders = withTimeout(5_000L) {
             folderRepository.observeActiveFolders().first { list ->
                 list.any { it.name == "财务" && it.parentId == null } &&
@@ -171,7 +161,6 @@ class MainViewModelStateTest {
         val finance = folders.first { it.name == "财务" && it.parentId == null }
         val travel = folders.first { it.name == "差旅" && it.parentId == finance.id }
 
-        // Await task creation inside 差旅 and attachment of both tags
         val tasksInTravel = withTimeout(5_000L) {
             taskRepository.observeTasksByFolder(travel.id, includeSubfolders = false)
                 .first { it.size == 1 }
@@ -185,9 +174,9 @@ class MainViewModelStateTest {
         assertEquals(TaskPriority.URGENT, createdTask.priority)
         assertNotNull(createdTask.dueDate)
         assertFalse(createdTask.isAllDay)
+        assertNotNull(createdTask.reminderAt)
         assertEquals(setOf("紧急", "票据"), createdTask.tags.map { it.name }.toSet())
 
-        // Toggle complete triggers Undo banner, and performing undo reverts completion
         vm.toggleTaskCompletion(createdTask)
         val banner = withTimeout(5_000L) {
             vm.uiState.filter { it.undoBanner != null }.first().undoBanner!!
@@ -209,18 +198,121 @@ class MainViewModelStateTest {
     }
 
     @Test
-    fun `settings preferences update theme, accent, antiMisclickMode, and haptics reactively`() = runBlocking {
-        val vm = MainViewModel(
-            savedStateHandle = SavedStateHandle(),
-            folderRepository = folderRepository,
-            taskRepository = taskRepository,
-            tagRepository = tagRepository,
-            focusRepository = focusRepository,
-            userPreferencesRepository = preferencesRepository,
-            backupManager = backupManager,
-            widgetRefresher = NoOpWidgetRefresher,
-            getFolderTreeUseCase = getFolderTreeUseCase
+    fun `Today view surfaces overdue tasks and rescheduleOverdueToToday moves them to today`() = runBlocking {
+        val yesterday = LocalDate.now().minusDays(1)
+        val today = LocalDate.now()
+        val overdue = taskRepository.createTask(
+            title = "Pay rent",
+            dueDate = ZeroDateFormatter.startOfDayMillis(yesterday),
+            isAllDay = true
         )
+        val vm = newViewModel()
+        val collectJob = launch(Dispatchers.Default) { vm.uiState.collect {} }
+
+        vm.selectDestination(NavigationDestination.Today)
+        val stateBefore = withTimeout(5_000L) {
+            vm.uiState.first {
+                it.selectedDestination == NavigationDestination.Today &&
+                    it.tasks.any { t -> t.id == overdue.id } &&
+                    it.smartViewCounts.overdue == 1
+            }
+        }
+        assertEquals(1, stateBefore.smartViewCounts.overdue)
+
+        vm.rescheduleOverdueToToday()
+        val stateAfter = withTimeout(5_000L) {
+            vm.uiState.first {
+                it.smartViewCounts.overdue == 0 &&
+                    it.tasks.any { t -> t.id == overdue.id && t.dueDate == ZeroDateFormatter.startOfDayMillis(today) }
+            }
+        }
+        assertEquals(0, stateAfter.smartViewCounts.overdue)
+        collectJob.cancel()
+    }
+
+    @Test
+    fun `completing recurring task copies tags and subtasks, and Undo rolls back spawned occurrence`() = runBlocking {
+        val original = taskRepository.createTask(
+            title = "Weekly review",
+            dueDate = ZeroDateFormatter.startOfDayMillis(LocalDate.now()),
+            recurrenceRule = RecurrenceRule.PRESET_WEEKLY.toRruleString()
+        )
+        val tag = tagRepository.getOrCreateTag("Ritual")
+        tagRepository.attachTagToTask(original.id, tag.id)
+        taskRepository.createTask(title = "Clean Inbox", parentTaskId = original.id)
+
+        val vm = newViewModel()
+        val collectJob = launch(Dispatchers.Default) { vm.uiState.collect {} }
+
+        val hydrated = taskRepository.getTaskById(original.id)!!
+        vm.toggleTaskCompletion(hydrated)
+
+        val banner = withTimeout(5_000L) {
+            vm.uiState.filter { it.undoBanner?.spawnedTaskId != null }.first().undoBanner!!
+        }
+        val spawnedId = banner.spawnedTaskId!!
+        val spawned = withTimeout(5_000L) {
+            taskRepository.observeTaskWithTags(spawnedId).filterNotNull().first { it.tags.size == 1 }
+        }
+        assertEquals("Ritual", spawned.tags.single().name)
+        val spawnedSubtasks = withTimeout(5_000L) {
+            taskRepository.observeDescendantSubtasks(spawnedId).first { it.size == 1 }
+        }
+        assertEquals("Clean Inbox", spawnedSubtasks.single().title)
+
+        // Performing Undo reverts original AND deletes spawned duplicate cleanly
+        vm.performUndo(banner)
+        withTimeout(5_000L) {
+            taskRepository.observeAllActiveTopLevelTasks().first { list ->
+                list.size == 1 && list.single().id == original.id && !list.single().isCompleted
+            }
+        }
+        collectJob.cancel()
+    }
+
+    @Test
+    fun `global search, sort mode, and trash restore work end-to-end`() = runBlocking {
+        val tLow = taskRepository.createTask("Alpha note", priority = TaskPriority.NONE)
+        val tUrgent = taskRepository.createTask("Beta urgent", priority = TaskPriority.URGENT)
+        val vm = newViewModel()
+        val collectJob = launch(Dispatchers.Default) { vm.uiState.collect {} }
+
+        // Sort by priority puts Urgent first
+        vm.setTaskSortMode(TaskSortMode.PRIORITY)
+        val sorted = withTimeout(5_000L) {
+            vm.uiState.first {
+                it.taskSortMode == TaskSortMode.PRIORITY &&
+                    it.tasks.firstOrNull()?.id == tUrgent.id
+            }
+        }
+        assertEquals(tUrgent.id, sorted.tasks.first().id)
+
+        // Global search filters accurately
+        vm.setSearchOpen(true)
+        vm.updateSearchQuery("Alpha")
+        val searched = withTimeout(5_000L) {
+            vm.uiState.first { it.tasks.size == 1 && it.tasks.single().id == tLow.id }
+        }
+        assertEquals(tLow.id, searched.tasks.single().id)
+        vm.setSearchOpen(false)
+
+        // Delete moves to Trash and restore brings it back
+        vm.deleteTask(tLow)
+        val inTrash = withTimeout(5_000L) {
+            vm.uiState.first { it.deletedTasks.any { d -> d.id == tLow.id } }
+        }
+        assertEquals(1, inTrash.smartViewCounts.trash)
+
+        vm.restoreDeletedTask(tLow.id)
+        withTimeout(5_000L) {
+            vm.uiState.first { it.deletedTasks.isEmpty() && it.allActiveTopLevelTasks.any { t -> t.id == tLow.id } }
+        }
+        collectJob.cancel()
+    }
+
+    @Test
+    fun `settings preferences update theme, accent, antiMisclickMode, and haptics reactively`() = runBlocking {
+        val vm = newViewModel()
         val collectJob = launch(Dispatchers.Default) { vm.uiState.collect {} }
 
         vm.setDarkTheme(false)

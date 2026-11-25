@@ -1,5 +1,9 @@
 package com.zero.todo.feature.taskdetail
 
+import android.Manifest
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
@@ -36,6 +40,7 @@ import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.Folder
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.NorthWest
+import androidx.compose.material.icons.rounded.NotificationsActive
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Repeat
 import androidx.compose.material.icons.rounded.Schedule
@@ -56,6 +61,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextDecoration
@@ -64,6 +70,7 @@ import androidx.compose.ui.unit.dp
 import com.zero.todo.R
 import com.zero.todo.core.common.RecurrenceRule
 import com.zero.todo.core.common.ZeroDateFormatter
+import com.zero.todo.core.notification.ZeroNotificationHelper
 import com.zero.todo.core.designsystem.ZeroCardShape
 import com.zero.todo.core.designsystem.ZeroDimens
 import com.zero.todo.core.designsystem.ZeroMotion
@@ -117,6 +124,7 @@ private fun buildFlattenedSubtasks(rootTaskId: String, descendants: List<TaskIte
 @Composable
 fun TaskDetailPane(
     task: TaskItem?,
+    currentDate: LocalDate,
     folderName: String?,
     folderTree: List<FolderNode>,
     subtasks: List<TaskItem>,
@@ -128,6 +136,7 @@ fun TaskDetailPane(
     onUpdateTitleAndDescription: (task: TaskItem, title: String, description: String) -> Unit,
     onUpdatePriority: (task: TaskItem, priority: TaskPriority) -> Unit,
     onUpdateDueDate: (task: TaskItem, dueDateMillis: Long?, isAllDay: Boolean) -> Unit,
+    onUpdateReminder: (task: TaskItem, reminderAtMillis: Long?) -> Unit,
     onUpdateRecurrenceRule: (task: TaskItem, rrule: String?) -> Unit,
     onAddSubtask: (parentTaskId: String, title: String) -> Unit,
     onToggleSubtask: (TaskItem) -> Unit,
@@ -135,13 +144,41 @@ fun TaskDetailPane(
     onDeleteSubtask: (TaskItem) -> Unit,
     onAddTag: (taskId: String, tagName: String) -> Unit,
     onRemoveTag: (taskId: String, tagId: String) -> Unit,
+    onSelectTag: (tagId: String) -> Unit,
     onDeleteTask: (TaskItem) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val colors = ZeroTheme.colors
     val tabular = ZeroTheme.tabularTypography
     val haptics = rememberZeroHaptics()
+    val context = LocalContext.current
     val activeLocale = LocalConfiguration.current.locales[0]
+
+    var pendingReminderMillis by remember { mutableStateOf<Long?>(null) }
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { _ ->
+        val pending = pendingReminderMillis
+        if (task != null && pending != null) {
+            onUpdateReminder(task, pending)
+        }
+        pendingReminderMillis = null
+    }
+
+    fun applyReminderWithPermission(targetTask: TaskItem, reminderMillis: Long?) {
+        if (reminderMillis == null) {
+            onUpdateReminder(targetTask, null)
+            return
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            !ZeroNotificationHelper.canPostNotifications(context)
+        ) {
+            pendingReminderMillis = reminderMillis
+            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        } else {
+            onUpdateReminder(targetTask, reminderMillis)
+        }
+    }
 
     if (task == null) {
         Box(
@@ -493,7 +530,7 @@ fun TaskDetailPane(
                 }
 
                 // Quick Date Chips — each displays BOTH intuitive label AND exact MM/dd + weekday
-                val todayDate = remember { LocalDate.now() }
+                val todayDate = currentDate
                 val tomorrowDate = remember(todayDate) { todayDate.plusDays(1) }
                 val dayAfterDate = remember(todayDate) { todayDate.plusDays(2) }
                 val nextMonDate = remember(todayDate) { todayDate.with(TemporalAdjusters.next(DayOfWeek.MONDAY)) }
@@ -634,6 +671,72 @@ fun TaskDetailPane(
                                 QuickChip(label = label, useTabular = true) {
                                     updateDueDateTime(activeDt.toLocalDate(), slot, false)
                                 }
+                            }
+                        }
+                    }
+                }
+
+                // System Notification Reminder Row
+                if (task.dueDate != null) {
+                    val baseTrigger = if (task.isAllDay) {
+                        val date = currentDueDateTime?.toLocalDate() ?: currentDate
+                        LocalDateTime.of(date, LocalTime.of(9, 0)).atZone(zoneId).toInstant().toEpochMilli()
+                    } else {
+                        task.dueDate
+                    }
+                    val activeOffset = task.reminderAt?.let { baseTrigger - it }
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .hairlineDividerTop()
+                            .padding(top = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.NotificationsActive,
+                            contentDescription = null,
+                            tint = if (task.reminderAt != null) colors.accent else colors.textMuted,
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Text(
+                            text = stringResource(R.string.detail_reminder),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = colors.textSecondary
+                        )
+                        Row(
+                            modifier = Modifier
+                                .weight(1f)
+                                .horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            QuickChip(
+                                label = stringResource(R.string.reminder_off),
+                                selected = task.reminderAt == null
+                            ) {
+                                haptics.reorderTick()
+                                applyReminderWithPermission(task, null)
+                            }
+                            QuickChip(
+                                label = stringResource(R.string.reminder_on_time),
+                                selected = activeOffset == 0L
+                            ) {
+                                haptics.reorderTick()
+                                applyReminderWithPermission(task, baseTrigger)
+                            }
+                            QuickChip(
+                                label = stringResource(R.string.reminder_15m_before),
+                                selected = activeOffset == 15L * 60_000L
+                            ) {
+                                haptics.reorderTick()
+                                applyReminderWithPermission(task, baseTrigger - 15L * 60_000L)
+                            }
+                            QuickChip(
+                                label = stringResource(R.string.reminder_1h_before),
+                                selected = activeOffset == 60L * 60_000L
+                            ) {
+                                haptics.reorderTick()
+                                applyReminderWithPermission(task, baseTrigger - 60L * 60_000L)
                             }
                         }
                     }
@@ -801,7 +904,11 @@ fun TaskDetailPane(
                             Text(
                                 text = "#${tag.name}",
                                 style = MaterialTheme.typography.labelSmall,
-                                color = colors.textPrimary
+                                color = colors.textPrimary,
+                                modifier = Modifier.clickable {
+                                    haptics.reorderTick()
+                                    onSelectTag(tag.id)
+                                }
                             )
                             Icon(
                                 imageVector = Icons.Rounded.Close,
