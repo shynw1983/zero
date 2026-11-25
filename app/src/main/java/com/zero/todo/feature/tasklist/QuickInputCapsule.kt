@@ -73,6 +73,7 @@ import com.zero.todo.core.designsystem.ZeroTheme
 import com.zero.todo.core.designsystem.hairlineBorder
 import com.zero.todo.core.designsystem.rememberZeroHaptics
 import com.zero.todo.core.nlp.ParsedQuickInput
+import com.zero.todo.core.nlp.QuickInputParser
 import com.zero.todo.core.nlp.QuickInputTokenType
 import com.zero.todo.domain.model.TaskPriority
 import com.zero.todo.feature.calendar.ZeroMiniCalendarDialog
@@ -100,9 +101,8 @@ fun QuickInputCapsule(
     folderSuggestions: List<FolderPathSuggestion>,
     continuousEntryEnabled: Boolean,
     focusRequester: FocusRequester,
-    onTextChange: (String) -> Unit,
+    onEditText: ((String) -> String) -> Unit,
     onSubmit: () -> Unit,
-    onSelectFolderSuggestion: (FolderPathSuggestion) -> Unit,
     onToggleContinuousEntry: () -> Unit,
     onVoiceInputRecognized: (String) -> Unit,
     currentDate: LocalDate = LocalDate.now(),
@@ -121,34 +121,8 @@ fun QuickInputCapsule(
     var showDatePickerDialog by remember { mutableStateOf(false) }
     var voiceStatusNotice by remember { mutableStateOf<String?>(null) }
 
-    fun appendToken(token: String) {
-        val current = text.trimEnd()
-        val updated = if (current.isEmpty()) "$token " else "$current $token "
-        onTextChange(updated)
-        focusRequester.requestFocus()
-    }
-
-    /**
-     * Replaces existing date/time tokens instead of stacking duplicate dates when tapping quick date chips.
-     */
     fun setOrReplaceDateToken(dateToken: String) {
-        val dateRanges = parsed.tokens
-            .filter { it.type == QuickInputTokenType.DATE_TIME }
-            .map { it.range }
-            .sortedByDescending { it.first }
-        if (dateRanges.isEmpty() || parsed.rawInput != text) {
-            appendToken(dateToken)
-            return
-        }
-        val sb = StringBuilder(text)
-        for (range in dateRanges) {
-            val start = range.first.coerceIn(0, sb.length)
-            val endExclusive = (range.last + 1).coerceIn(start, sb.length)
-            sb.replace(start, endExclusive, " ")
-        }
-        val cleaned = sb.toString().replace(Regex("\\s{2,}"), " ").trim()
-        val updated = if (cleaned.isEmpty()) "$dateToken " else "$cleaned $dateToken "
-        onTextChange(updated)
+        onEditText { QuickInputParser.setDateShortcut(it, dateToken) }
         focusRequester.requestFocus()
     }
 
@@ -233,7 +207,7 @@ fun QuickInputCapsule(
                             .hairlineBorder(shape = ZeroSmallShape)
                             .clickable {
                                 haptics.reorderTick()
-                                onSelectFolderSuggestion(suggestion)
+                                onEditText { QuickInputParser.selectFolderSuggestion(it, suggestion.fullPath) }
                             }
                             .padding(horizontal = 8.dp, vertical = 4.dp),
                         verticalAlignment = Alignment.CenterVertically,
@@ -319,9 +293,9 @@ fun QuickInputCapsule(
                     }
                     BasicTextField(
                         value = text,
-                        onValueChange = {
+                        onValueChange = { updated ->
                             voiceStatusNotice = null
-                            onTextChange(it)
+                            onEditText { updated }
                         },
                         singleLine = true,
                         textStyle = MaterialTheme.typography.bodyMedium.copy(color = colors.textPrimary),
@@ -487,7 +461,8 @@ fun QuickInputCapsule(
                             label = "!1",
                             onClick = {
                                 haptics.reorderTick()
-                                appendToken("!1")
+                                onEditText { QuickInputParser.setPriorityShortcut(it, TaskPriority.URGENT) }
+                                focusRequester.requestFocus()
                             }
                         )
                         QuickHelperChip(
@@ -495,8 +470,7 @@ fun QuickInputCapsule(
                             label = "/",
                             onClick = {
                                 haptics.reorderTick()
-                                val base = text.trimEnd()
-                                onTextChange(if (base.isEmpty()) "/" else "$base /")
+                                onEditText(QuickInputParser::startFolderQuery)
                                 focusRequester.requestFocus()
                             }
                         )

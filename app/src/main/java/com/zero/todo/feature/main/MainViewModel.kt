@@ -851,6 +851,10 @@ class MainViewModel @Inject constructor(
         savedStateHandle[KEY_QUICK_INPUT] = text
     }
 
+    fun editQuickInputText(edit: (String) -> String) {
+        updateQuickInputText(edit(quickInputTextFlow.value))
+    }
+
     fun prefillQuickInputPriority(priority: TaskPriority) {
         val prefix = if (priority == TaskPriority.NONE) "" else "!${priority.value} "
         savedStateHandle[KEY_QUICK_INPUT] = prefix
@@ -860,14 +864,6 @@ class MainViewModel @Inject constructor(
 
     fun toggleContinuousEntry() {
         savedStateHandle[KEY_CONTINUOUS_ENTRY] = !continuousEntryFlow.value
-    }
-
-    fun applyFolderSuggestion(suggestion: FolderPathSuggestion) {
-        val current = quickInputTextFlow.value
-        val replaced = current.replace(Regex("""(^|\s)/[^\s!！#]*$""")) { match ->
-            "${match.groupValues[1]}/${suggestion.fullPath} "
-        }
-        savedStateHandle[KEY_QUICK_INPUT] = replaced
     }
 
     fun submitQuickInput() {

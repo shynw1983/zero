@@ -108,7 +108,6 @@ import com.zero.todo.feature.now.NowRunwayScreen
 import com.zero.todo.feature.settings.BackupUiStatus
 import com.zero.todo.feature.settings.SettingsOverlay
 import com.zero.todo.feature.taskdetail.TaskDetailPane
-import com.zero.todo.feature.tasklist.FolderPathSuggestion
 import com.zero.todo.feature.tasklist.TaskListPane
 import com.zero.todo.feature.tasklist.UndoBannerState
 import com.zero.todo.feature.trash.TrashPane
@@ -166,9 +165,8 @@ data class ZeroShellCallbacks(
     val onRestoreDeletedTask: (String) -> Unit = {},
     val onPermanentlyDeleteTask: (String) -> Unit = {},
     val onEmptyTrash: () -> Unit = {},
-    val onQuickInputChange: (String) -> Unit = {},
+    val onQuickInputEdit: ((String) -> String) -> Unit = {},
     val onQuickInputSubmit: () -> Unit = {},
-    val onSelectFolderSuggestion: (FolderPathSuggestion) -> Unit = {},
     val onToggleContinuousEntry: () -> Unit = {},
     val onVoiceInputRecognized: (String) -> Unit = {},
     val onUndo: (UndoBannerState) -> Unit = {},
@@ -391,9 +389,8 @@ fun ZeroAdaptiveShell(
                             onOpenTriage = callbacks.onOpenTriage,
                             onSwitchToVault = { callbacks.onSetWorkspaceMode(WorkspaceMode.VAULT) },
                             onOpenSettings = callbacks.onOpenSettings,
-                            onQuickInputChange = callbacks.onQuickInputChange,
+                            onQuickInputEdit = callbacks.onQuickInputEdit,
                             onQuickInputSubmit = callbacks.onQuickInputSubmit,
-                            onSelectFolderSuggestion = callbacks.onSelectFolderSuggestion,
                             onToggleContinuousEntry = callbacks.onToggleContinuousEntry,
                             onVoiceInputRecognized = callbacks.onVoiceInputRecognized,
                             onUndo = callbacks.onUndo,
@@ -769,9 +766,8 @@ private fun CenterWorkspacePane(
                 onToggleTaskComplete = callbacks.onToggleTaskComplete,
                 onSelectTask = { task -> callbacks.onSelectTask(task.id) },
                 onSelectTag = { tagId -> callbacks.onSelectDestination(NavigationDestination.TagView(tagId)) },
-                onQuickInputChange = callbacks.onQuickInputChange,
+                onQuickInputEdit = callbacks.onQuickInputEdit,
                 onQuickInputSubmit = callbacks.onQuickInputSubmit,
-                onSelectFolderSuggestion = callbacks.onSelectFolderSuggestion,
                 onToggleContinuousEntry = callbacks.onToggleContinuousEntry,
                 onVoiceInputRecognized = callbacks.onVoiceInputRecognized,
                 onUndo = callbacks.onUndo,
@@ -862,9 +858,8 @@ private fun CenterWorkspacePane(
                 onToggleTaskComplete = callbacks.onToggleTaskComplete,
                 onSelectTask = { task -> callbacks.onSelectTask(task.id) },
                 onReorderTask = callbacks.onReorderTask,
-                onQuickInputChange = callbacks.onQuickInputChange,
+                onQuickInputEdit = callbacks.onQuickInputEdit,
                 onQuickInputSubmit = callbacks.onQuickInputSubmit,
-                onSelectFolderSuggestion = callbacks.onSelectFolderSuggestion,
                 onToggleContinuousEntry = callbacks.onToggleContinuousEntry,
                 onVoiceInputRecognized = callbacks.onVoiceInputRecognized,
                 onUndo = callbacks.onUndo,

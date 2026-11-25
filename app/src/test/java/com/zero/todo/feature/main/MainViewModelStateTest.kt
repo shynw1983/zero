@@ -7,6 +7,7 @@ import androidx.test.core.app.ApplicationProvider
 import com.zero.todo.core.common.RecurrenceRule
 import com.zero.todo.core.common.ZeroDateFormatter
 import com.zero.todo.core.designsystem.ZeroAccent
+import com.zero.todo.core.nlp.QuickInputParser
 import com.zero.todo.core.notification.NoOpReminderScheduler
 import com.zero.todo.data.backup.WebDavSyncManager
 import com.zero.todo.data.backup.ZeroBackupManager
@@ -142,6 +143,35 @@ class MainViewModelStateTest {
         assertEquals("明天下午3点 /Work 审核原型 !1 #设计", state.quickInputText)
         assertEquals(TaskPriority.URGENT, state.parsedQuickInput.priority)
         collectJob2.cancel()
+    }
+
+    @Test
+    fun `rapid quick input shortcuts edit the latest draft and submit a clean task`() = runBlocking {
+        val archive = folderRepository.createFolder("Archive")
+        val work = folderRepository.createFolder("Work")
+        val vm = newViewModel()
+        val collectJob = launch(Dispatchers.Default) { vm.uiState.collect {} }
+        withTimeout(5_000L) {
+            vm.uiState.first { work.id in it.folderNameById }
+        }
+
+        vm.updateQuickInputText("Review draft /${archive.name} !2")
+        repeat(3) {
+            vm.editQuickInputText(QuickInputParser::startFolderQuery)
+            vm.editQuickInputText { QuickInputParser.setPriorityShortcut(it, TaskPriority.URGENT) }
+        }
+        repeat(2) {
+            vm.editQuickInputText { QuickInputParser.selectFolderSuggestion(it, work.name) }
+        }
+        vm.submitQuickInput()
+
+        val task = withTimeout(5_000L) {
+            taskRepository.observeTasksByFolder(work.id, includeSubfolders = false)
+                .first { it.isNotEmpty() }.single()
+        }
+        assertEquals("Review draft", task.title)
+        assertEquals(TaskPriority.URGENT, task.priority)
+        collectJob.cancel()
     }
 
     @Test

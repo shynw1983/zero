@@ -32,11 +32,11 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.OpenInNew
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Folder
 import androidx.compose.material.icons.rounded.Layers
-import androidx.compose.material.icons.rounded.OpenInNew
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.SkipNext
@@ -120,9 +120,8 @@ fun NowRunwayScreen(
     onOpenTriage: () -> Unit,
     onSwitchToVault: () -> Unit,
     onOpenSettings: () -> Unit,
-    onQuickInputChange: (String) -> Unit,
+    onQuickInputEdit: ((String) -> String) -> Unit,
     onQuickInputSubmit: () -> Unit,
-    onSelectFolderSuggestion: (FolderPathSuggestion) -> Unit,
     onToggleContinuousEntry: () -> Unit,
     onVoiceInputRecognized: (String) -> Unit,
     onUndo: (UndoBannerState) -> Unit,
@@ -405,9 +404,8 @@ fun NowRunwayScreen(
                 folderSuggestions = folderSuggestions,
                 continuousEntryEnabled = continuousEntryEnabled,
                 focusRequester = quickInputFocusRequester,
-                onTextChange = onQuickInputChange,
+                onEditText = onQuickInputEdit,
                 onSubmit = onQuickInputSubmit,
-                onSelectFolderSuggestion = onSelectFolderSuggestion,
                 onToggleContinuousEntry = onToggleContinuousEntry,
                 onVoiceInputRecognized = onVoiceInputRecognized,
                 currentDate = currentDate
@@ -552,7 +550,7 @@ private fun ActiveRunwayCard(
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector = Icons.Rounded.OpenInNew,
+                    imageVector = Icons.AutoMirrored.Rounded.OpenInNew,
                     contentDescription = stringResource(R.string.cd_open_task_detail),
                     tint = colors.textSecondary,
                     modifier = Modifier.size(18.dp)

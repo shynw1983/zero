@@ -94,6 +94,58 @@ class QuickInputParserTest {
     }
 
     @Test
+    fun `priority shortcut replaces existing flags and stays idempotent`() {
+        val draft = "デザイン確認 ！2 !1 today #UI /Work "
+        val updated = QuickInputParser.setPriorityShortcut(draft, TaskPriority.URGENT)
+
+        assertEquals("デザイン確認 !1 today #UI /Work ", updated)
+        assertEquals(updated, QuickInputParser.setPriorityShortcut(updated, TaskPriority.URGENT))
+        assertEquals("!1 ", QuickInputParser.setPriorityShortcut("！2", TaskPriority.URGENT))
+
+        val parsed = QuickInputParser.parse(updated, now, zone)
+        assertEquals("デザイン確認", parsed.title)
+        assertEquals(TaskPriority.URGENT, parsed.priority)
+        assertEquals(listOf("UI"), parsed.tags)
+        assertEquals(listOf("Work"), parsed.folderPath)
+    }
+
+    @Test
+    fun `folder shortcut reuses the active query and replaces the previous path on selection`() {
+        val draft = "提交报销 /旧目录 #票据 "
+        val opened = QuickInputParser.startFolderQuery(draft)
+        assertEquals("提交报销 /旧目录 #票据 /", opened)
+        assertEquals(opened, QuickInputParser.startFolderQuery(opened))
+        assertEquals("提交报销", QuickInputParser.parse(opened, now, zone).title)
+        assertEquals(listOf("旧目录"), QuickInputParser.parse(opened, now, zone).folderPath)
+
+        val typing = opened + "财"
+        assertEquals(typing, QuickInputParser.startFolderQuery(typing))
+        val selected = QuickInputParser.selectFolderSuggestion(typing, "财务/差旅")
+        assertEquals("提交报销 #票据 /财务/差旅 ", selected)
+        assertEquals(selected, QuickInputParser.selectFolderSuggestion(selected, "旧目录"))
+
+        val parsed = QuickInputParser.parse(selected, now, zone)
+        assertEquals("提交报销", parsed.title)
+        assertEquals(listOf("财务", "差旅"), parsed.folderPath)
+        assertNull(parsed.activeFolderQuery)
+    }
+
+    @Test
+    fun `priority and date shortcuts keep a folder query open`() {
+        val prioritized = QuickInputParser.setPriorityShortcut("Review tomorrow /Fin", TaskPriority.URGENT)
+        val dated = QuickInputParser.setDateShortcut(prioritized, "2026-11-25")
+
+        assertEquals("Review !1 2026-11-25 /Fin", dated)
+        assertEquals("Fin", QuickInputParser.parse(dated, now, zone).activeFolderQuery)
+        val selected = QuickInputParser.selectFolderSuggestion(dated, "Finance")
+        val parsed = QuickInputParser.parse(selected, now, zone)
+        assertEquals("Review", parsed.title)
+        assertEquals(listOf("Finance"), parsed.folderPath)
+        assertEquals(TaskPriority.URGENT, parsed.priority)
+        assertEquals(now.toLocalDate().atStartOfDay(zone).toInstant().toEpochMilli(), parsed.dueDateMillis)
+    }
+
+    @Test
     fun `parses Japanese and Korean relative dates cleanly`() {
         val jp = QuickInputParser.parse("明日 15:00 デザイン確認 !2 #UI", now = now, zoneId = zone)
         assertEquals("デザイン確認", jp.title)

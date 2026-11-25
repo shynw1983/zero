@@ -57,7 +57,8 @@ object QuickInputParser {
     private val PRIORITY_REGEX = Regex("""(?<!\S)[!！]([1-4])(?!\S)""")
     private val FOLDER_REGEX = Regex("""(?<!\S)/([^\s/!！#]+(?:/[^\s/!！#]+)*)""")
     private val TAG_REGEX = Regex("""(?<!\S)#([^\s#]+)""")
-    private val ACTIVE_FOLDER_REGEX = Regex("""(?:^|\s)/([^\s!！#]*)$""")
+    private val ACTIVE_FOLDER_REGEX = Regex("""(?<!\S)/([^\s!！#]*)$""")
+    private val WHITESPACE_REGEX = Regex("""\s+""")
 
     private val ISO_DATE_REGEX = Regex("""(?<!\d)(\d{4})[-/](\d{1,2})[-/](\d{1,2})(?!\d)""")
     private val CN_MONTH_DAY_REGEX = Regex("""(?<!\d)(\d{1,2})月(\d{1,2})[日号]?""")
@@ -67,6 +68,57 @@ object QuickInputParser {
 
     private val COLON_TIME_REGEX = Regex("""(?<!\d)(\d{1,2}):(\d{2})(?!\d)""")
     private val CN_TIME_REGEX = Regex("""(凌晨|早上|早|上午|中午|下午|傍晚|晚上|晚)?(\d{1,2}|[零〇一二两三四五六七八九十]{1,3})[点时](半|(\d{1,2}|[零〇一二两三四五六七八九十]{1,3})分?)?""")
+
+    fun setPriorityShortcut(input: String, priority: TaskPriority): String {
+        val token = "!${priority.value}"
+        val priorities = PRIORITY_REGEX.findAll(input).map { it.range }.toList()
+        val first = priorities.firstOrNull() ?: return insertBeforeFolderQuery(input, token)
+        val updated = removeTokens(input, priorities.drop(1)).replaceRange(first, token)
+        return if (first.last == updated.lastIndex) "$updated " else updated
+    }
+
+    fun startFolderQuery(input: String): String =
+        if (ACTIVE_FOLDER_REGEX.containsMatchIn(input)) input else appendToken(input, "/")
+
+    fun selectFolderSuggestion(input: String, fullPath: String): String {
+        val query = ACTIVE_FOLDER_REGEX.find(input) ?: return input
+        val prefix = input.substring(0, query.range.first)
+        val previousPaths = FOLDER_REGEX.findAll(prefix).map { it.range }.toList()
+        return appendToken(removeTokens(prefix, previousPaths), "/$fullPath") + " "
+    }
+
+    fun setDateShortcut(input: String, token: String): String {
+        val dates = parse(input).tokens.filter { it.type == QuickInputTokenType.DATE_TIME }
+        if (dates.isEmpty()) return insertBeforeFolderQuery(input, token)
+
+        val draft = StringBuilder(input)
+        for (date in dates.asReversed()) {
+            draft.replace(date.range.first, date.range.last + 1, " ")
+        }
+        val cleaned = draft.toString().replace(WHITESPACE_REGEX, " ").trimStart()
+        return insertBeforeFolderQuery(cleaned, token)
+    }
+
+    private fun insertBeforeFolderQuery(input: String, token: String): String {
+        val query = ACTIVE_FOLDER_REGEX.find(input) ?: return appendToken(input, token) + " "
+        val prefix = input.substring(0, query.range.first)
+        return "${appendToken(prefix, token)} ${input.substring(query.range.first)}"
+    }
+
+    private fun appendToken(input: String, token: String): String {
+        val prefix = input.trimEnd()
+        return if (prefix.isEmpty()) token else "$prefix $token"
+    }
+
+    private fun removeTokens(input: String, ranges: List<IntRange>): String = buildString {
+        var start = 0
+        for (range in ranges) {
+            append(input, start, range.first)
+            start = range.last + 1
+            while (start < input.length && input[start].isWhitespace()) start++
+        }
+        append(input, start, input.length)
+    }
 
     fun parse(
         input: String,
@@ -101,6 +153,10 @@ object QuickInputParser {
         // 1. Detect active folder autocomplete query at end of string
         val activeFolderMatch = ACTIVE_FOLDER_REGEX.find(input)
         val activeFolderQuery = activeFolderMatch?.groupValues?.get(1)
+        if (activeFolderMatch != null && activeFolderQuery == "") {
+            // A bare slash opens folder suggestions and contributes no text to the task title.
+            claim(activeFolderMatch.range, QuickInputTokenType.FOLDER)
+        }
 
         // 2. Priority (!1..4)
         var priority = TaskPriority.NONE
@@ -297,7 +353,7 @@ object QuickInputParser {
             }
         }
         val cleanedTitle = titleBuilder.toString()
-            .replace(Regex("""\s+"""), " ")
+            .replace(WHITESPACE_REGEX, " ")
             .trim()
 
         return ParsedQuickInput(
