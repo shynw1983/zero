@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">ZERO</string>
+    <string name="widget_today_label">ZERO · 今日任务</string>
+    <string name="widget_today_description">极简深色今日待办清单与快捷勾选</string>
+    <string name="widget_quick_capture_label">ZERO · 极速录入</string>
+    <string name="widget_quick_capture_description">1x1 桌面直达胶囊，一键打开收集箱极速录入</string>
+</resources>
