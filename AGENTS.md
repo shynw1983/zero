@@ -1,6 +1,26 @@
-# ZERO Project Engineering Rules (AGENTS.md)
+# ZERO Project Engineering Rules & Handoff Guide (AGENTS.md)
 
-## Mandatory 4-Language Localization Rule (EN / ZH / JA / KO)
+## 1. Current Product Baseline (ZERO v2.0.0 — Source of Truth)
+> **IMPORTANT**: `docs/PRD.md` reflects the initial v1.0 draft and is **outdated** on visual accents and layout. Always treat the current `v2.0.0` codebase and the rules below as the authoritative source of truth.
+
+- **Aesthetic & Palette (NO Sci-Fi Neon)**:
+  - Keep the Matte Obsidian Dark (`#09090B`) / Cool Paper Light (`#F7F7F9`) bases, `0.5.dp` hairline borders, and tabular monospace numbers (`tnum`).
+  - Use the 4 calm, Dark/Light-adaptive accents in `ZeroColors.kt`: `SlateBlue` (default), `Monochrome`, `Sage`, `WarmClay`. **Do NOT revert to `#FF4D00` / `#00E5FF` neon colors.**
+  - System status bar and navigation bar icon contrast MUST dynamically follow `isDarkTheme` (`ZeroAppRoot.kt` via `WindowCompat.getInsetsController`).
+- **Dual-State Core Architecture (`NOW` ⇄ `VAULT`)**:
+  - Bottom `48.dp` tactile switcher toggles between `WorkspaceMode.NOW` (`NowRunwayScreen.kt` — single active task card, 0.3s hold-to-complete, guilt-free skip, First Tiny Step -> Forward Momentum Stopwatch flow, Day Capacity Ruler) and `WorkspaceMode.VAULT` (infinite folder tree, calendar, matrix, tags, trash, global search, sort).
+  - Full-screen `TriageDeckOverlay.kt` ("30s Triage") clears Inbox & Overdue backlog via single-card swipe/buttons.
+- **Multi-Form-Factor Layout (`ZeroAdaptiveShell.kt`)**:
+  - **Compact (<600dp)**: Single pane + left modal drawer (`ListDetailPaneScaffold`).
+  - **Medium (600–840dp, unfolded foldable)**: **Smart Dynamic Full-Height Two-Pane** — when no task is selected: `[Full-Height Folder Tree | Full-Height Task List]`; when a task is selected: `[Full-Height Task List | Full-Height Task Detail]` + left modal drawer. **NEVER vertically stack the folder tree above the task list.**
+  - **Expanded (>840dp, tablet)**: Persistent 3-pane layout + hardware keyboard shortcuts (`Ctrl/Cmd+N`, `Ctrl/Cmd+F`, `Ctrl/Cmd+,`, `Ctrl/Cmd+1..5`, `Esc`).
+- **Touch Ergonomics & Anti-Misclick**:
+  - Minimum interactive touch targets: **`44–54.dp`** on mobile/foldable controls. Do NOT cram tiny `22.dp` action icons into row ends; use overflow `···` / long-press action menus (`FolderActionMenuDialog`, `TagActionMenuDialog`).
+  - Preserve strict anti-misclick mechanics (`AntiMisclickTaskCard.kt`, scroll lock, 0.3s hold / 30% damped swipe, 3s Undo capsule, folder/tag delete confirmation dialogs).
+
+---
+
+## 2. Mandatory 4-Language Localization Rule (EN / ZH / JA / KO)
 ZERO ships with complete, native 4-language UI support:
 - English (`app/src/main/res/values/strings.xml`) — default fallback
 - Simplified Chinese (`app/src/main/res/values-zh/strings.xml`)
@@ -8,11 +28,36 @@ ZERO ships with complete, native 4-language UI support:
 - Korean (`app/src/main/res/values-ko/strings.xml`)
 
 Whenever adding or modifying ANY feature, screen, dialog, snackbar/capsule, widget, or formatter:
-1. **NEVER hardcode user-facing copy** in Kotlin/Compose files or ViewModels. Always declare string keys in `strings.xml` and read them via `stringResource(R.string.*)` or `context.getString(R.string.*)` (or model typed UI state enums/sealed classes rendered in Compose).
+1. **NEVER hardcode user-facing copy** in Kotlin/Compose files or ViewModels. Always declare string keys in `strings.xml` and read them via `stringResource(R.string.*)` or `context.getString(R.string.*)`.
 2. **ALWAYS add translations simultaneously to ALL 4 resource files** (`values`, `values-zh`, `values-ja`, `values-ko`) in the same commit/turn, preserving exact format placeholders (`%1$s`, `%1$d`, etc.).
-3. If adding new date/time or recurrence text formatters in pure Kotlin (`core/common`), support all 4 locales (`en`, `zh`, `ja`, `ko`) via an explicit `locale: Locale` parameter.
-4. **ALWAYS verify** by running:
-   ```bash
-   JAVA_HOME=/opt/homebrew/opt/openjdk@17 ./gradlew testDebugUnitTest
-   ```
-   `LocalizationCompletenessTest` automatically fails the build if any key or format placeholder is missing or mismatched in any of the 4 languages.
+3. Pure-Kotlin date/time or recurrence formatters (`core/common`) must support all 4 locales (`en`, `zh`, `ja`, `ko`) via an explicit `locale: Locale` parameter.
+4. `LocalizationCompletenessTest` automatically fails `testDebugUnitTest` if any key or format placeholder is missing or mismatched across the 4 languages.
+
+---
+
+## 3. Local Build, Test & Database Migration Rules
+- **JDK 17 & Android SDK on this Mac**:
+  - Default `PATH` has no `java`; ALWAYS prefix Gradle commands with `JAVA_HOME=/opt/homebrew/opt/openjdk@17`:
+    ```bash
+    JAVA_HOME=/opt/homebrew/opt/openjdk@17 ./gradlew testDebugUnitTest assembleRelease
+    ```
+  - Android SDK is at `/Users/wushengyin/Library/Android/sdk` (`compileSdk = 35`, `minSdk = 26`).
+- **In-Place Upgrade Signing**:
+  - `app/build.gradle.kts` signs `release` builds with `signingConfigs.getByName("debug")` (using local `~/.android/debug.keystore`). **Do NOT change `signingConfig`** so installed APKs on the user's Android devices always upgrade in-place without losing data.
+- **Room Database & Backup Compatibility**:
+  - `ZeroDatabase` is currently at **`version = 2`** with `MIGRATION_1_2` (`app/schemas/com.zero.todo.data.local.ZeroDatabase/2.json`).
+  - Any schema change MUST increment `version`, add a lossless `Migration` registered in `DatabaseModule.kt`, and update `ZeroBackupManager.kt` backward-compatibly (supporting v1/v2+ JSON backups). **NEVER enable `fallbackToDestructiveMigration()`.**
+- **Robolectric + Room Async Tests**:
+  - Do NOT combine `runTest` virtual time with `withTimeout` when awaiting Room Flows (Room executes on real background threads and causes instant false timeouts). Follow `MainViewModelStateTest.kt`: use `runBlocking` + `Dispatchers.setMain(Dispatchers.Default)` + real-time `withTimeout`.
+
+---
+
+## 4. Release & Software Portal Publishing Workflow
+- **App Repo**: `https://github.com/shynw1983/zero` (`gh` CLI is authenticated as `shynw1983`).
+  1. Increment `versionCode` and `versionName` in `app/build.gradle.kts`.
+  2. Run `JAVA_HOME=/opt/homebrew/opt/openjdk@17 ./gradlew testDebugUnitTest assembleRelease`.
+  3. Copy `app/build/outputs/apk/release/app-release.apk` to `/tmp/ZERO-v<VER>-release.apk`, compute `shasum -a 256`, push `main`, and publish via `gh release create v<VER> /tmp/ZERO-v<VER>-release.apk -R shynw1983/zero`.
+- **App Labs Release Portal**: `https://github.com/shynw1983/app-hub` (auto-deploys to `https://app-hub-eight-flax.vercel.app`).
+  - **CRITICAL macOS Pitfall**: Do NOT run `git push`/`git fetch` inside `/Users/wushengyin/Desktop/VC/release-portal` (iCloud Desktop causes `fatal: mmap failed`). Always clone cleanly to `/tmp/app-hub-push`, update `data/apps.json` (`latestVersion`, `fileSize`, `fileName`, `downloadUrl`, `sha256`, `downloads`, `releases`), commit, push, and `rm -rf /tmp/app-hub-push`.
+- **Known Minor Cleanup**:
+  - `NowRunwayScreen.kt`: replace deprecated `Icons.Rounded.OpenInNew` with `Icons.AutoMirrored.Rounded.OpenInNew` on the next code edit.
