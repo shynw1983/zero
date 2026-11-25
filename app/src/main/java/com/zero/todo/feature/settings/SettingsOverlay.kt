@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
@@ -25,13 +26,17 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.CloudDownload
 import androidx.compose.material.icons.rounded.CloudUpload
 import androidx.compose.material.icons.rounded.Description
 import androidx.compose.material.icons.rounded.Download
+import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.Link
 import androidx.compose.material.icons.rounded.Upload
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -50,6 +55,9 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
@@ -65,6 +73,9 @@ import com.zero.todo.data.backup.BackupSummary
 import com.zero.todo.data.backup.WebDavConfig
 import com.zero.todo.domain.model.AntiMisclickMode
 import com.zero.todo.domain.model.AppLanguage
+import com.zero.todo.domain.model.TaskSwipeAction
+import com.zero.todo.domain.model.TaskSwipeActions
+import com.zero.todo.domain.model.TaskSwipeDirection
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -91,6 +102,7 @@ fun SettingsOverlay(
     isDarkTheme: Boolean,
     activeAccent: ZeroAccent,
     antiMisclickMode: AntiMisclickMode,
+    taskSwipeActions: TaskSwipeActions,
     hapticsEnabled: Boolean,
     appLanguage: AppLanguage,
     dailyCapacityMinutes: Int,
@@ -100,6 +112,7 @@ fun SettingsOverlay(
     onSetDarkTheme: (Boolean) -> Unit,
     onSetAccent: (ZeroAccent) -> Unit,
     onSetAntiMisclickMode: (AntiMisclickMode) -> Unit,
+    onSetTaskSwipeAction: (TaskSwipeDirection, TaskSwipeAction) -> Unit,
     onSetHapticsEnabled: (Boolean) -> Unit,
     onSetAppLanguage: (AppLanguage) -> Unit,
     onSetDailyCapacityMinutes: (Int) -> Unit,
@@ -377,6 +390,15 @@ fun SettingsOverlay(
                                 )
                             }
                         }
+                        if (antiMisclickMode.allowSwipe) {
+                            TaskSwipeDirection.entries.forEach { direction ->
+                                SwipeActionSelector(
+                                    label = stringResource(direction.labelRes),
+                                    action = taskSwipeActions.actionFor(direction),
+                                    onSelect = { onSetTaskSwipeAction(direction, it) }
+                                )
+                            }
+                        }
                     }
                 }
 
@@ -628,6 +650,69 @@ fun SettingsOverlay(
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
+            }
+        }
+    }
+}
+
+@Composable
+private fun SwipeActionSelector(
+    label: String,
+    action: TaskSwipeAction,
+    onSelect: (TaskSwipeAction) -> Unit
+) {
+    val colors = ZeroTheme.colors
+    val haptics = rememberZeroHaptics()
+    var expanded by remember { mutableStateOf(false) }
+
+    Box {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 48.dp)
+                .clip(ZeroSmallShape)
+                .background(colors.background)
+                .hairlineBorder(shape = ZeroSmallShape)
+                .clickable(role = Role.Button) { expanded = true }
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.titleSmall,
+                color = colors.textPrimary,
+                modifier = Modifier.weight(1f)
+            )
+            Text(
+                text = stringResource(action.labelRes),
+                style = MaterialTheme.typography.bodySmall,
+                color = colors.textSecondary
+            )
+            Icon(
+                imageVector = Icons.Rounded.ExpandMore,
+                contentDescription = null,
+                tint = colors.textMuted,
+                modifier = Modifier.size(18.dp)
+            )
+        }
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            TaskSwipeAction.entries.forEach { option ->
+                val isSelected = action == option
+                DropdownMenuItem(
+                    text = { Text(stringResource(option.labelRes)) },
+                    onClick = {
+                        expanded = false
+                        if (option != action) {
+                            haptics.reorderTick()
+                            onSelect(option)
+                        }
+                    },
+                    modifier = Modifier.semantics { selected = isSelected },
+                    trailingIcon = {
+                        if (isSelected) Icon(Icons.Rounded.Check, contentDescription = null)
+                    }
+                )
             }
         }
     }

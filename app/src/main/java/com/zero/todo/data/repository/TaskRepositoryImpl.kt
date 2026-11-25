@@ -2,11 +2,13 @@ package com.zero.todo.data.repository
 
 import androidx.room.withTransaction
 import com.zero.todo.core.common.FractionalIndex
+import com.zero.todo.core.common.RecurrenceRule
 import com.zero.todo.core.common.ZeroDateFormatter
 import com.zero.todo.data.local.ZeroDatabase
 import com.zero.todo.data.local.dao.FolderDao
 import com.zero.todo.data.local.dao.TaskDao
 import com.zero.todo.data.local.entity.TaskEntity
+import com.zero.todo.data.local.entity.TaskTagCrossRef
 import com.zero.todo.domain.model.TaskItem
 import com.zero.todo.domain.model.TaskPriority
 import kotlinx.coroutines.flow.Flow
@@ -15,6 +17,7 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
+import java.time.temporal.ChronoUnit
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -60,8 +63,11 @@ class TaskRepositoryImpl @Inject constructor(
     override fun observeAllActiveTopLevelTasks(): Flow<List<TaskItem>> =
         taskDao.observeAllActiveTopLevelTasks().map { list -> list.map { it.toDomain() } }
 
+    override fun observeAllActiveTasks(): Flow<List<TaskItem>> =
+        taskDao.observeAllActiveTasks().map { list -> list.map { it.toDomain() } }
+
     override fun observeDeletedTasks(): Flow<List<TaskItem>> =
-        taskDao.observeDeletedTopLevelTasks().map { list -> list.map { it.toDomain() } }
+        taskDao.observeDeletedTasks().map { list -> list.map { it.toDomain() } }
 
     override fun observeTaskWithTags(taskId: String): Flow<TaskItem?> =
         taskDao.observeTaskWithTags(taskId).map { it?.toDomain() }
@@ -84,7 +90,9 @@ class TaskRepositoryImpl @Inject constructor(
         dueDate: Long?,
         isAllDay: Boolean,
         reminderAt: Long?,
-        recurrenceRule: String?
+        recurrenceRule: String?,
+        firstStep: String?,
+        estimatedMinutes: Int?
     ): TaskItem {
         val trimmedTitle = title.trim()
         require(trimmedTitle.isNotEmpty()) { "Task title must not be blank" }
@@ -120,6 +128,8 @@ class TaskRepositoryImpl @Inject constructor(
                 isAllDay = isAllDay,
                 reminderAt = reminderAt,
                 recurrenceRule = recurrenceRule,
+                firstStep = firstStep,
+                estimatedMinutes = estimatedMinutes,
                 sortOrder = sortOrder,
                 createdAt = now,
                 updatedAt = now,
@@ -130,16 +140,19 @@ class TaskRepositoryImpl @Inject constructor(
         }
     }
 
-    override suspend fun updateTask(task: TaskItem) {
-        val trimmedTitle = task.title.trim()
-        require(trimmedTitle.isNotEmpty()) { "Task title must not be blank" }
-        taskDao.updateTask(
-            task.copy(
+    override suspend fun updateTask(taskId: String, edit: (TaskItem) -> TaskItem): TaskItem? =
+        database.withTransaction {
+            val current = taskDao.getTaskById(taskId)?.toDomain() ?: return@withTransaction null
+            val edited = edit(current)
+            val trimmedTitle = edited.title.trim()
+            require(trimmedTitle.isNotEmpty()) { "Task title must not be blank" }
+            val updated = edited.copy(
                 title = trimmedTitle,
                 updatedAt = System.currentTimeMillis()
-            ).toEntity()
-        )
-    }
+            )
+            taskDao.updateTask(updated.toEntity())
+            updated
+        }
 
     override suspend fun setTaskCompleted(taskId: String, isCompleted: Boolean) {
         val now = System.currentTimeMillis()
@@ -150,6 +163,52 @@ class TaskRepositoryImpl @Inject constructor(
             updatedAt = now
         )
     }
+
+    override suspend fun completeTask(taskId: String, today: LocalDate): List<TaskItem>? =
+        database.withTransaction {
+            val task = taskDao.getTaskWithTags(taskId)?.toDomain() ?: return@withTransaction null
+            if (task.isCompleted) return@withTransaction null
+            setTaskCompleted(taskId, true)
+            val rule = RecurrenceRule.parse(task.recurrenceRule) ?: return@withTransaction emptyList()
+            val anchorMillis = task.dueDate ?: ZeroDateFormatter.startOfDayMillis(today)
+            val nextDueMillis = rule.nextOccurrenceMillis(anchorMillis)
+
+            val zone = ZoneId.systemDefault()
+            fun dateOf(millis: Long) = Instant.ofEpochMilli(millis).atZone(zone).toLocalDate()
+            val days = ChronoUnit.DAYS.between(dateOf(anchorMillis), dateOf(nextDueMillis))
+            fun shiftDate(millis: Long?): Long? = millis?.let {
+                Instant.ofEpochMilli(it).atZone(zone).plusDays(days).toInstant().toEpochMilli()
+            }
+
+            val sources = listOf(task) + getDescendantSubtasksSnapshot(taskId)
+            val clonedIds = mutableMapOf<String, String>()
+            val tagDao = database.tagDao()
+            sources.map { source ->
+                val root = source.id == taskId
+                val due = if (root) nextDueMillis else shiftDate(source.dueDate)
+                val reminder = when {
+                    source.reminderAt == null -> null
+                    source.dueDate != null && due != null -> due - (source.dueDate - source.reminderAt)
+                    else -> shiftDate(source.reminderAt)
+                }
+                val copy = createTask(
+                    title = source.title,
+                    folderId = source.folderId,
+                    parentTaskId = if (root) source.parentTaskId else clonedIds.getValue(source.parentTaskId!!),
+                    description = source.description,
+                    priority = source.priority,
+                    dueDate = due,
+                    isAllDay = source.isAllDay,
+                    reminderAt = reminder,
+                    recurrenceRule = source.recurrenceRule,
+                    firstStep = source.firstStep,
+                    estimatedMinutes = source.estimatedMinutes
+                )
+                source.tags.forEach { tag -> tagDao.attachTagToTask(TaskTagCrossRef(copy.id, tag.id)) }
+                clonedIds[source.id] = copy.id
+                copy
+            }
+        }
 
     override suspend fun reorderTask(
         taskId: String,
@@ -217,8 +276,11 @@ class TaskRepositoryImpl @Inject constructor(
                     "Target folder does not exist or is deleted: $targetFolderId"
                 }
             }
-            val maxOrder = taskDao.getMaxSortOrder(targetFolderId, task.parentTaskId)
-            val newOrder = if (maxOrder == null) FractionalIndex.first() else FractionalIndex.after(maxOrder)
+            val newOrder = if (task.parentTaskId == null) {
+                nextSortOrder(targetFolderId, parentTaskId = null)
+            } else {
+                task.sortOrder
+            }
             taskDao.moveTaskToFolder(
                 taskId = taskId,
                 folderId = targetFolderId,
@@ -227,6 +289,24 @@ class TaskRepositoryImpl @Inject constructor(
             )
         }
     }
+
+    override suspend fun moveTaskUnderParent(taskId: String, parentTaskId: String): Boolean =
+        database.withTransaction {
+            val task = taskDao.getTaskById(taskId) ?: return@withTransaction false
+            var ancestor = taskDao.getTaskById(parentTaskId) ?: return@withTransaction false
+            val visited = hashSetOf(taskId)
+            while (true) {
+                if (!visited.add(ancestor.id)) return@withTransaction false
+                val nextId = ancestor.parentTaskId ?: break
+                ancestor = taskDao.getTaskById(nextId) ?: return@withTransaction false
+            }
+            if (task.parentTaskId != parentTaskId) {
+                taskDao.moveTaskUnderParent(
+                    taskId, parentTaskId, nextSortOrder(task.folderId, parentTaskId), System.currentTimeMillis()
+                )
+            }
+            true
+        }
 
     override suspend fun rescheduleTasksToDate(taskIds: List<String>, targetDate: LocalDate) {
         if (taskIds.isEmpty()) return
@@ -273,12 +353,12 @@ class TaskRepositoryImpl @Inject constructor(
                 cursor = parent
             }
 
-            val maxOrder = taskDao.getMaxSortOrder(inheritedFolderId, parentTaskId = null)
-            val newOrder = if (maxOrder == null) FractionalIndex.first() else FractionalIndex.after(maxOrder)
+            val targetFolder = subtask.folderId ?: inheritedFolderId
+            val newOrder = nextSortOrder(targetFolder, parentTaskId = null)
             val now = System.currentTimeMillis()
             taskDao.promoteSubtaskToTopLevel(
                 taskId = subtaskId,
-                targetFolderId = inheritedFolderId,
+                targetFolderId = targetFolder,
                 sortOrder = newOrder,
                 updatedAt = now
             )
@@ -286,13 +366,12 @@ class TaskRepositoryImpl @Inject constructor(
         }
     }
 
-    override suspend fun softDeleteTask(taskId: String) {
+    override suspend fun softDeleteTask(taskId: String): List<String> =
         database.withTransaction {
             val ids = taskDao.getDescendantTaskIds(taskId)
-            if (ids.isEmpty()) return@withTransaction
-            taskDao.softDeleteTasks(ids, System.currentTimeMillis())
+            if (ids.isNotEmpty()) taskDao.softDeleteTasks(ids, System.currentTimeMillis())
+            ids
         }
-    }
 
     override suspend fun restoreTask(taskId: String) {
         database.withTransaction {
@@ -313,6 +392,9 @@ class TaskRepositoryImpl @Inject constructor(
     override suspend fun emptyTrash() {
         taskDao.emptyTrash()
     }
+
+    private suspend fun nextSortOrder(folderId: String?, parentTaskId: String?): Double =
+        taskDao.getMaxSortOrder(folderId, parentTaskId)?.let(FractionalIndex::after) ?: FractionalIndex.first()
 
     private suspend fun applyTaskOrderUpdate(
         taskId: String,

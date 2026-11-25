@@ -153,6 +153,32 @@ class TaskAndTagRepositoryTest {
     }
 
     @Test
+    fun `moving a task under a parent preserves its attributes and prevents cycles`() = runTest {
+        val folder = folderRepository.createFolder("Personal")
+        val parent = taskRepository.createTask("Holiday")
+        val task = taskRepository.createTask(
+            title = "Book hotel", folderId = folder.id, description = "Compare prices", priority = TaskPriority.HIGH,
+            dueDate = 2_000_000L, isAllDay = false, reminderAt = 1_900_000L, recurrenceRule = "FREQ=WEEKLY",
+            firstStep = "Check dates", estimatedMinutes = 25
+        )
+        val child = taskRepository.createTask("Check availability", parentTaskId = task.id)
+        val tag = tagRepository.getOrCreateTag("Travel")
+        tagRepository.attachTagToTask(task.id, tag.id)
+        val before = taskRepository.getTaskById(task.id)!!
+
+        assertFalse(taskRepository.moveTaskUnderParent(task.id, task.id))
+        assertFalse(taskRepository.moveTaskUnderParent(task.id, child.id))
+        assertTrue(taskRepository.moveTaskUnderParent(task.id, parent.id))
+        assertFalse(taskRepository.moveTaskUnderParent(parent.id, child.id))
+        val nested = taskRepository.getTaskById(task.id)!!
+
+        assertEquals(before.copy(parentTaskId = parent.id, sortOrder = nested.sortOrder, updatedAt = nested.updatedAt), nested)
+        assertEquals(task.id, taskRepository.getTaskById(child.id)?.parentTaskId)
+        assertEquals(folder.id, taskRepository.promoteSubtaskToTopLevel(task.id)?.folderId)
+        assertEquals(task.id, taskRepository.getTaskById(child.id)?.parentTaskId)
+    }
+
+    @Test
     fun `infinite nested subtasks and one-click promoteSubtaskToTopLevel preserve parent folder`() = runTest {
         val work = folderRepository.createFolder("Work")
         val rootTask = taskRepository.createTask("Launch ZERO v1", folderId = work.id)

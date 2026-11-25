@@ -28,7 +28,7 @@ interface TagDao {
         FROM tags tg
         LEFT JOIN task_tag_cross_ref ref ON tg.id = ref.tagId
         LEFT JOIN tasks t ON t.id = ref.taskId
-            AND t.isDeleted = 0 AND t.isCompleted = 0 AND t.parentTaskId IS NULL
+            AND t.isDeleted = 0 AND t.isCompleted = 0
         WHERE tg.isDeleted = 0
         GROUP BY tg.id
         ORDER BY tg.name COLLATE NOCASE ASC
@@ -73,7 +73,7 @@ interface TagDao {
         SELECT t.* FROM tasks t
         INNER JOIN task_tag_cross_ref ref ON t.id = ref.taskId
         INNER JOIN tags tg ON tg.id = ref.tagId
-        WHERE ref.tagId = :tagId AND t.isDeleted = 0 AND tg.isDeleted = 0 AND t.parentTaskId IS NULL
+        WHERE ref.tagId = :tagId AND t.isDeleted = 0 AND tg.isDeleted = 0
         ORDER BY t.isCompleted ASC, t.sortOrder ASC, t.createdAt ASC
         """
     )

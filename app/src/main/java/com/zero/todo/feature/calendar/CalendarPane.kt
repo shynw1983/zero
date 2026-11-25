@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -31,16 +30,19 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.zero.todo.R
+import com.zero.todo.core.common.ZeroDateFormatter
 import com.zero.todo.core.designsystem.ZeroCardShape
 import com.zero.todo.core.designsystem.ZeroMotion
 import com.zero.todo.core.designsystem.ZeroSmallShape
@@ -49,7 +51,10 @@ import com.zero.todo.core.designsystem.hairlineBorder
 import com.zero.todo.core.designsystem.hairlineDividerBottom
 import com.zero.todo.core.designsystem.hairlineDividerTop
 import com.zero.todo.core.nlp.ParsedQuickInput
+import com.zero.todo.data.calendar.GoogleCalendarDay
+import com.zero.todo.data.calendar.GoogleCalendarEvent
 import com.zero.todo.domain.model.AntiMisclickMode
+import com.zero.todo.domain.model.TaskSwipeActions
 import com.zero.todo.domain.model.TaskItem
 import com.zero.todo.feature.tasklist.AntiMisclickTaskCard
 import com.zero.todo.feature.tasklist.FolderPathSuggestion
@@ -94,6 +99,7 @@ fun CalendarPane(
     folderNameById: Map<String, String>,
     selectedTaskId: String?,
     antiMisclickMode: AntiMisclickMode,
+    taskSwipeActions: TaskSwipeActions,
     quickInputText: String,
     parsedQuickInput: ParsedQuickInput,
     folderSuggestions: List<FolderPathSuggestion>,
@@ -107,6 +113,8 @@ fun CalendarPane(
     onSelectDate: (LocalDate) -> Unit,
     onSelectViewMode: (CalendarViewMode) -> Unit,
     onToggleTaskComplete: (TaskItem) -> Unit,
+    onDeleteTask: (TaskItem) -> Unit,
+    onChooseTaskParent: (TaskItem) -> Unit,
     onSelectTask: (TaskItem) -> Unit,
     onSelectTag: (String) -> Unit,
     onQuickInputEdit: ((String) -> String) -> Unit,
@@ -121,8 +129,9 @@ fun CalendarPane(
     val tabular = ZeroTheme.tabularTypography
     val zoneId = ZoneId.systemDefault()
     val today = currentDate
+    val googleCalendar = rememberGoogleCalendarConnection(selectedDate, zoneId)
 
-    val tasksByDate = remember(allActiveTasks) {
+    val tasksByDate = remember(allActiveTasks, zoneId) {
         allActiveTasks
             .filter { it.dueDate != null }
             .groupBy { task ->
@@ -264,40 +273,24 @@ fun CalendarPane(
 
             // Main Calendar Content
             when (viewMode) {
-                CalendarViewMode.MONTH -> {
-                    MonthGridSection(
-                        selectedDate = selectedDate,
-                        today = today,
-                        tasksByDate = tasksByDate,
-                        onSelectDate = onSelectDate
-                    )
-                    SelectedDayTaskList(
+                CalendarViewMode.MONTH, CalendarViewMode.WEEK -> {
+                    if (viewMode == CalendarViewMode.MONTH) {
+                        MonthGridSection(selectedDate, today, tasksByDate, onSelectDate)
+                    } else {
+                        WeekStripSection(selectedDate, today, tasksByDate, onSelectDate)
+                    }
+                    SelectedDayAgenda(
                         selectedDate = selectedDate,
                         tasks = selectedDayTasks,
+                        googleCalendar = googleCalendar,
+                        zoneId = zoneId,
                         folderNameById = folderNameById,
                         selectedTaskId = selectedTaskId,
                         antiMisclickMode = antiMisclickMode,
+                        taskSwipeActions = taskSwipeActions,
                         onToggleTaskComplete = onToggleTaskComplete,
-                        onSelectTask = onSelectTask,
-                        onSelectTag = onSelectTag,
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-
-                CalendarViewMode.WEEK -> {
-                    WeekStripSection(
-                        selectedDate = selectedDate,
-                        today = today,
-                        tasksByDate = tasksByDate,
-                        onSelectDate = onSelectDate
-                    )
-                    SelectedDayTaskList(
-                        selectedDate = selectedDate,
-                        tasks = selectedDayTasks,
-                        folderNameById = folderNameById,
-                        selectedTaskId = selectedTaskId,
-                        antiMisclickMode = antiMisclickMode,
-                        onToggleTaskComplete = onToggleTaskComplete,
+                        onDeleteTask = onDeleteTask,
+                        onChooseTaskParent = onChooseTaskParent,
                         onSelectTask = onSelectTask,
                         onSelectTag = onSelectTag,
                         modifier = Modifier.weight(1f)
@@ -308,12 +301,16 @@ fun CalendarPane(
                     DayTimelineSection(
                         selectedDate = selectedDate,
                         tasks = selectedDayTasks,
+                        googleCalendar = googleCalendar,
                         folderNameById = folderNameById,
                         selectedTaskId = selectedTaskId,
                         antiMisclickMode = antiMisclickMode,
+                        taskSwipeActions = taskSwipeActions,
                         zoneId = zoneId,
                         onSelectTask = onSelectTask,
                         onToggleTaskComplete = onToggleTaskComplete,
+                        onDeleteTask = onDeleteTask,
+                        onChooseTaskParent = onChooseTaskParent,
                         onSelectTag = onSelectTag,
                         modifier = Modifier.weight(1f)
                     )
@@ -512,20 +509,25 @@ private fun WeekStripSection(
 }
 
 @Composable
-private fun SelectedDayTaskList(
+private fun SelectedDayAgenda(
     selectedDate: LocalDate,
     tasks: List<TaskItem>,
+    googleCalendar: GoogleCalendarConnection,
+    zoneId: ZoneId,
     folderNameById: Map<String, String>,
     selectedTaskId: String?,
     antiMisclickMode: AntiMisclickMode,
+    taskSwipeActions: TaskSwipeActions,
     onToggleTaskComplete: (TaskItem) -> Unit,
+    onDeleteTask: (TaskItem) -> Unit,
+    onChooseTaskParent: (TaskItem) -> Unit,
     onSelectTask: (TaskItem) -> Unit,
     onSelectTag: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val colors = ZeroTheme.colors
     val tabular = ZeroTheme.tabularTypography
-    val listState = rememberLazyListState()
+    val listState = key(selectedDate) { rememberLazyListState() }
     val dateLabel = remember(selectedDate) {
         selectedDate.format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))
     }
@@ -553,43 +555,50 @@ private fun SelectedDayTaskList(
             )
         }
 
-        if (tasks.isEmpty()) {
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
-                    .padding(bottom = 110.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = stringResource(R.string.cal_day_empty),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = colors.textMuted
+        LazyColumn(
+            state = listState,
+            modifier = Modifier.weight(1f),
+            contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = 140.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            if (googleCalendar.day !is GoogleCalendarDay.Ready) {
+                item(key = "google_calendar_status") { GoogleCalendarStatus(googleCalendar) }
+            }
+
+            items(items = googleCalendar.events, key = { "google_${it.occurrenceKey}" }) { event ->
+                GoogleCalendarEventCard(event, selectedDate, zoneId)
+            }
+
+            items(items = tasks, key = { it.id }) { task ->
+                AntiMisclickTaskCard(
+                    task = task,
+                    isSelected = task.id == selectedTaskId,
+                    isListScrolling = listState.isScrollInProgress,
+                    isDragging = false,
+                    dragOffsetY = 0f,
+                    folderBadgeName = task.folderId?.let { folderNameById[it] },
+                    antiMisclickMode = antiMisclickMode,
+                    swipeActions = taskSwipeActions,
+                    onToggleComplete = onToggleTaskComplete,
+                    onDeleteTask = onDeleteTask,
+                    onChooseTaskParent = onChooseTaskParent,
+                    onSelectTask = onSelectTask,
+                    onTagClick = onSelectTag,
+                    onReorderDragStart = {},
+                    onReorderDragDelta = {},
+                    onReorderDragEnd = {},
+                    modifier = Modifier.animateItem(placementSpec = ZeroMotion.IntOffsetSpring)
                 )
             }
-        } else {
-            LazyColumn(
-                state = listState,
-                modifier = Modifier.weight(1f),
-                contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = 140.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                items(items = tasks, key = { it.id }) { task ->
-                    AntiMisclickTaskCard(
-                        task = task,
-                        isSelected = task.id == selectedTaskId,
-                        isListScrolling = listState.isScrollInProgress,
-                        isDragging = false,
-                        dragOffsetY = 0f,
-                        folderBadgeName = task.folderId?.let { folderNameById[it] },
-                        antiMisclickMode = antiMisclickMode,
-                        onToggleComplete = onToggleTaskComplete,
-                        onSelectTask = onSelectTask,
-                        onTagClick = onSelectTag,
-                        onReorderDragStart = {},
-                        onReorderDragDelta = {},
-                        onReorderDragEnd = {},
-                        modifier = Modifier.animateItem(placementSpec = ZeroMotion.IntOffsetSpring)
+
+            if (tasks.isEmpty() && googleCalendar.events.isEmpty() && googleCalendar.day != GoogleCalendarDay.Loading) {
+                item(key = "empty_agenda") {
+                    Text(
+                        text = stringResource(R.string.cal_day_empty),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = colors.textMuted,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 20.dp)
                     )
                 }
             }
@@ -597,16 +606,27 @@ private fun SelectedDayTaskList(
     }
 }
 
+private sealed interface TimedAgendaEntry {
+    val startsAt: Long
+
+    data class Task(val task: TaskItem, override val startsAt: Long) : TimedAgendaEntry
+    data class Event(val event: GoogleCalendarEvent, override val startsAt: Long) : TimedAgendaEntry
+}
+
 @Composable
 private fun DayTimelineSection(
     selectedDate: LocalDate,
     tasks: List<TaskItem>,
+    googleCalendar: GoogleCalendarConnection,
     folderNameById: Map<String, String>,
     selectedTaskId: String?,
     antiMisclickMode: AntiMisclickMode,
+    taskSwipeActions: TaskSwipeActions,
     zoneId: ZoneId,
     onSelectTask: (TaskItem) -> Unit,
     onToggleTaskComplete: (TaskItem) -> Unit,
+    onDeleteTask: (TaskItem) -> Unit,
+    onChooseTaskParent: (TaskItem) -> Unit,
     onSelectTag: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -614,12 +634,21 @@ private fun DayTimelineSection(
     val tabular = ZeroTheme.tabularTypography
     val listState = rememberLazyListState()
     val allDayTasks = remember(tasks) { tasks.filter { it.isAllDay } }
-    val timedTasksByHour = remember(tasks) {
-        tasks.filter { !it.isAllDay && it.dueDate != null }.groupBy { task ->
-            Instant.ofEpochMilli(task.dueDate!!).atZone(zoneId).hour
-        }
+    val allDayEvents = remember(googleCalendar.events) { googleCalendar.events.filter { it.isAllDay } }
+    val timedEntriesByHour = remember(tasks, googleCalendar.events, selectedDate, zoneId) {
+        val dayStart = ZeroDateFormatter.startOfDayMillis(selectedDate, zoneId)
+        buildList<TimedAgendaEntry> {
+            tasks.forEach { task ->
+                val dueDate = task.dueDate
+                if (!task.isAllDay && dueDate != null) add(TimedAgendaEntry.Task(task, dueDate))
+            }
+            googleCalendar.events.filterNot { it.isAllDay }.forEach { event ->
+                add(TimedAgendaEntry.Event(event, maxOf(event.beginsAt, dayStart)))
+            }
+        }.sortedBy { it.startsAt }.groupBy { Instant.ofEpochMilli(it.startsAt).atZone(zoneId).hour }
     }
-    val timeFormatter = remember { DateTimeFormatter.ofPattern("HH:mm") }
+    val locale = LocalConfiguration.current.locales[0]
+    val timeFormatter = remember(locale) { DateTimeFormatter.ofPattern("HH:mm", locale) }
 
     LazyColumn(
         state = listState,
@@ -627,6 +656,10 @@ private fun DayTimelineSection(
         contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = 10.dp, bottom = 140.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
+        if (googleCalendar.day !is GoogleCalendarDay.Ready) {
+            item(key = "google_calendar_status") { GoogleCalendarStatus(googleCalendar) }
+        }
+
         // Lightweight All-Day tray (uses AntiMisclickTaskCard — no fragile single-tap complete!)
         item(key = "all_day_tray") {
             Column(
@@ -648,18 +681,19 @@ private fun DayTimelineSection(
                         color = colors.textMuted
                     )
                     Text(
-                        text = allDayTasks.size.toString().padStart(2, '0'),
+                        text = (allDayTasks.size + allDayEvents.size).toString().padStart(2, '0'),
                         style = tabular.counter,
                         color = colors.accent
                     )
                 }
-                if (allDayTasks.isEmpty()) {
+                if (allDayTasks.isEmpty() && allDayEvents.isEmpty()) {
                     Text(
                         text = stringResource(R.string.cal_all_day_empty),
                         style = MaterialTheme.typography.bodySmall,
                         color = colors.textMuted
                     )
                 } else {
+                    allDayEvents.forEach { event -> GoogleCalendarEventCard(event, selectedDate, zoneId) }
                     allDayTasks.forEach { task ->
                         AntiMisclickTaskCard(
                             task = task,
@@ -669,7 +703,10 @@ private fun DayTimelineSection(
                             dragOffsetY = 0f,
                             folderBadgeName = task.folderId?.let { folderNameById[it] },
                             antiMisclickMode = antiMisclickMode,
+                            swipeActions = taskSwipeActions,
                             onToggleComplete = onToggleTaskComplete,
+                            onDeleteTask = onDeleteTask,
+                            onChooseTaskParent = onChooseTaskParent,
                             onSelectTask = onSelectTask,
                             onTagClick = onSelectTag,
                             onReorderDragStart = {},
@@ -683,7 +720,7 @@ private fun DayTimelineSection(
 
         // 24-hour tabular timeline
         items((0..23).toList(), key = { hour -> "hour_$hour" }) { hour ->
-            val hourTasks = timedTasksByHour[hour].orEmpty()
+            val hourEntries = timedEntriesByHour[hour].orEmpty()
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -694,7 +731,7 @@ private fun DayTimelineSection(
                 Text(
                     text = "${hour.toString().padStart(2, '0')}:00",
                     style = tabular.timestamp,
-                    color = if (hourTasks.isNotEmpty()) colors.accent else colors.textMuted,
+                    color = if (hourEntries.isNotEmpty()) colors.accent else colors.textMuted,
                     modifier = Modifier.width(52.dp)
                 )
 
@@ -702,40 +739,17 @@ private fun DayTimelineSection(
                     modifier = Modifier.weight(1f),
                     verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    if (hourTasks.isEmpty()) {
+                    if (hourEntries.isEmpty()) {
                         Spacer(modifier = Modifier.height(18.dp))
                     } else {
-                        hourTasks.forEach { task ->
-                            val timeText = Instant.ofEpochMilli(task.dueDate!!)
-                                .atZone(zoneId)
-                                .toLocalTime()
-                                .format(timeFormatter)
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clip(ZeroSmallShape)
-                                    .background(if (task.id == selectedTaskId) colors.accentSubtle else colors.surface)
-                                    .hairlineBorder(
-                                        shape = ZeroSmallShape,
-                                        color = if (task.id == selectedTaskId) colors.accent else colors.hairlineBorder
-                                    )
-                                    .clickable { onSelectTask(task) }
-                                    .padding(horizontal = 10.dp, vertical = 8.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                Text(
-                                    text = timeText,
-                                    style = tabular.dateCompact,
-                                    color = colors.accent
-                                )
-                                Text(
-                                    text = task.title,
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = if (task.isCompleted) colors.textMuted else colors.textPrimary,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                    modifier = Modifier.weight(1f)
+                        hourEntries.forEach { entry ->
+                            when (entry) {
+                                is TimedAgendaEntry.Event -> GoogleCalendarEventCard(entry.event, selectedDate, zoneId)
+                                is TimedAgendaEntry.Task -> TimedTaskRow(
+                                    task = entry.task,
+                                    selected = entry.task.id == selectedTaskId,
+                                    timeText = Instant.ofEpochMilli(entry.startsAt).atZone(zoneId).format(timeFormatter),
+                                    onClick = { onSelectTask(entry.task) }
                                 )
                             }
                         }
@@ -743,5 +757,31 @@ private fun DayTimelineSection(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun TimedTaskRow(task: TaskItem, selected: Boolean, timeText: String, onClick: () -> Unit) {
+    val colors = ZeroTheme.colors
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(ZeroSmallShape)
+            .background(if (selected) colors.accentSubtle else colors.surface)
+            .hairlineBorder(shape = ZeroSmallShape, color = if (selected) colors.accent else colors.hairlineBorder)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 10.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Text(text = timeText, style = ZeroTheme.tabularTypography.dateCompact, color = colors.accent)
+        Text(
+            text = task.title,
+            style = MaterialTheme.typography.bodyMedium,
+            color = if (task.isCompleted) colors.textMuted else colors.textPrimary,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f)
+        )
     }
 }

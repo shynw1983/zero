@@ -48,8 +48,10 @@ class ZeroReminderReceiver : BroadcastReceiver() {
                 CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
                     try {
                         val ep = ZeroWidgetUpdater.entryPoint(context)
-                        ep.taskRepository().setTaskCompleted(taskId, true)
-                        ep.reminderScheduler().cancelTaskReminder(taskId)
+                        val scheduler = ep.reminderScheduler()
+                        val copies = ep.taskRepository().completeTask(taskId)
+                        scheduler.cancelTaskReminder(taskId)
+                        copies?.forEach(scheduler::syncTaskReminder)
                         ZeroWidgetUpdater.refreshAll(context)
                     } finally {
                         pendingResult.finish()
@@ -69,8 +71,9 @@ class ZeroReminderReceiver : BroadcastReceiver() {
                         val ep = ZeroWidgetUpdater.entryPoint(context)
                         val task = ep.taskRepository().getTaskById(taskId)
                         if (task != null && !task.isCompleted) {
-                            ep.taskRepository().updateTask(task.copy(reminderAt = snoozeAt))
-                            ep.reminderScheduler().scheduleTaskReminder(task.id, task.title, snoozeAt)
+                            ep.taskRepository().updateTask(task.id) { current ->
+                                if (current.isCompleted) current else current.copy(reminderAt = snoozeAt)
+                            }?.let(ep.reminderScheduler()::syncTaskReminder)
                         } else if (title.isNotBlank()) {
                             ep.reminderScheduler().scheduleTaskReminder(taskId, title, snoozeAt)
                         }

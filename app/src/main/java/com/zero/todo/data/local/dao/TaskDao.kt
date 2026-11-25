@@ -82,6 +82,7 @@ interface TaskDao {
     )
     fun observeDescendantSubtasks(rootTaskId: String): Flow<List<TaskEntity>>
 
+    @Transaction
     @Query(
         """
         WITH RECURSIVE subtask_tree(id, depth) AS (
@@ -96,12 +97,12 @@ interface TaskDao {
         ORDER BY st.depth ASC, t.sortOrder ASC, t.createdAt ASC
         """
     )
-    suspend fun getDescendantSubtasksSnapshot(rootTaskId: String): List<TaskEntity>
+    suspend fun getDescendantSubtasksSnapshot(rootTaskId: String): List<TaskWithTags>
 
     @Query(
         """
         SELECT * FROM tasks
-        WHERE isDeleted = 0 AND parentTaskId IS NULL
+        WHERE isDeleted = 0
           AND dueDate IS NOT NULL AND dueDate >= :startMillis AND dueDate < :endMillis
         ORDER BY isCompleted ASC, dueDate ASC, priority ASC, sortOrder ASC
         """
@@ -111,7 +112,7 @@ interface TaskDao {
     @Query(
         """
         SELECT * FROM tasks
-        WHERE isDeleted = 0 AND isCompleted = 0 AND parentTaskId IS NULL
+        WHERE isDeleted = 0 AND isCompleted = 0
           AND dueDate IS NOT NULL AND dueDate < :endMillis
         ORDER BY dueDate ASC, priority ASC, sortOrder ASC
         """
@@ -136,7 +137,7 @@ interface TaskDao {
     @Query(
         """
         SELECT * FROM tasks
-        WHERE isDeleted = 0 AND parentTaskId IS NULL
+        WHERE isDeleted = 0
           AND dueDate IS NOT NULL AND dueDate >= :startMillis AND dueDate < :endMillis
         ORDER BY isCompleted ASC, dueDate ASC, priority ASC, sortOrder ASC
         """
@@ -150,7 +151,7 @@ interface TaskDao {
     @Query(
         """
         SELECT * FROM tasks
-        WHERE isDeleted = 0 AND parentTaskId IS NULL
+        WHERE isDeleted = 0
           AND dueDate IS NOT NULL
           AND ((dueDate < :todayStartMillis AND isCompleted = 0)
                OR (dueDate >= :todayStartMillis AND dueDate < :tomorrowStartMillis))
@@ -173,14 +174,18 @@ interface TaskDao {
     fun observeAllActiveTopLevelTasks(): Flow<List<TaskWithTags>>
 
     @Transaction
+    @Query("SELECT * FROM tasks WHERE isDeleted = 0 ORDER BY isCompleted, sortOrder, createdAt")
+    fun observeAllActiveTasks(): Flow<List<TaskWithTags>>
+
+    @Transaction
     @Query(
         """
         SELECT * FROM tasks
-        WHERE isDeleted = 1 AND parentTaskId IS NULL
+        WHERE isDeleted = 1 AND (parentTaskId IS NULL OR parentTaskId IN (SELECT id FROM tasks WHERE isDeleted = 0))
         ORDER BY updatedAt DESC
         """
     )
-    fun observeDeletedTopLevelTasks(): Flow<List<TaskWithTags>>
+    fun observeDeletedTasks(): Flow<List<TaskWithTags>>
 
     @Query(
         """
@@ -207,8 +212,8 @@ interface TaskDao {
         """
         SELECT * FROM tasks
         WHERE isDeleted = 0
-          AND ((:folderId IS NULL AND folderId IS NULL) OR folderId = :folderId)
-          AND ((:parentTaskId IS NULL AND parentTaskId IS NULL) OR parentTaskId = :parentTaskId)
+          AND (parentTaskId = :parentTaskId OR (:parentTaskId IS NULL AND parentTaskId IS NULL
+              AND ((:folderId IS NULL AND folderId IS NULL) OR folderId = :folderId)))
         ORDER BY sortOrder ASC, createdAt ASC
         """
     )
@@ -218,8 +223,8 @@ interface TaskDao {
         """
         SELECT MAX(sortOrder) FROM tasks
         WHERE isDeleted = 0
-          AND ((:folderId IS NULL AND folderId IS NULL) OR folderId = :folderId)
-          AND ((:parentTaskId IS NULL AND parentTaskId IS NULL) OR parentTaskId = :parentTaskId)
+          AND (parentTaskId = :parentTaskId OR (:parentTaskId IS NULL AND parentTaskId IS NULL
+              AND ((:folderId IS NULL AND folderId IS NULL) OR folderId = :folderId)))
         """
     )
     suspend fun getMaxSortOrder(folderId: String?, parentTaskId: String?): Double?
@@ -290,6 +295,9 @@ interface TaskDao {
         sortOrder: Double,
         updatedAt: Long
     )
+
+    @Query("UPDATE tasks SET parentTaskId = :parentTaskId, sortOrder = :sortOrder, updatedAt = :updatedAt WHERE id = :taskId AND isDeleted = 0")
+    suspend fun moveTaskUnderParent(taskId: String, parentTaskId: String, sortOrder: Double, updatedAt: Long)
 
     @Query("UPDATE tasks SET folderId = NULL, updatedAt = :updatedAt WHERE folderId IN (:folderIds) AND isDeleted = 0")
     suspend fun detachTasksFromFolders(folderIds: List<String>, updatedAt: Long)

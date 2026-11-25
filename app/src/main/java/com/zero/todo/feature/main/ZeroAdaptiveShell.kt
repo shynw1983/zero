@@ -88,6 +88,8 @@ import com.zero.todo.domain.model.FolderNode
 import com.zero.todo.domain.model.TagItem
 import com.zero.todo.domain.model.TaskItem
 import com.zero.todo.domain.model.TaskPriority
+import com.zero.todo.domain.model.TaskSwipeAction
+import com.zero.todo.domain.model.TaskSwipeDirection
 import com.zero.todo.domain.model.WorkspaceMode
 import com.zero.todo.feature.calendar.CalendarPane
 import com.zero.todo.feature.calendar.CalendarViewMode
@@ -108,6 +110,7 @@ import com.zero.todo.feature.now.NowRunwayScreen
 import com.zero.todo.feature.settings.BackupUiStatus
 import com.zero.todo.feature.settings.SettingsOverlay
 import com.zero.todo.feature.taskdetail.TaskDetailPane
+import com.zero.todo.feature.taskdetail.TaskParentPickerDialog
 import com.zero.todo.feature.tasklist.TaskListPane
 import com.zero.todo.feature.tasklist.UndoBannerState
 import com.zero.todo.feature.trash.TrashPane
@@ -156,9 +159,10 @@ data class ZeroShellCallbacks(
     val onUpdateTaskReminder: (task: TaskItem, reminderAtMillis: Long?) -> Unit = { _, _ -> },
     val onUpdateTaskRecurrenceRule: (task: TaskItem, rrule: String?) -> Unit = { _, _ -> },
     val onAddSubtask: (parentTaskId: String, title: String) -> Unit = { _, _ -> },
-    val onToggleSubtask: (TaskItem) -> Unit = {},
     val onPromoteSubtask: (subtaskId: String) -> Unit = {},
-    val onDeleteSubtask: (TaskItem) -> Unit = {},
+    val onOpenTaskParentPicker: (TaskItem) -> Unit = {},
+    val onChooseTaskParent: (String) -> Unit = {},
+    val onCloseTaskParentPicker: () -> Unit = {},
     val onAddTag: (taskId: String, tagName: String) -> Unit = { _, _ -> },
     val onRemoveTag: (taskId: String, tagId: String) -> Unit = { _, _ -> },
     val onDeleteTask: (TaskItem) -> Unit = {},
@@ -176,6 +180,7 @@ data class ZeroShellCallbacks(
     val onToggleAccent: () -> Unit = {},
     val onSetAccent: (ZeroAccent) -> Unit = {},
     val onSetAntiMisclickMode: (AntiMisclickMode) -> Unit = {},
+    val onSetTaskSwipeAction: (TaskSwipeDirection, TaskSwipeAction) -> Unit = { _, _ -> },
     val onSetHapticsEnabled: (Boolean) -> Unit = {},
     val onSetAppLanguage: (AppLanguage) -> Unit = {},
     val onUpdateWebDavConfig: (WebDavConfig) -> Unit = {},
@@ -204,6 +209,7 @@ data class ZeroShellCallbacks(
 fun ZeroAdaptiveShell(
     uiState: MainUiState,
     callbacks: ZeroShellCallbacks,
+    taskParentPicker: TaskParentPickerState? = null,
     windowWidthSizeClass: WindowWidthSizeClass = currentWindowAdaptiveInfo().windowSizeClass.windowWidthSizeClass,
     modifier: Modifier = Modifier
 ) {
@@ -498,6 +504,7 @@ fun ZeroAdaptiveShell(
                 isDarkTheme = uiState.isDarkTheme,
                 activeAccent = uiState.activeAccent,
                 antiMisclickMode = uiState.antiMisclickMode,
+                taskSwipeActions = uiState.taskSwipeActions,
                 hapticsEnabled = uiState.hapticsEnabled,
                 appLanguage = uiState.appLanguage,
                 dailyCapacityMinutes = uiState.dailyCapacityMinutes,
@@ -507,6 +514,7 @@ fun ZeroAdaptiveShell(
                 onSetDarkTheme = callbacks.onSetDarkTheme,
                 onSetAccent = callbacks.onSetAccent,
                 onSetAntiMisclickMode = callbacks.onSetAntiMisclickMode,
+                onSetTaskSwipeAction = callbacks.onSetTaskSwipeAction,
                 onSetHapticsEnabled = callbacks.onSetHapticsEnabled,
                 onSetAppLanguage = callbacks.onSetAppLanguage,
                 onSetDailyCapacityMinutes = callbacks.onSetDailyCapacityMinutes,
@@ -524,6 +532,20 @@ fun ZeroAdaptiveShell(
     }
 
     // Folder Management Action Sheet + Dialogs
+    taskParentPicker?.let { picker ->
+        uiState.allActiveTasks.firstOrNull { it.id == picker.taskId }?.let { task ->
+            TaskParentPickerDialog(
+                task = task,
+                tasks = uiState.allActiveTasks,
+                folderNames = uiState.folderNameById,
+                saving = picker.saving,
+                failed = picker.failed,
+                onSelect = callbacks.onChooseTaskParent,
+                onDismiss = callbacks.onCloseTaskParentPicker
+            )
+        }
+    }
+
     val menuFolder = folderMenuTarget
     if (menuFolder != null) {
         FolderActionMenuDialog(
@@ -747,10 +769,11 @@ private fun CenterWorkspacePane(
                 currentDate = uiState.currentDate,
                 selectedDate = uiState.calendarSelectedDate,
                 viewMode = uiState.calendarViewMode,
-                allActiveTasks = uiState.allActiveTopLevelTasks,
+                allActiveTasks = uiState.allActiveTasks,
                 folderNameById = uiState.folderNameById,
                 selectedTaskId = uiState.selectedTaskId,
                 antiMisclickMode = uiState.antiMisclickMode,
+                taskSwipeActions = uiState.taskSwipeActions,
                 quickInputText = uiState.quickInputText,
                 parsedQuickInput = uiState.parsedQuickInput,
                 folderSuggestions = uiState.folderSuggestions,
@@ -764,6 +787,8 @@ private fun CenterWorkspacePane(
                 onSelectDate = callbacks.onSelectCalendarDate,
                 onSelectViewMode = callbacks.onSelectCalendarViewMode,
                 onToggleTaskComplete = callbacks.onToggleTaskComplete,
+                onDeleteTask = callbacks.onDeleteTask,
+                onChooseTaskParent = callbacks.onOpenTaskParentPicker,
                 onSelectTask = { task -> callbacks.onSelectTask(task.id) },
                 onSelectTag = { tagId -> callbacks.onSelectDestination(NavigationDestination.TagView(tagId)) },
                 onQuickInputEdit = callbacks.onQuickInputEdit,
@@ -778,7 +803,7 @@ private fun CenterWorkspacePane(
 
         NavigationDestination.Matrix -> {
             MatrixPane(
-                allActiveTasks = uiState.allActiveTopLevelTasks,
+                allActiveTasks = uiState.allActiveTasks,
                 selectedTaskId = uiState.selectedTaskId,
                 showDrawerButton = showDrawerButton,
                 showTreeToggleButton = showTreeToggleButton,
@@ -835,6 +860,7 @@ private fun CenterWorkspacePane(
                 folderNameById = uiState.folderNameById,
                 selectedTaskId = uiState.selectedTaskId,
                 antiMisclickMode = uiState.antiMisclickMode,
+                taskSwipeActions = uiState.taskSwipeActions,
                 quickInputText = uiState.quickInputText,
                 parsedQuickInput = uiState.parsedQuickInput,
                 folderSuggestions = uiState.folderSuggestions,
@@ -856,6 +882,8 @@ private fun CenterWorkspacePane(
                 onRequestCreateSubfolder = { onRequestCreateFolder(uiState.breadcrumbs.lastOrNull()) },
                 onOpenFocusMode = { callbacks.onStartFocus(null, FocusMode.TWO_MIN_STARTER) },
                 onToggleTaskComplete = callbacks.onToggleTaskComplete,
+                onDeleteTask = callbacks.onDeleteTask,
+                onChooseTaskParent = callbacks.onOpenTaskParentPicker,
                 onSelectTask = { task -> callbacks.onSelectTask(task.id) },
                 onReorderTask = callbacks.onReorderTask,
                 onQuickInputEdit = callbacks.onQuickInputEdit,
@@ -884,6 +912,7 @@ private fun BoundTaskDetailPane(
         folderName = uiState.selectedTask?.folderId?.let { uiState.folderNameById[it] },
         folderTree = uiState.folderTree,
         subtasks = uiState.selectedTaskSubtasks,
+        parentTask = uiState.selectedTask?.parentTaskId?.let { id -> uiState.allActiveTasks.firstOrNull { it.id == id } },
         showBackButton = showBackButton,
         onNavigateBack = onNavigateBack,
         onToggleComplete = callbacks.onToggleTaskComplete,
@@ -897,9 +926,9 @@ private fun BoundTaskDetailPane(
         onUpdateReminder = callbacks.onUpdateTaskReminder,
         onUpdateRecurrenceRule = callbacks.onUpdateTaskRecurrenceRule,
         onAddSubtask = callbacks.onAddSubtask,
-        onToggleSubtask = callbacks.onToggleSubtask,
         onPromoteSubtask = callbacks.onPromoteSubtask,
-        onDeleteSubtask = callbacks.onDeleteSubtask,
+        onOpenTaskParentPicker = callbacks.onOpenTaskParentPicker,
+        onOpenRelatedTask = callbacks.onSelectTask,
         onAddTag = callbacks.onAddTag,
         onRemoveTag = callbacks.onRemoveTag,
         onSelectTag = { tagId ->
@@ -1275,7 +1304,7 @@ private fun samplePreviewState(): MainUiState {
         folderNameById = mapOf("f1" to "工作", "f2" to "财务", "f3" to "报销"),
         smartViewCounts = SmartViewCounts(inbox = 3, today = 2, tomorrow = 1, next7Days = 5, all = 6),
         tasks = listOf(t1, t2),
-        allActiveTopLevelTasks = listOf(t1, t2),
+        allActiveTasks = listOf(t1, t2),
         selectedTaskId = t1.id,
         selectedTask = t1,
         quickInputText = sampleInput,

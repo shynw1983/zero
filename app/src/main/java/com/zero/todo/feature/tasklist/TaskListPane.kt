@@ -67,6 +67,7 @@ import com.zero.todo.core.designsystem.hairlineDividerBottom
 import com.zero.todo.core.designsystem.rememberZeroHaptics
 import com.zero.todo.core.nlp.ParsedQuickInput
 import com.zero.todo.domain.model.AntiMisclickMode
+import com.zero.todo.domain.model.TaskSwipeActions
 import com.zero.todo.domain.model.Folder
 import com.zero.todo.domain.model.TaskItem
 import com.zero.todo.domain.model.TaskSortMode
@@ -92,6 +93,7 @@ fun TaskListPane(
     folderNameById: Map<String, String>,
     selectedTaskId: String?,
     antiMisclickMode: AntiMisclickMode,
+    taskSwipeActions: TaskSwipeActions,
     quickInputText: String,
     parsedQuickInput: ParsedQuickInput,
     folderSuggestions: List<FolderPathSuggestion>,
@@ -113,6 +115,8 @@ fun TaskListPane(
     onRequestCreateSubfolder: () -> Unit,
     onOpenFocusMode: () -> Unit,
     onToggleTaskComplete: (TaskItem) -> Unit,
+    onDeleteTask: (TaskItem) -> Unit,
+    onChooseTaskParent: (TaskItem) -> Unit,
     onSelectTask: (TaskItem) -> Unit,
     onReorderTask: (taskId: String, targetIndex: Int) -> Unit,
     onQuickInputEdit: ((String) -> String) -> Unit,
@@ -549,7 +553,10 @@ fun TaskListPane(
                                 dragOffsetY = 0f,
                                 folderBadgeName = task.folderId?.let { folderNameById[it] },
                                 antiMisclickMode = antiMisclickMode,
+                                swipeActions = taskSwipeActions,
                                 onToggleComplete = onToggleTaskComplete,
+                                onDeleteTask = onDeleteTask,
+                                onChooseTaskParent = onChooseTaskParent,
                                 onSelectTask = onSelectTask,
                                 onTagClick = onSelectTag,
                                 onReorderDragStart = {},
@@ -601,7 +608,10 @@ fun TaskListPane(
                             dragOffsetY = if (isDragging) draggingOffsetY else 0f,
                             folderBadgeName = if (showFolderBadge) task.folderId?.let { folderNameById[it] } else null,
                             antiMisclickMode = antiMisclickMode,
+                            swipeActions = taskSwipeActions,
                             onToggleComplete = onToggleTaskComplete,
+                            onDeleteTask = onDeleteTask,
+                            onChooseTaskParent = onChooseTaskParent,
                             onSelectTask = onSelectTask,
                             onTagClick = onSelectTag,
                             onReorderDragStart = {
@@ -700,7 +710,10 @@ fun TaskListPane(
                                     dragOffsetY = 0f,
                                     folderBadgeName = if (showFolderBadge) task.folderId?.let { folderNameById[it] } else null,
                                     antiMisclickMode = antiMisclickMode,
+                                    swipeActions = taskSwipeActions,
                                     onToggleComplete = onToggleTaskComplete,
+                                    onDeleteTask = onDeleteTask,
+                                    onChooseTaskParent = onChooseTaskParent,
                                     onSelectTask = onSelectTask,
                                     onTagClick = onSelectTag,
                                     onReorderDragStart = {},

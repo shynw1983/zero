@@ -56,6 +56,10 @@
     <string name="section_completed_tasks">已完成</string>
     <string name="swipe_release_complete">松开完成</string>
     <string name="swipe_release_restore">松开恢复</string>
+    <string name="swipe_release_delete">松开删除</string>
+    <string name="swipe_progress">%1$d%%</string>
+    <string name="task_swipe_complete">完成／恢复</string>
+    <string name="task_swipe_none">无操作</string>
     <string name="cd_drag_reorder">拖拽排序</string>
     <string name="undo_completed">已完成「%1$s」</string>
     <string name="undo_restored">已恢复「%1$s」</string>
@@ -100,7 +104,16 @@
     <string name="detail_add_tag_placeholder">+ 添加标签</string>
     <string name="cd_remove_tag">移除标签</string>
     <string name="detail_subtasks">无限子任务</string>
-    <string name="detail_promote_subtask">提升</string>
+    <string name="detail_promote_subtask">设为独立任务</string>
+    <string name="task_make_subtask">设为子任务</string>
+    <string name="task_choose_parent">选择父任务</string>
+    <string name="task_parent_search">搜索任务</string>
+    <string name="task_parent_empty">没有符合条件的父任务</string>
+    <string name="task_parent_failed">无法移动任务。请换一个父任务或重试。</string>
+    <string name="task_parent_link">父任务 · %1$s</string>
+    <string name="cd_task_actions">任务操作</string>
+    <string name="detail_add_checklist_item">添加检查项</string>
+    <string name="cd_reopen_task">标记为未完成</string>
     <string name="cd_promote_subtask">提升为主任务</string>
     <string name="cd_add_nested_subtask">添加下级子任务</string>
     <string name="cd_delete_subtask">删除子任务</string>
@@ -127,9 +140,21 @@
     <string name="cd_prev_period">上一周期</string>
     <string name="cd_next_period">下一周期</string>
     <string name="cal_pending_count">%1$s 待办</string>
-    <string name="cal_day_empty">当日无日程任务</string>
-    <string name="cal_all_day_header">全天 · 仅日期</string>
-    <string name="cal_all_day_empty">暂无全天任务</string>
+    <string name="cal_day_empty">当天没有任务或日程</string>
+    <string name="cal_all_day_header">全天</string>
+    <string name="cal_all_day_empty">没有全天任务或日程</string>
+    <string name="cal_google_title">Google 日历</string>
+    <string name="cal_google_connect">连接日历</string>
+    <string name="cal_google_connect_description">在任务旁显示已同步到这台设备的 Google 日历日程。</string>
+    <string name="cal_google_permission_denied">在 Android 设置中为 ZERO 开启日历权限，即可在这里查看日程。</string>
+    <string name="cal_google_open_settings">打开设置</string>
+    <string name="cal_google_loading">正在读取 Google 日历日程…</string>
+    <string name="cal_google_no_calendars">未找到已同步的 Google 日历。请在 Android 设置中开启 Google 账号的日历同步，并在日历应用中将所需日历设为可见。</string>
+    <string name="cal_google_unavailable">无法读取日程。</string>
+    <string name="cal_google_retry">重新读取日历</string>
+    <string name="cal_google_untitled">无标题日程</string>
+    <string name="cal_google_all_day">全天</string>
+    <string name="cal_google_time_range">%1$s – %2$s</string>
 
     <!-- Focus Mode -->
     <string name="focus_header_label">SINGLE FOCUS</string>
@@ -158,11 +183,11 @@
 
     <!-- Anti-Misclick Modes -->
     <string name="antimisclick_hold_title">短按确认</string>
-    <string name="antimisclick_hold_desc">按住左侧复选框 0.3 秒径向蓄力完成，禁用滑动完成</string>
+    <string name="antimisclick_hold_desc">按住复选框 0.3 秒完成任务。关闭卡片滑动操作。</string>
     <string name="antimisclick_swipe_title">滑动阻尼</string>
-    <string name="antimisclick_swipe_desc">左右滑动卡片超过 30% 阻尼阈值触发完成，禁用按压复选框</string>
+    <string name="antimisclick_swipe_desc">滑动至少达到卡片宽度的 30% 时触发所选操作。关闭复选框按住操作。</string>
     <string name="antimisclick_both_title">双模式</string>
-    <string name="antimisclick_both_desc">同时支持 0.3 秒短按蓄力与 30% 滑动阻尼完成</string>
+    <string name="antimisclick_both_desc">支持按住复选框 0.3 秒完成任务，以及达到 30% 阈值的滑动操作。</string>
 
     <!-- Settings -->
     <string name="settings_title">设置 · ZERO</string>
@@ -176,7 +201,9 @@
     <string name="settings_accent_monochrome">极简黑白</string>
     <string name="settings_accent_sage">鼠尾草绿</string>
     <string name="settings_accent_clay">暖陶土</string>
-    <string name="settings_section_antimisclick">防误触完成模式</string>
+    <string name="settings_section_antimisclick">防误触模式</string>
+    <string name="settings_swipe_left">左滑</string>
+    <string name="settings_swipe_right">右滑</string>
     <string name="settings_section_haptics">触觉与物理反馈</string>
     <string name="settings_haptics_title">线性马达震动反馈</string>
     <string name="settings_haptics_desc">任务完成、拖拽刻度、2 分钟起步柔和提示</string>

@@ -3,21 +3,22 @@ package com.zero.todo.feature.tasklist
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.awaitHorizontalTouchSlopOrCancellation
 import androidx.compose.foundation.gestures.detectDragGestures
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.horizontalDrag
 import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.absoluteOffset
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
@@ -27,8 +28,10 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Undo
 import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.DragHandle
 import androidx.compose.material.icons.rounded.NotificationsActive
+import androidx.compose.material.icons.rounded.SubdirectoryArrowRight
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -40,6 +43,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.AbsoluteAlignment
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -49,9 +53,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
@@ -68,14 +75,17 @@ import com.zero.todo.core.designsystem.rememberZeroHaptics
 import com.zero.todo.domain.model.AntiMisclickMode
 import com.zero.todo.domain.model.TaskItem
 import com.zero.todo.domain.model.TaskPriority
+import com.zero.todo.domain.model.TaskSwipeAction
+import com.zero.todo.domain.model.TaskSwipeActions
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlin.math.sign
 
 private const val HOLD_TO_COMPLETE_DURATION_MS = 300
-private const val SWIPE_COMPLETE_THRESHOLD_FRACTION = 0.30f
+private const val SWIPE_THRESHOLD_FRACTION = 0.30f
 private const val SWIPE_POST_THRESHOLD_DAMPING = 0.35f
 
 /**
@@ -85,7 +95,7 @@ private const val SWIPE_POST_THRESHOLD_DAMPING = 0.35f
  *   - Center: Opens Task Detail pane
  *   - Right 40.dp: Dedicated drag handle for vertical reordering
  * - Scroll Lock: Disables checkbox hold & swipe gestures while `isListScrolling == true`
- * - Bidirectional Swipe-to-Complete: Left or right drag >= 30% width with spring resistance
+ * - Configurable swipe actions: Left or right drag >= 30% width with spring resistance
  *   and crisp haptic snap
  */
 @Composable
@@ -97,7 +107,10 @@ fun AntiMisclickTaskCard(
     dragOffsetY: Float,
     folderBadgeName: String?,
     antiMisclickMode: AntiMisclickMode = AntiMisclickMode.BOTH,
+    swipeActions: TaskSwipeActions,
     onToggleComplete: (TaskItem) -> Unit,
+    onDeleteTask: (TaskItem) -> Unit,
+    onChooseTaskParent: (TaskItem) -> Unit,
     onSelectTask: (TaskItem) -> Unit,
     onTagClick: ((tagId: String) -> Unit)? = null,
     onReorderDragStart: () -> Unit,
@@ -113,12 +126,15 @@ fun AntiMisclickTaskCard(
     val currentTask by rememberUpdatedState(task)
     val scrollingLocked by rememberUpdatedState(isListScrolling)
     val currentMode by rememberUpdatedState(antiMisclickMode)
+    val currentHaptics by rememberUpdatedState(haptics)
     val toggleCompleteCallback by rememberUpdatedState(onToggleComplete)
+    val deleteTaskCallback by rememberUpdatedState(onDeleteTask)
+    val chooseParentCallback by rememberUpdatedState(onChooseTaskParent)
 
     var cardWidthPx by remember { mutableFloatStateOf(0f) }
-    val swipeOffsetX = remember(task.id) { Animatable(0f) }
+    var swipeOffsetX by remember(task.id) { mutableFloatStateOf(0f) }
     val holdProgress = remember(task.id) { Animatable(0f) }
-    var swipeThresholdArmed by remember(task.id) { mutableStateOf(false) }
+    var holdTriggered by remember(task.id) { mutableStateOf(false) }
 
     val priorityColor = when (task.priority) {
         TaskPriority.URGENT -> colors.priorityUrgent
@@ -127,12 +143,92 @@ fun AntiMisclickTaskCard(
         TaskPriority.NONE -> colors.textMuted
     }
 
+    val swipeAction = swipeActions.actionForOffset(swipeOffsetX)
     val swipeRatio = if (cardWidthPx > 0f) {
-        (abs(swipeOffsetX.value) / (cardWidthPx * SWIPE_COMPLETE_THRESHOLD_FRACTION)).coerceIn(0f, 1.25f)
+        (abs(swipeOffsetX) / (cardWidthPx * SWIPE_THRESHOLD_FRACTION)).coerceIn(0f, 1f)
     } else {
         0f
     }
     val swipeArmedVisual = swipeRatio >= 1f
+    val swipeModifier = if (antiMisclickMode.allowSwipe && swipeActions.hasEnabledAction && !isDragging) {
+        Modifier.pointerInput(task.id, swipeActions) {
+            var settleJob: Job? = null
+            try {
+                awaitEachGesture {
+                    val down = awaitFirstDown(requireUnconsumed = false)
+                    holdTriggered = false
+                    if (scrollingLocked || cardWidthPx <= 0f) return@awaitEachGesture
+
+                    var overSlop = 0f
+                    val firstDrag = awaitHorizontalTouchSlopOrCancellation(down.id) { change, distance ->
+                        if (!scrollingLocked && !holdTriggered && swipeActions.actionForOffset(distance) != TaskSwipeAction.NONE) {
+                            change.consume()
+                            overSlop = distance
+                        }
+                    } ?: return@awaitEachGesture
+
+                    settleJob?.cancel()
+                    swipeOffsetX = 0f
+                    var rawDrag = 0f
+                    var swipeInterrupted = false
+
+                    fun dragBy(distance: Float) {
+                        rawDrag += distance
+                        val threshold = cardWidthPx * SWIPE_THRESHOLD_FRACTION
+                        val wasArmed = threshold > 0f && abs(swipeOffsetX) >= threshold
+                        val absRaw = abs(rawDrag)
+                        swipeOffsetX = when {
+                            swipeActions.actionForOffset(rawDrag) == TaskSwipeAction.NONE -> 0f
+                            absRaw <= threshold -> rawDrag
+                            else -> sign(rawDrag) * (threshold + (absRaw - threshold) * SWIPE_POST_THRESHOLD_DAMPING)
+                                .coerceAtMost(cardWidthPx * 0.48f)
+                        }
+                        if (!wasArmed && threshold > 0f && abs(swipeOffsetX) >= threshold) currentHaptics.reorderTick()
+                    }
+
+                    dragBy(overSlop)
+                    val released = horizontalDrag(firstDrag.id) { change ->
+                        val distance = change.positionChange().x
+                        change.consume()
+                        swipeInterrupted = swipeInterrupted || scrollingLocked || holdTriggered
+                        if (!swipeInterrupted) dragBy(distance)
+                    }
+
+                    val threshold = cardWidthPx * SWIPE_THRESHOLD_FRACTION
+                    if (released && !swipeInterrupted && !scrollingLocked && !holdTriggered &&
+                        threshold > 0f && abs(swipeOffsetX) >= threshold
+                    ) {
+                        when (swipeActions.actionForOffset(swipeOffsetX)) {
+                            TaskSwipeAction.COMPLETE -> {
+                                currentHaptics.taskComplete()
+                                toggleCompleteCallback(currentTask)
+                            }
+                            TaskSwipeAction.DELETE -> {
+                                currentHaptics.heavyClick()
+                                deleteTaskCallback(currentTask)
+                            }
+                            TaskSwipeAction.MAKE_SUBTASK -> {
+                                currentHaptics.reorderTick()
+                                chooseParentCallback(currentTask)
+                            }
+                            TaskSwipeAction.NONE -> Unit
+                        }
+                    }
+
+                    settleJob = scope.launch {
+                        animate(swipeOffsetX, 0f, animationSpec = ZeroMotion.FloatSpring) { value, _ ->
+                            swipeOffsetX = value
+                        }
+                    }
+                }
+            } finally {
+                settleJob?.cancel()
+                swipeOffsetX = 0f
+            }
+        }
+    } else {
+        Modifier
+    }
 
     Box(
         modifier = modifier
@@ -141,38 +237,50 @@ fun AntiMisclickTaskCard(
             .onSizeChanged { cardWidthPx = it.width.toFloat() }
             .clip(ZeroCardShape)
     ) {
-        // Underlying Swipe-to-Complete reveal track (Left & Right)
-        if (abs(swipeOffsetX.value) > 1f) {
-            val isSwipingRight = swipeOffsetX.value > 0f
+        if (swipeAction != TaskSwipeAction.NONE && abs(swipeOffsetX) > 1f) {
+            val deleting = swipeAction == TaskSwipeAction.DELETE
+            val actionColor = if (deleting) colors.priorityUrgent else colors.accent
+            val actionBackground = if (deleting) actionColor.copy(alpha = 0.14f) else colors.accentSubtle
+            val contentColor = if (swipeArmedVisual || deleting) actionColor else colors.textSecondary
+            val revealWidth = with(LocalDensity.current) { abs(swipeOffsetX).toDp() }
             Box(
                 modifier = Modifier
                     .matchParentSize()
-                    .background(if (swipeArmedVisual) colors.accentSubtle else colors.surfaceElevated)
+                    .background(if (swipeArmedVisual) actionBackground else colors.surfaceElevated)
                     .hairlineBorder(
                         shape = ZeroCardShape,
-                        color = if (swipeArmedVisual) colors.accent else colors.hairlineBorder
-                    )
-                    .padding(horizontal = 18.dp),
-                contentAlignment = if (isSwipingRight) Alignment.CenterStart else Alignment.CenterEnd
+                        color = if (swipeArmedVisual) actionColor else colors.hairlineBorder
+                    ),
+                contentAlignment = if (swipeOffsetX > 0f) AbsoluteAlignment.CenterLeft else AbsoluteAlignment.CenterRight
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                Column(
+                    modifier = Modifier.width(revealWidth).padding(horizontal = 4.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(2.dp)
                 ) {
                     Icon(
-                        imageVector = if (task.isCompleted) Icons.AutoMirrored.Rounded.Undo else Icons.Rounded.Check,
+                        imageVector = when {
+                            deleting -> Icons.Rounded.DeleteOutline
+                            swipeAction == TaskSwipeAction.MAKE_SUBTASK -> Icons.Rounded.SubdirectoryArrowRight
+                            task.isCompleted -> Icons.AutoMirrored.Rounded.Undo
+                            else -> Icons.Rounded.Check
+                        },
                         contentDescription = null,
-                        tint = if (swipeArmedVisual) colors.accent else colors.textSecondary,
-                        modifier = Modifier.size(18.dp)
+                        tint = contentColor,
+                        modifier = Modifier.size(16.dp)
                     )
                     Text(
                         text = when {
-                            swipeArmedVisual && task.isCompleted -> stringResource(R.string.swipe_release_restore)
-                            swipeArmedVisual -> stringResource(R.string.swipe_release_complete)
-                            else -> "${(swipeRatio.coerceAtMost(1f) * 100).roundToInt()}%"
+                            !swipeArmedVisual -> stringResource(R.string.swipe_progress, (swipeRatio * 100).roundToInt())
+                            deleting -> stringResource(R.string.swipe_release_delete)
+                            swipeAction == TaskSwipeAction.MAKE_SUBTASK -> stringResource(R.string.task_choose_parent)
+                            task.isCompleted -> stringResource(R.string.swipe_release_restore)
+                            else -> stringResource(R.string.swipe_release_complete)
                         },
                         style = tabular.dateCompact,
-                        color = if (swipeArmedVisual) colors.accent else colors.textSecondary
+                        color = contentColor,
+                        textAlign = TextAlign.Center,
+                        maxLines = 2
                     )
                 }
             }
@@ -201,67 +309,11 @@ fun AntiMisclickTaskCard(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .offset { IntOffset(swipeOffsetX.value.roundToInt(), 0) }
+                .absoluteOffset { IntOffset(swipeOffsetX.roundToInt(), 0) }
                 .clip(ZeroCardShape)
                 .background(surfaceColor)
                 .hairlineBorder(shape = ZeroCardShape, color = borderColor)
-                .pointerInput(task.id) {
-                    var rawDrag = 0f
-                    detectHorizontalDragGestures(
-                        onDragStart = {
-                            rawDrag = 0f
-                            swipeThresholdArmed = false
-                        },
-                        onDragEnd = {
-                            if (!currentMode.allowSwipeComplete) {
-                                swipeThresholdArmed = false
-                                return@detectHorizontalDragGestures
-                            }
-                            val threshold = cardWidthPx * SWIPE_COMPLETE_THRESHOLD_FRACTION
-                            val triggered = threshold > 0f && abs(swipeOffsetX.value) >= threshold
-                            if (triggered && !scrollingLocked) {
-                                haptics.taskComplete()
-                                toggleCompleteCallback(currentTask)
-                            }
-                            swipeThresholdArmed = false
-                            scope.launch {
-                                swipeOffsetX.animateTo(0f, animationSpec = ZeroMotion.FloatSpring)
-                            }
-                        },
-                        onDragCancel = {
-                            swipeThresholdArmed = false
-                            scope.launch {
-                                swipeOffsetX.animateTo(0f, animationSpec = ZeroMotion.FloatSpring)
-                            }
-                        },
-                        onHorizontalDrag = { change, dragAmount ->
-                            if (!currentMode.allowSwipeComplete || scrollingLocked || cardWidthPx <= 0f) {
-                                return@detectHorizontalDragGestures
-                            }
-                            change.consume()
-                            rawDrag += dragAmount
-                            val threshold = cardWidthPx * SWIPE_COMPLETE_THRESHOLD_FRACTION
-                            val absRaw = abs(rawDrag)
-                            val damped = if (absRaw <= threshold) {
-                                rawDrag
-                            } else {
-                                sign(rawDrag) * (threshold + (absRaw - threshold) * SWIPE_POST_THRESHOLD_DAMPING)
-                            }
-                            val maxOffset = cardWidthPx * 0.48f
-                            val clamped = damped.coerceIn(-maxOffset, maxOffset)
-
-                            val nowArmed = abs(clamped) >= threshold
-                            if (nowArmed && !swipeThresholdArmed) {
-                                haptics.reorderTick()
-                            }
-                            swipeThresholdArmed = nowArmed
-
-                            scope.launch {
-                                swipeOffsetX.snapTo(clamped)
-                            }
-                        }
-                    )
-                },
+                .then(swipeModifier),
             verticalAlignment = Alignment.CenterVertically
         ) {
             // ZONE 1: Left 48.dp Complete Action Zone (0.3s short press with radial fill)
@@ -289,7 +341,8 @@ fun AntiMisclickTaskCard(
                                 )
                                 if (!scrollingLocked) {
                                     completed = true
-                                    haptics.taskComplete()
+                                    holdTriggered = true
+                                    currentHaptics.taskComplete()
                                     toggleCompleteCallback(currentTask)
                                 }
                             }

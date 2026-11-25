@@ -50,6 +50,7 @@ fun ZeroAppRoot(
     viewModel: MainViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val taskParentPicker by viewModel.taskParentPicker.collectAsStateWithLifecycle()
     val navController = rememberNavController()
     val baseContext = LocalContext.current
     val baseConfig = LocalConfiguration.current
@@ -166,9 +167,10 @@ fun ZeroAppRoot(
             onUpdateTaskReminder = viewModel::updateTaskReminder,
             onUpdateTaskRecurrenceRule = viewModel::updateTaskRecurrenceRule,
             onAddSubtask = viewModel::addSubtask,
-            onToggleSubtask = viewModel::toggleSubtaskCompletion,
             onPromoteSubtask = viewModel::promoteSubtask,
-            onDeleteSubtask = viewModel::deleteSubtask,
+            onOpenTaskParentPicker = viewModel::openTaskParentPicker,
+            onChooseTaskParent = viewModel::chooseTaskParent,
+            onCloseTaskParentPicker = viewModel::closeTaskParentPicker,
             onAddTag = viewModel::addTagToTask,
             onRemoveTag = viewModel::removeTagFromTask,
             onDeleteTask = viewModel::deleteTask,
@@ -186,6 +188,7 @@ fun ZeroAppRoot(
             onToggleAccent = viewModel::toggleAccent,
             onSetAccent = viewModel::setAccent,
             onSetAntiMisclickMode = viewModel::setAntiMisclickMode,
+            onSetTaskSwipeAction = viewModel::setTaskSwipeAction,
             onSetHapticsEnabled = viewModel::setHapticsEnabled,
             onSetAppLanguage = viewModel::setAppLanguage,
             onUpdateWebDavConfig = viewModel::updateWebDavConfig,
@@ -230,7 +233,8 @@ fun ZeroAppRoot(
                     composable(ZeroRoutes.MAIN) {
                         ZeroAdaptiveShell(
                             uiState = uiState,
-                            callbacks = callbacks
+                            callbacks = callbacks,
+                            taskParentPicker = taskParentPicker
                         )
                     }
                 }

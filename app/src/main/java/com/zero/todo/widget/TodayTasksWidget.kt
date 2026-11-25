@@ -37,6 +37,7 @@ import androidx.glance.unit.ColorProvider
 import com.zero.todo.MainActivity
 import com.zero.todo.R
 import com.zero.todo.core.common.ZeroDateFormatter
+import com.zero.todo.core.notification.syncTaskReminder
 import com.zero.todo.data.local.entity.TaskEntity
 import com.zero.todo.feature.folder.NavigationDestination
 import java.time.LocalDate
@@ -289,9 +290,11 @@ class CompleteTaskWidgetAction : ActionCallback {
         parameters: ActionParameters
     ) {
         val taskId = parameters[PARAM_TASK_ID] ?: return
-        ZeroWidgetUpdater.entryPoint(context)
-            .taskRepository()
-            .setTaskCompleted(taskId, isCompleted = true)
+        val entryPoint = ZeroWidgetUpdater.entryPoint(context)
+        val scheduler = entryPoint.reminderScheduler()
+        val copies = entryPoint.taskRepository().completeTask(taskId)
+        scheduler.cancelTaskReminder(taskId)
+        copies?.forEach(scheduler::syncTaskReminder)
         ZeroWidgetUpdater.refreshAll(context)
     }
 }

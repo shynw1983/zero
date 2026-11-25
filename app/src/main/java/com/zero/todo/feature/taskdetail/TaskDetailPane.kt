@@ -33,23 +33,26 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.Folder
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
-import androidx.compose.material.icons.rounded.NorthWest
+import androidx.compose.material.icons.rounded.MoreHoriz
 import androidx.compose.material.icons.rounded.NotificationsActive
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Repeat
 import androidx.compose.material.icons.rounded.Schedule
-import androidx.compose.material.icons.rounded.SubdirectoryArrowRight
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -64,6 +67,8 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
@@ -130,6 +135,7 @@ fun TaskDetailPane(
     folderName: String?,
     folderTree: List<FolderNode>,
     subtasks: List<TaskItem>,
+    parentTask: TaskItem?,
     showBackButton: Boolean,
     onNavigateBack: () -> Unit,
     onToggleComplete: (TaskItem) -> Unit,
@@ -143,9 +149,9 @@ fun TaskDetailPane(
     onUpdateReminder: (task: TaskItem, reminderAtMillis: Long?) -> Unit,
     onUpdateRecurrenceRule: (task: TaskItem, rrule: String?) -> Unit,
     onAddSubtask: (parentTaskId: String, title: String) -> Unit,
-    onToggleSubtask: (TaskItem) -> Unit,
     onPromoteSubtask: (subtaskId: String) -> Unit,
-    onDeleteSubtask: (TaskItem) -> Unit,
+    onOpenTaskParentPicker: (TaskItem) -> Unit,
+    onOpenRelatedTask: (String) -> Unit,
     onAddTag: (taskId: String, tagName: String) -> Unit,
     onRemoveTag: (taskId: String, tagId: String) -> Unit,
     onSelectTag: (tagId: String) -> Unit,
@@ -212,10 +218,11 @@ fun TaskDetailPane(
 
     var titleDraft by rememberSaveable(task.id) { mutableStateOf(task.title) }
     var descriptionDraft by rememberSaveable(task.id) { mutableStateOf(task.description) }
+    var pendingDescription by remember(task.id) { mutableStateOf<String?>(null) }
     var markdownPreviewMode by rememberSaveable(task.id) { mutableStateOf(false) }
+    var checklistItemDraft by rememberSaveable(task.id) { mutableStateOf("") }
     var newSubtaskDraft by rememberSaveable(task.id) { mutableStateOf("") }
-    var activeChildSubtaskParentId by rememberSaveable(task.id) { mutableStateOf<String?>(null) }
-    var nestedSubtaskDraft by rememberSaveable(task.id) { mutableStateOf("") }
+    var showTaskActions by rememberSaveable(task.id) { mutableStateOf(false) }
     var newTagDraft by rememberSaveable(task.id) { mutableStateOf("") }
     var showCustomRruleEditor by rememberSaveable(task.id) { mutableStateOf(false) }
     var customRruleDraft by rememberSaveable(task.id) { mutableStateOf(task.recurrenceRule ?: "FREQ=DAILY;INTERVAL=2") }
@@ -224,7 +231,10 @@ fun TaskDetailPane(
 
     LaunchedEffect(task.id, task.title, task.description) {
         if (titleDraft != task.title) titleDraft = task.title
-        if (descriptionDraft != task.description) descriptionDraft = task.description
+        if (pendingDescription == null || pendingDescription == task.description) {
+            pendingDescription = null
+            descriptionDraft = task.description
+        }
     }
 
     val flattenedSubtasks = remember(task.id, subtasks) {
@@ -246,6 +256,20 @@ fun TaskDetailPane(
         onUpdateDueDate(task, millis, allDay)
     }
 
+    fun updateDescription(updated: String) {
+        descriptionDraft = updated
+        pendingDescription = updated
+        onUpdateTitleAndDescription(task, titleDraft.ifBlank { task.title }, updated)
+    }
+
+    fun addChecklistItem() {
+        val label = checklistItemDraft.lines().joinToString(" ").trim()
+        if (label.isEmpty()) return
+        val separator = if (descriptionDraft.isEmpty() || descriptionDraft.endsWith('\n')) "" else "\n"
+        checklistItemDraft = ""
+        updateDescription("$descriptionDraft$separator- [ ] $label")
+    }
+
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -262,7 +286,7 @@ fun TaskDetailPane(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
                 if (showBackButton) {
                     IconButton(
                         onClick = onNavigateBack,
@@ -279,6 +303,7 @@ fun TaskDetailPane(
                 }
                 Row(
                     modifier = Modifier
+                        .weight(1f, fill = false)
                         .clip(ZeroSmallShape)
                         .background(colors.surface)
                         .hairlineBorder(shape = ZeroSmallShape)
@@ -366,19 +391,40 @@ fun TaskDetailPane(
                     )
                 }
 
-                IconButton(
-                    onClick = {
-                        haptics.confirm()
-                        onDeleteTask(task)
-                    },
-                    modifier = Modifier.size(30.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.DeleteOutline,
-                        contentDescription = stringResource(R.string.cd_delete_task),
-                        tint = colors.textMuted,
-                        modifier = Modifier.size(18.dp)
-                    )
+                Box {
+                    IconButton(onClick = { showTaskActions = true }, modifier = Modifier.size(48.dp)) {
+                        Icon(
+                            imageVector = Icons.Rounded.MoreHoriz,
+                            contentDescription = stringResource(R.string.cd_task_actions),
+                            tint = colors.textSecondary
+                        )
+                    }
+                    DropdownMenu(expanded = showTaskActions, onDismissRequest = { showTaskActions = false }) {
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.task_choose_parent)) },
+                            onClick = {
+                                showTaskActions = false
+                                onOpenTaskParentPicker(task)
+                            }
+                        )
+                        if (task.parentTaskId != null) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.detail_promote_subtask)) },
+                                onClick = {
+                                    showTaskActions = false
+                                    onPromoteSubtask(task.id)
+                                }
+                            )
+                        }
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.action_delete), color = colors.priorityUrgent) },
+                            onClick = {
+                                showTaskActions = false
+                                haptics.confirm()
+                                onDeleteTask(task)
+                            }
+                        )
+                    }
                 }
             }
         }
@@ -391,6 +437,11 @@ fun TaskDetailPane(
                 .padding(18.dp),
             verticalArrangement = Arrangement.spacedBy(18.dp)
         ) {
+            if (parentTask != null) {
+                TextButton(onClick = { onOpenRelatedTask(parentTask.id) }, modifier = Modifier.heightIn(min = 48.dp)) {
+                    Text(stringResource(R.string.task_parent_link, parentTask.title), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+            }
             // Editable Title
             BasicTextField(
                 value = titleDraft,
@@ -1059,7 +1110,7 @@ fun TaskDetailPane(
                 }
             }
 
-            // Infinite Nested Subtasks Section with One-Click Promote to Main Task
+            // Related tasks open the same detail editor at every depth.
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -1087,175 +1138,65 @@ fun TaskDetailPane(
 
                 flattenedSubtasks.forEach { entry ->
                     val sub = entry.task
-                    val indentDp = (entry.depth.coerceAtMost(ZeroDimens.MaxVisibleTreeDepth) * 14).dp
-                    Column(
+                    val indent = (entry.depth.coerceAtMost(ZeroDimens.MaxVisibleTreeDepth) * 12).dp
+                    val completionLabel = stringResource(if (sub.isCompleted) R.string.cd_reopen_task else R.string.cd_complete_task)
+                    Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(start = indentDp),
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                            .padding(start = indent)
+                            .clip(ZeroSmallShape)
+                            .background(colors.surface)
+                            .hairlineBorder(shape = ZeroSmallShape),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(ZeroSmallShape)
-                                .background(colors.surface)
-                                .hairlineBorder(shape = ZeroSmallShape)
-                                .padding(horizontal = 10.dp, vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        IconButton(
+                            onClick = {
+                                haptics.taskComplete()
+                                onToggleComplete(sub)
+                            },
+                            modifier = Modifier.size(48.dp).semantics { contentDescription = completionLabel }
                         ) {
-                            // Subtask complete checkbox
                             Box(
                                 modifier = Modifier
-                                    .size(18.dp)
+                                    .size(17.dp)
                                     .clip(ZeroSmallShape)
                                     .background(if (sub.isCompleted) colors.accent else colors.background)
-                                    .hairlineBorder(
-                                        shape = ZeroSmallShape,
-                                        color = if (sub.isCompleted) colors.accent else colors.textMuted
-                                    )
-                                    .clickable {
-                                        haptics.taskComplete()
-                                        onToggleSubtask(sub)
-                                    },
+                                    .hairlineBorder(shape = ZeroSmallShape, color = if (sub.isCompleted) colors.accent else colors.textMuted),
                                 contentAlignment = Alignment.Center
                             ) {
                                 if (sub.isCompleted) {
-                                    Icon(
-                                        imageVector = Icons.Rounded.Check,
-                                        contentDescription = null,
-                                        tint = colors.onAccent,
-                                        modifier = Modifier.size(11.dp)
-                                    )
+                                    Icon(Icons.Rounded.Check, contentDescription = null, tint = colors.onAccent, modifier = Modifier.size(12.dp))
                                 }
-                            }
-
-                            if (entry.depth > ZeroDimens.MaxVisibleTreeDepth) {
-                                Text(
-                                    text = "L${entry.depth + 1}",
-                                    style = tabular.dateCompact,
-                                    color = colors.accent
-                                )
-                            }
-
-                            Text(
-                                text = sub.title,
-                                style = MaterialTheme.typography.bodyMedium.copy(
-                                    textDecoration = if (sub.isCompleted) TextDecoration.LineThrough else TextDecoration.None
-                                ),
-                                color = if (sub.isCompleted) colors.textMuted else colors.textPrimary,
-                                maxLines = 2,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.weight(1f)
-                            )
-
-                            // Add nested child subtask under this subtask
-                            Box(
-                                modifier = Modifier
-                                    .size(24.dp)
-                                    .clip(ZeroSmallShape)
-                                    .clickable {
-                                        activeChildSubtaskParentId =
-                                            if (activeChildSubtaskParentId == sub.id) null else sub.id
-                                        nestedSubtaskDraft = ""
-                                    },
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Rounded.SubdirectoryArrowRight,
-                                    contentDescription = stringResource(R.string.cd_add_nested_subtask),
-                                    tint = colors.textMuted,
-                                    modifier = Modifier.size(15.dp)
-                                )
-                            }
-
-                            // One-click promote subtask to top-level main task
-                            Row(
-                                modifier = Modifier
-                                    .clip(ZeroSmallShape)
-                                    .background(colors.surfaceElevated)
-                                    .hairlineBorder(shape = ZeroSmallShape)
-                                    .clickable {
-                                        haptics.confirm()
-                                        onPromoteSubtask(sub.id)
-                                    }
-                                    .padding(horizontal = 6.dp, vertical = 3.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(2.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Rounded.NorthWest,
-                                    contentDescription = stringResource(R.string.cd_promote_subtask),
-                                    tint = colors.accent,
-                                    modifier = Modifier.size(11.dp)
-                                )
-                                Text(
-                                    text = stringResource(R.string.detail_promote_subtask),
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = colors.textSecondary
-                                )
-                            }
-
-                            Box(
-                                modifier = Modifier
-                                    .size(22.dp)
-                                    .clip(ZeroSmallShape)
-                                    .clickable { onDeleteSubtask(sub) },
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Rounded.Close,
-                                    contentDescription = stringResource(R.string.cd_delete_subtask),
-                                    tint = colors.textMuted,
-                                    modifier = Modifier.size(13.dp)
-                                )
                             }
                         }
-
-                        // Inline child subtask creator for infinite nesting
-                        if (activeChildSubtaskParentId == sub.id) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(start = 16.dp)
-                                    .clip(ZeroSmallShape)
-                                    .background(colors.surfaceElevated)
-                                    .hairlineBorder(shape = ZeroSmallShape, color = colors.accent)
-                                    .padding(horizontal = 10.dp, vertical = 7.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Box(modifier = Modifier.weight(1f)) {
-                                    if (nestedSubtaskDraft.isEmpty()) {
-                                        Text(
-                                            text = stringResource(R.string.detail_add_child_subtask_placeholder, sub.title),
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = colors.textMuted,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
-                                        )
-                                    }
-                                    BasicTextField(
-                                        value = nestedSubtaskDraft,
-                                        onValueChange = { nestedSubtaskDraft = it },
-                                        singleLine = true,
-                                        textStyle = MaterialTheme.typography.bodySmall.copy(color = colors.textPrimary),
-                                        cursorBrush = SolidColor(colors.accent),
-                                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                                        keyboardActions = KeyboardActions(
-                                            onDone = {
-                                                val clean = nestedSubtaskDraft.trim()
-                                                if (clean.isNotEmpty()) {
-                                                    haptics.confirm()
-                                                    onAddSubtask(sub.id, clean)
-                                                    nestedSubtaskDraft = ""
-                                                    activeChildSubtaskParentId = null
-                                                }
-                                            }
-                                        ),
-                                        modifier = Modifier.fillMaxWidth()
+                        Row(
+                            modifier = Modifier
+                                .weight(1f)
+                                .heightIn(min = 48.dp)
+                                .clickable { onOpenRelatedTask(sub.id) }
+                                .padding(end = 10.dp, top = 6.dp, bottom = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = sub.title,
+                                    style = MaterialTheme.typography.bodyMedium.copy(
+                                        textDecoration = if (sub.isCompleted) TextDecoration.LineThrough else TextDecoration.None
+                                    ),
+                                    color = if (sub.isCompleted) colors.textMuted else colors.textPrimary,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                sub.dueDate?.let { dueDate ->
+                                    Text(
+                                        text = ZeroDateFormatter.formatDueDate(dueDate, sub.isAllDay, zoneId = zoneId, locale = activeLocale),
+                                        style = tabular.dateCompact,
+                                        color = colors.textSecondary
                                     )
                                 }
                             }
+                            Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, contentDescription = null, tint = colors.textSecondary, modifier = Modifier.size(18.dp))
                         }
                     }
                 }
@@ -1356,7 +1297,12 @@ fun TaskDetailPane(
                         .padding(12.dp)
                 ) {
                     if (markdownPreviewMode) {
-                        ZeroMarkdownPreview(markdown = descriptionDraft)
+                        ZeroMarkdownPreview(markdown = descriptionDraft, onToggleChecklistItem = { lineIndex ->
+                            val updated = toggleMarkdownChecklistItem(descriptionDraft, lineIndex)
+                            if (updated != descriptionDraft) {
+                                updateDescription(updated)
+                            }
+                        })
                     } else {
                         if (descriptionDraft.isEmpty()) {
                             Text(
@@ -1367,16 +1313,29 @@ fun TaskDetailPane(
                         }
                         BasicTextField(
                             value = descriptionDraft,
-                            onValueChange = { updated ->
-                                descriptionDraft = updated
-                                onUpdateTitleAndDescription(task, titleDraft.ifBlank { task.title }, updated)
-                            },
+                            onValueChange = ::updateDescription,
                             textStyle = MaterialTheme.typography.bodyMedium.copy(color = colors.textPrimary),
                             cursorBrush = SolidColor(colors.accent),
                             minLines = 5,
                             modifier = Modifier.fillMaxWidth()
                         )
                     }
+                }
+                if (markdownPreviewMode) {
+                    OutlinedTextField(
+                        value = checklistItemDraft,
+                        onValueChange = { checklistItemDraft = it },
+                        singleLine = true,
+                        placeholder = { Text(stringResource(R.string.detail_add_checklist_item)) },
+                        trailingIcon = {
+                            IconButton(onClick = ::addChecklistItem, enabled = checklistItemDraft.isNotBlank()) {
+                                Icon(Icons.Rounded.Add, contentDescription = stringResource(R.string.detail_add_checklist_item))
+                            }
+                        },
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                        keyboardActions = KeyboardActions(onDone = { addChecklistItem() }),
+                        modifier = Modifier.fillMaxWidth()
+                    )
                 }
             }
 

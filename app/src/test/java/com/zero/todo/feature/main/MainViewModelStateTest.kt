@@ -263,15 +263,48 @@ class MainViewModelStateTest {
     }
 
     @Test
+    fun `task moved with the picker keeps full details and appears on its own due date`() = runBlocking {
+        val parent = taskRepository.createTask("Trip")
+        val original = taskRepository.createTask("Book hotel")
+        val vm = newViewModel()
+        val collectJob = launch(Dispatchers.Default) { vm.uiState.collect {} }
+
+        vm.openTaskParentPicker(original)
+        vm.chooseTaskParent(parent.id)
+        withTimeout(5_000L) { vm.taskParentPicker.first { it == null } }
+        vm.selectTask(original.id)
+        vm.selectDestination(NavigationDestination.Today)
+        val due = ZeroDateFormatter.startOfDayMillis(LocalDate.now())
+        vm.updateTaskDueDate(original, due, isAllDay = true)
+
+        withTimeout(5_000L) {
+            vm.uiState.first {
+                it.selectedTask?.parentTaskId == parent.id && it.selectedTask.dueDate == due &&
+                    it.selectedDestination == NavigationDestination.Today && it.tasks.any { task -> task.id == original.id } &&
+                    it.runwayQueue.any { task -> task.id == original.id } &&
+                    it.allActiveTasks.any { task -> task.id == original.id && task.dueDate == due }
+            }
+        }
+        collectJob.cancel()
+    }
+
+    @Test
     fun `completing recurring task copies tags and subtasks, and Undo rolls back spawned occurrence`() = runBlocking {
+        val parent = taskRepository.createTask("Household")
+        val today = LocalDate.now()
         val original = taskRepository.createTask(
             title = "Weekly review",
-            dueDate = ZeroDateFormatter.startOfDayMillis(LocalDate.now()),
+            parentTaskId = parent.id,
+            dueDate = ZeroDateFormatter.startOfDayMillis(today),
             recurrenceRule = RecurrenceRule.PRESET_WEEKLY.toRruleString()
         )
         val tag = tagRepository.getOrCreateTag("Ritual")
         tagRepository.attachTagToTask(original.id, tag.id)
-        taskRepository.createTask(title = "Clean Inbox", parentTaskId = original.id)
+        val child = taskRepository.createTask(
+            title = "Clean Inbox", parentTaskId = original.id,
+            dueDate = ZeroDateFormatter.startOfDayMillis(today.plusDays(1)), firstStep = "Open Inbox"
+        )
+        tagRepository.attachTagToTask(child.id, tag.id)
 
         val vm = newViewModel()
         val collectJob = launch(Dispatchers.Default) { vm.uiState.collect {} }
@@ -287,16 +320,48 @@ class MainViewModelStateTest {
             taskRepository.observeTaskWithTags(spawnedId).filterNotNull().first { it.tags.size == 1 }
         }
         assertEquals("Ritual", spawned.tags.single().name)
+        assertEquals(parent.id, spawned.parentTaskId)
         val spawnedSubtasks = withTimeout(5_000L) {
             taskRepository.observeDescendantSubtasks(spawnedId).first { it.size == 1 }
         }
-        assertEquals("Clean Inbox", spawnedSubtasks.single().title)
+        val copiedChild = taskRepository.getTaskById(spawnedSubtasks.single().id)!!
+        assertEquals("Clean Inbox", copiedChild.title)
+        assertEquals("Open Inbox", copiedChild.firstStep)
+        assertEquals(listOf("Ritual"), copiedChild.tags.map { it.name })
+        assertEquals(
+            ZeroDateFormatter.startOfDayMillis(today.plusDays(8)),
+            copiedChild.dueDate
+        )
 
         // Performing Undo reverts original AND deletes spawned duplicate cleanly
         vm.performUndo(banner)
         withTimeout(5_000L) {
-            taskRepository.observeAllActiveTopLevelTasks().first { list ->
-                list.size == 1 && list.single().id == original.id && !list.single().isCompleted
+            taskRepository.observeAllActiveTasks().first { list ->
+                list.any { it.id == original.id && !it.isCompleted } && list.none { it.id == spawnedId }
+            }
+        }
+        collectJob.cancel()
+    }
+
+    @Test
+    fun `deleting a subtask offers undo and restores it under the same parent`() = runBlocking {
+        val parent = taskRepository.createTask("Publish draft")
+        val task = taskRepository.createTask("Review draft", parentTaskId = parent.id)
+        val vm = newViewModel()
+        val collectJob = launch(Dispatchers.Default) { vm.uiState.collect {} }
+
+        vm.deleteTask(task)
+        val banner = withTimeout(5_000L) {
+            vm.uiState.first { state ->
+                state.deletedTasks.any { it.id == task.id } && state.undoBanner?.taskId == task.id
+            }.undoBanner!!
+        }
+
+        vm.performUndo(banner)
+        withTimeout(5_000L) {
+            vm.uiState.first { state ->
+                state.undoBanner == null && state.deletedTasks.none { it.id == task.id } &&
+                    state.allActiveTasks.any { it.id == task.id && it.parentTaskId == parent.id }
             }
         }
         collectJob.cancel()
@@ -338,7 +403,7 @@ class MainViewModelStateTest {
 
         vm.restoreDeletedTask(tLow.id)
         withTimeout(5_000L) {
-            vm.uiState.first { it.deletedTasks.isEmpty() && it.allActiveTopLevelTasks.any { t -> t.id == tLow.id } }
+            vm.uiState.first { it.deletedTasks.isEmpty() && it.allActiveTasks.any { t -> t.id == tLow.id } }
         }
         collectJob.cancel()
     }

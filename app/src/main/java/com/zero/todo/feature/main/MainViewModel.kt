@@ -3,12 +3,12 @@ package com.zero.todo.feature.main
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.zero.todo.core.common.RecurrenceRule
 import com.zero.todo.core.common.ZeroDateFormatter
 import com.zero.todo.core.designsystem.ZeroAccent
 import com.zero.todo.core.nlp.ParsedQuickInput
 import com.zero.todo.core.nlp.QuickInputParser
 import com.zero.todo.core.notification.ReminderScheduler
+import com.zero.todo.core.notification.syncTaskReminder
 import com.zero.todo.data.backup.WebDavConfig
 import com.zero.todo.data.backup.WebDavSyncManager
 import com.zero.todo.data.backup.ZeroBackupManager
@@ -28,6 +28,9 @@ import com.zero.todo.domain.model.FolderNode
 import com.zero.todo.domain.model.TaskItem
 import com.zero.todo.domain.model.TaskPriority
 import com.zero.todo.domain.model.TaskSortMode
+import com.zero.todo.domain.model.TaskSwipeAction
+import com.zero.todo.domain.model.TaskSwipeActions
+import com.zero.todo.domain.model.TaskSwipeDirection
 import com.zero.todo.domain.model.WorkspaceMode
 import com.zero.todo.domain.usecase.GetFolderTreeUseCase
 import com.zero.todo.feature.calendar.CalendarViewMode
@@ -43,15 +46,18 @@ import com.zero.todo.feature.tasklist.UndoType
 import com.zero.todo.widget.WidgetRefresher
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.time.LocalDate
@@ -77,7 +83,7 @@ data class MainUiState(
     val tagNameById: Map<String, String> = emptyMap(),
     val smartViewCounts: SmartViewCounts = SmartViewCounts(),
     val tasks: List<TaskItem> = emptyList(),
-    val allActiveTopLevelTasks: List<TaskItem> = emptyList(),
+    val allActiveTasks: List<TaskItem> = emptyList(),
     val deletedTasks: List<TaskItem> = emptyList(),
     val searchQuery: String = "",
     val isSearchOpen: Boolean = false,
@@ -95,6 +101,7 @@ data class MainUiState(
     val isDarkTheme: Boolean = true,
     val activeAccent: ZeroAccent = ZeroAccent.SlateBlue,
     val antiMisclickMode: AntiMisclickMode = AntiMisclickMode.BOTH,
+    val taskSwipeActions: TaskSwipeActions = TaskSwipeActions(),
     val hapticsEnabled: Boolean = true,
     val appLanguage: AppLanguage = AppLanguage.SYSTEM,
     val webDavConfig: WebDavConfig = WebDavConfig(),
@@ -104,6 +111,12 @@ data class MainUiState(
     val backupStatus: BackupUiStatus? = null,
     val focusState: FocusUiState = FocusUiState(),
     val quickInputFocusRequestTick: Long = 0L
+)
+
+data class TaskParentPickerState(
+    val taskId: String,
+    val saving: Boolean = false,
+    val failed: Boolean = false
 )
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -176,8 +189,12 @@ class MainViewModel @Inject constructor(
     private val folderTreeFlow = getFolderTreeUseCase()
     private val activeFoldersFlow = folderRepository.observeActiveFolders()
     private val tagsWithCountsFlow = tagRepository.observeActiveTagsWithCounts()
-    private val allTopLevelTasksFlow = taskRepository.observeAllActiveTopLevelTasks()
+    private val allActiveTasksFlow = taskRepository.observeAllActiveTasks()
+        .shareIn(viewModelScope, SharingStarted.WhileSubscribed(5_000L), replay = 1)
+    private val allTopLevelTasksFlow = allActiveTasksFlow.map { tasks -> tasks.filter { it.parentTaskId == null } }
     private val deletedTasksFlow = taskRepository.observeDeletedTasks()
+    private val _taskParentPicker = MutableStateFlow<TaskParentPickerState?>(null)
+    val taskParentPicker = _taskParentPicker.asStateFlow()
 
     init {
         // Keep today's focus total synced even when crossing midnight
@@ -226,9 +243,8 @@ class MainViewModel @Inject constructor(
                 NavigationDestination.Today -> taskRepository.observeTodayAndOverdueTasks(todayStart, tomorrowStart)
                 NavigationDestination.Tomorrow -> taskRepository.observeTasksDueBetween(tomorrowStart, dayAfterStart)
                 NavigationDestination.Next7Days -> taskRepository.observeTasksDueBetween(todayStart, next7End)
-                NavigationDestination.Calendar,
-                NavigationDestination.All,
-                NavigationDestination.Matrix -> allTopLevelTasksFlow
+                NavigationDestination.Calendar, NavigationDestination.Matrix -> allActiveTasksFlow
+                NavigationDestination.All -> allTopLevelTasksFlow
                 NavigationDestination.Trash -> deletedTasksFlow
                 is NavigationDestination.FolderView -> taskRepository.observeTasksByFolder(
                     folderId = destination.folderId,
@@ -247,7 +263,7 @@ class MainViewModel @Inject constructor(
     }
 
     private val smartViewCountsFlow: Flow<SmartViewCounts> = combine(
-        allTopLevelTasksFlow,
+        allActiveTasksFlow,
         deletedTasksFlow,
         currentDateFlow
     ) { tasks, deleted, today ->
@@ -264,8 +280,10 @@ class MainViewModel @Inject constructor(
         var allCount = 0
         for (task in tasks) {
             if (task.isCompleted) continue
-            allCount++
-            if (task.folderId == null) inbox++
+            if (task.parentTaskId == null) {
+                allCount++
+                if (task.folderId == null) inbox++
+            }
             val due = task.dueDate ?: continue
             if (due < todayStart) {
                 overdueCount++
@@ -414,7 +432,7 @@ class MainViewModel @Inject constructor(
     val uiState: StateFlow<MainUiState> = combine(
         navigationBundleFlow,
         currentTasksFlow,
-        allTopLevelTasksFlow,
+        allActiveTasksFlow,
         selectedTaskIdFlow,
         selectedTaskFlow,
         selectedSubtasksFlow,
@@ -427,7 +445,7 @@ class MainViewModel @Inject constructor(
         @Suppress("UNCHECKED_CAST")
         val allTasks = values[2] as List<TaskItem>
         val selectedTaskId = values[3] as String?
-        val selectedTask = values[4] as TaskItem?
+        val selectedTask = (values[4] as TaskItem?)?.takeIf { it.id == selectedTaskId }
         @Suppress("UNCHECKED_CAST")
         val subtasks = values[5] as List<TaskItem>
         val ui = values[6] as InputAndUiBundle
@@ -455,7 +473,7 @@ class MainViewModel @Inject constructor(
             is NavigationDestination.TagView -> tagNameById[dest.tagId]?.let { "#$it" } ?: "收集箱"
         }
 
-        // Global search filters across ALL active top-level tasks when query is non-blank
+        // Search includes nested tasks so they can be opened independently.
         val trimmedQuery = searchTrash.searchQuery.trim()
         val effectiveTasks = if (searchTrash.isSearchOpen && trimmedQuery.isNotEmpty()) {
             val q = trimmedQuery.lowercase()
@@ -487,7 +505,7 @@ class MainViewModel @Inject constructor(
         val baseRunwayCandidates = if (todayAndOverdue.isNotEmpty()) {
             todayAndOverdue
         } else {
-            activeIncomplete.filter { it.folderId == null }
+            activeIncomplete.filter { it.folderId == null && it.parentTaskId == null }
         }
         val skippedRank = searchTrash.skippedRunwayIds.withIndex().associate { (idx, id) -> id to (idx + 1) }
         val runwayQueue = baseRunwayCandidates.sortedWith(
@@ -500,7 +518,7 @@ class MainViewModel @Inject constructor(
         )
         val triageQueue = activeIncomplete.filter { task ->
             val isOverdue = task.dueDate != null && task.dueDate < todayStart
-            val isUnfiledInbox = task.folderId == null && task.dueDate == null
+            val isUnfiledInbox = task.parentTaskId == null && task.folderId == null && task.dueDate == null
             isOverdue || isUnfiledInbox
         }.sortedWith(compareBy<TaskItem>({ it.dueDate ?: Long.MAX_VALUE }, { it.createdAt }))
 
@@ -523,7 +541,7 @@ class MainViewModel @Inject constructor(
             tagNameById = tagNameById,
             smartViewCounts = nav.smartViewCounts,
             tasks = sortedTasks,
-            allActiveTopLevelTasks = allTasks,
+            allActiveTasks = allTasks,
             deletedTasks = searchTrash.deletedTasks,
             searchQuery = searchTrash.searchQuery,
             isSearchOpen = searchTrash.isSearchOpen,
@@ -541,6 +559,7 @@ class MainViewModel @Inject constructor(
             isDarkTheme = ui.preferences.isDarkTheme,
             activeAccent = ui.preferences.accent,
             antiMisclickMode = ui.preferences.antiMisclickMode,
+            taskSwipeActions = ui.preferences.taskSwipeActions,
             hapticsEnabled = ui.preferences.hapticsEnabled,
             appLanguage = ui.preferences.appLanguage,
             webDavConfig = ui.preferences.webDavConfig,
@@ -667,6 +686,9 @@ class MainViewModel @Inject constructor(
 
     fun setAntiMisclickMode(mode: AntiMisclickMode) = userPreferencesRepository.setAntiMisclickMode(mode)
 
+    fun setTaskSwipeAction(direction: TaskSwipeDirection, action: TaskSwipeAction) =
+        userPreferencesRepository.setTaskSwipeAction(direction, action)
+
     fun setHapticsEnabled(enabled: Boolean) = userPreferencesRepository.setHapticsEnabled(enabled)
 
     fun setAppLanguage(language: AppLanguage) {
@@ -702,12 +724,12 @@ class MainViewModel @Inject constructor(
     fun updateTaskFirstStep(task: TaskItem, firstStep: String?) {
         val clean = firstStep?.trim()?.ifBlank { null }
         viewModelScope.launch {
-            taskRepository.updateTask(
-                task.copy(
+            taskRepository.updateTask(task.id) { current ->
+                current.copy(
                     firstStep = clean,
-                    firstStepCompleted = if (clean != task.firstStep) false else task.firstStepCompleted
+                    firstStepCompleted = clean == current.firstStep && current.firstStepCompleted
                 )
-            )
+            }
         }
     }
 
@@ -717,8 +739,7 @@ class MainViewModel @Inject constructor(
      */
     fun completeFirstStepAndStartFlow(task: TaskItem) {
         viewModelScope.launch {
-            val updated = task.copy(firstStepCompleted = true)
-            taskRepository.updateTask(updated)
+            val updated = taskRepository.updateTask(task.id) { it.copy(firstStepCompleted = true) } ?: return@launch
             focusController.openFocus(
                 task = updated,
                 initialMode = FocusMode.STOPWATCH,
@@ -729,7 +750,7 @@ class MainViewModel @Inject constructor(
 
     fun updateTaskEffort(task: TaskItem, estimatedMinutes: Int?) {
         viewModelScope.launch {
-            taskRepository.updateTask(task.copy(estimatedMinutes = estimatedMinutes))
+            taskRepository.updateTask(task.id) { it.copy(estimatedMinutes = estimatedMinutes) }
         }
     }
 
@@ -984,63 +1005,15 @@ class MainViewModel @Inject constructor(
     fun toggleTaskCompletion(task: TaskItem) {
         viewModelScope.launch {
             val newCompleted = !task.isCompleted
-            taskRepository.setTaskCompleted(task.id, newCompleted)
-            if (newCompleted) {
+            val spawned = if (newCompleted) {
+                val copies = taskRepository.completeTask(task.id, currentDateFlow.value) ?: return@launch
                 reminderScheduler.cancelTaskReminder(task.id)
+                copies.forEach(::syncTaskReminder)
+                copies
             } else {
-                syncTaskReminder(task.copy(isCompleted = false))
-            }
-
-            var spawnedTaskId: String? = null
-            if (newCompleted && task.recurrenceRule != null) {
-                val parsedRule = RecurrenceRule.parse(task.recurrenceRule)
-                if (parsedRule != null) {
-                    val anchorMillis = task.dueDate
-                        ?: ZeroDateFormatter.startOfDayMillis(currentDateFlow.value)
-                    val nextDueMillis = parsedRule.nextOccurrenceMillis(anchorMillis)
-                    val nextReminderMillis = if (task.reminderAt != null && task.dueDate != null) {
-                        nextDueMillis - (task.dueDate - task.reminderAt)
-                    } else {
-                        null
-                    }
-                    val spawned = taskRepository.createTask(
-                        title = task.title,
-                        folderId = task.folderId,
-                        description = task.description,
-                        priority = task.priority,
-                        dueDate = nextDueMillis,
-                        isAllDay = task.isAllDay,
-                        reminderAt = nextReminderMillis,
-                        recurrenceRule = task.recurrenceRule
-                    )
-                    spawnedTaskId = spawned.id
-                    syncTaskReminder(spawned)
-
-                    // Copy all tags to the spawned recurrence
-                    val fullSource = taskRepository.getTaskById(task.id)
-                    val tagsToCopy = fullSource?.tags?.ifEmpty { task.tags } ?: task.tags
-                    for (tag in tagsToCopy) {
-                        tagRepository.attachTagToTask(spawned.id, tag.id)
-                    }
-
-                    // Clone nested subtasks cleanly (reset to uncompleted)
-                    val sourceSubtasks = taskRepository.getDescendantSubtasksSnapshot(task.id)
-                    if (sourceSubtasks.isNotEmpty()) {
-                        val idMap = HashMap<String, String>(sourceSubtasks.size + 1)
-                        idMap[task.id] = spawned.id
-                        for (sub in sourceSubtasks) {
-                            val mappedParent = idMap[sub.parentTaskId] ?: spawned.id
-                            val cloned = taskRepository.createTask(
-                                title = sub.title,
-                                folderId = null,
-                                parentTaskId = mappedParent,
-                                description = sub.description,
-                                priority = sub.priority
-                            )
-                            idMap[sub.id] = cloned.id
-                        }
-                    }
-                }
+                taskRepository.setTaskCompleted(task.id, false)
+                taskRepository.getTaskById(task.id)?.let(::syncTaskReminder)
+                emptyList()
             }
 
             focusController.syncFocusedTask(task.copy(isCompleted = newCompleted))
@@ -1048,7 +1021,7 @@ class MainViewModel @Inject constructor(
                 taskId = task.id,
                 taskTitle = task.title,
                 undoType = if (newCompleted) UndoType.REVERT_COMPLETE else UndoType.REVERT_UNCOMPLETE,
-                spawnedTaskId = spawnedTaskId
+                spawnedTaskId = spawned.firstOrNull()?.id
             )
             widgetRefresher.refreshAll()
         }
@@ -1075,71 +1048,81 @@ class MainViewModel @Inject constructor(
     fun updateTaskTitleAndDescription(task: TaskItem, title: String, description: String) {
         if (title.isBlank()) return
         viewModelScope.launch {
-            val updated = task.copy(title = title, description = description)
-            taskRepository.updateTask(updated)
-            syncTaskReminder(updated)
+            taskRepository.updateTask(task.id) { it.copy(title = title, description = description) }
+                ?.let(::syncTaskReminder)
             widgetRefresher.refreshAll()
         }
     }
 
     fun updateTaskPriority(task: TaskItem, priority: TaskPriority) {
         viewModelScope.launch {
-            taskRepository.updateTask(task.copy(priority = priority))
+            taskRepository.updateTask(task.id) { it.copy(priority = priority) }
             widgetRefresher.refreshAll()
         }
     }
 
     fun updateTaskDueDate(task: TaskItem, dueDateMillis: Long?, isAllDay: Boolean) {
         viewModelScope.launch {
-            // Auto-sync reminder when a specific time is set or cleared
-            val updatedReminder = when {
-                dueDateMillis == null -> null
-                !isAllDay && task.reminderAt != null && task.dueDate != null -> {
-                    val offset = (task.dueDate - task.reminderAt).coerceAtLeast(0L)
-                    dueDateMillis - offset
+            taskRepository.updateTask(task.id) { current ->
+                val updatedReminder = when {
+                    dueDateMillis == null -> null
+                    !isAllDay && current.reminderAt != null && current.dueDate != null -> {
+                        val offset = (current.dueDate - current.reminderAt).coerceAtLeast(0L)
+                        dueDateMillis - offset
+                    }
+                    !isAllDay && current.reminderAt == null -> dueDateMillis
+                    else -> current.reminderAt
                 }
-                !isAllDay && task.reminderAt == null -> dueDateMillis
-                else -> task.reminderAt
-            }
-            val updated = task.copy(
-                dueDate = dueDateMillis,
-                isAllDay = isAllDay,
-                reminderAt = updatedReminder
-            )
-            taskRepository.updateTask(updated)
-            syncTaskReminder(updated)
+                current.copy(dueDate = dueDateMillis, isAllDay = isAllDay, reminderAt = updatedReminder)
+            }?.let(::syncTaskReminder)
             widgetRefresher.refreshAll()
         }
     }
 
     fun updateTaskReminder(task: TaskItem, reminderAtMillis: Long?) {
         viewModelScope.launch {
-            val updated = task.copy(reminderAt = reminderAtMillis)
-            taskRepository.updateTask(updated)
-            syncTaskReminder(updated)
+            taskRepository.updateTask(task.id) { it.copy(reminderAt = reminderAtMillis) }?.let(::syncTaskReminder)
         }
     }
 
     fun updateTaskRecurrenceRule(task: TaskItem, rrule: String?) {
         viewModelScope.launch {
-            taskRepository.updateTask(task.copy(recurrenceRule = rrule))
+            taskRepository.updateTask(task.id) { it.copy(recurrenceRule = rrule) }
         }
     }
 
     fun addSubtask(parentTaskId: String, title: String) {
         if (title.isBlank()) return
         viewModelScope.launch {
-            taskRepository.createTask(
-                title = title,
-                folderId = null,
-                parentTaskId = parentTaskId
-            )
+            val parent = taskRepository.getTaskById(parentTaskId) ?: return@launch
+            taskRepository.createTask(title = title, folderId = parent.folderId, parentTaskId = parent.id)
         }
     }
 
-    fun toggleSubtaskCompletion(subtask: TaskItem) {
+    fun openTaskParentPicker(task: TaskItem) {
+        _taskParentPicker.value = TaskParentPickerState(task.id)
+    }
+
+    fun closeTaskParentPicker() {
+        if (_taskParentPicker.value?.saving != true) _taskParentPicker.value = null
+    }
+
+    fun chooseTaskParent(parentTaskId: String) {
+        val picker = _taskParentPicker.value?.takeUnless { it.saving } ?: return
+        val saving = picker.copy(saving = true, failed = false)
+        _taskParentPicker.value = saving
         viewModelScope.launch {
-            taskRepository.setTaskCompleted(subtask.id, !subtask.isCompleted)
+            val moved = try {
+                taskRepository.moveTaskUnderParent(picker.taskId, parentTaskId)
+            } catch (error: CancellationException) {
+                throw error
+            } catch (_: Exception) {
+                false
+            }
+            if (_taskParentPicker.value == saving) {
+                _taskParentPicker.value = if (moved) null else picker.copy(failed = true)
+            }
+            if (moved) widgetRefresher.refreshAll()
         }
     }
 
@@ -1150,12 +1133,6 @@ class MainViewModel @Inject constructor(
                 selectTask(promoted.id)
                 widgetRefresher.refreshAll()
             }
-        }
-    }
-
-    fun deleteSubtask(subtask: TaskItem) {
-        viewModelScope.launch {
-            taskRepository.softDeleteTask(subtask.id)
         }
     }
 
@@ -1176,9 +1153,10 @@ class MainViewModel @Inject constructor(
 
     fun deleteTask(task: TaskItem) {
         viewModelScope.launch {
-            taskRepository.softDeleteTask(task.id)
-            reminderScheduler.cancelTaskReminder(task.id)
-            if (selectedTaskIdFlow.value == task.id) {
+            val deletedIds = taskRepository.softDeleteTask(task.id)
+            if (deletedIds.isEmpty()) return@launch
+            deletedIds.forEach(reminderScheduler::cancelTaskReminder)
+            if (deletedIds.any { it == selectedTaskIdFlow.value }) {
                 selectTask(null)
             }
             undoBannerFlow.value = UndoBannerState(
@@ -1192,8 +1170,7 @@ class MainViewModel @Inject constructor(
 
     fun restoreDeletedTask(taskId: String) {
         viewModelScope.launch {
-            taskRepository.restoreTask(taskId)
-            taskRepository.getTaskById(taskId)?.let { syncTaskReminder(it) }
+            restoreTaskAndReminders(taskId)
             widgetRefresher.refreshAll()
         }
     }
@@ -1220,6 +1197,9 @@ class MainViewModel @Inject constructor(
                     // Cleanly roll back any auto-spawned recurring task copy
                     banner.spawnedTaskId?.let { spawnedId ->
                         reminderScheduler.cancelTaskReminder(spawnedId)
+                        taskRepository.getDescendantSubtasksSnapshot(spawnedId).forEach {
+                            reminderScheduler.cancelTaskReminder(it.id)
+                        }
                         taskRepository.permanentlyDeleteTask(spawnedId)
                     }
                     taskRepository.getTaskById(banner.taskId)?.let { syncTaskReminder(it) }
@@ -1229,8 +1209,7 @@ class MainViewModel @Inject constructor(
                     reminderScheduler.cancelTaskReminder(banner.taskId)
                 }
                 UndoType.RESTORE_DELETED_TASK -> {
-                    taskRepository.restoreTask(banner.taskId)
-                    taskRepository.getTaskById(banner.taskId)?.let { syncTaskReminder(it) }
+                    restoreTaskAndReminders(banner.taskId)
                 }
             }
             widgetRefresher.refreshAll()
@@ -1264,13 +1243,12 @@ class MainViewModel @Inject constructor(
         focusController.exitFocus()
     }
 
-    private fun syncTaskReminder(task: TaskItem) {
-        val triggerAt = task.reminderAt
-        if (!task.isCompleted && !task.isDeleted && triggerAt != null && triggerAt > System.currentTimeMillis()) {
-            reminderScheduler.scheduleTaskReminder(task.id, task.title, triggerAt)
-        } else {
-            reminderScheduler.cancelTaskReminder(task.id)
-        }
+    private fun syncTaskReminder(task: TaskItem) = reminderScheduler.syncTaskReminder(task)
+
+    private suspend fun restoreTaskAndReminders(taskId: String) {
+        taskRepository.restoreTask(taskId)
+        taskRepository.getTaskById(taskId)?.let(::syncTaskReminder)
+        taskRepository.getDescendantSubtasksSnapshot(taskId).forEach(::syncTaskReminder)
     }
 
     private suspend fun rescheduleAllUpcomingReminders() {

@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import com.zero.todo.domain.model.FocusMode
+import com.zero.todo.domain.model.TaskItem
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -15,6 +16,15 @@ interface ReminderScheduler {
     fun cancelTaskReminder(taskId: String)
     fun scheduleFocusAlert(mode: FocusMode, taskTitle: String?, triggerAtMillis: Long)
     fun cancelFocusAlert()
+}
+
+internal fun ReminderScheduler.syncTaskReminder(task: TaskItem) {
+    val triggerAt = task.reminderAt
+    if (!task.isCompleted && !task.isDeleted && triggerAt != null && triggerAt > System.currentTimeMillis()) {
+        scheduleTaskReminder(task.id, task.title, triggerAt)
+    } else {
+        cancelTaskReminder(task.id)
+    }
 }
 
 object NoOpReminderScheduler : ReminderScheduler {

@@ -4,7 +4,7 @@ import androidx.annotation.StringRes
 import com.zero.todo.R
 
 /**
- * Configurable anti-misclick completion mode for [com.zero.todo.feature.tasklist.AntiMisclickTaskCard].
+ * Configurable hold and swipe gestures for [com.zero.todo.feature.tasklist.AntiMisclickTaskCard].
  */
 enum class AntiMisclickMode(
     @StringRes val titleRes: Int,
@@ -26,7 +26,7 @@ enum class AntiMisclickMode(
     val allowHoldConfirm: Boolean
         get() = this == HOLD_CONFIRM || this == BOTH
 
-    val allowSwipeComplete: Boolean
+    val allowSwipe: Boolean
         get() = this == SWIPE_DAMPED || this == BOTH
 
     companion object {

@@ -7,9 +7,11 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material3.Icon
@@ -21,6 +23,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -42,6 +45,7 @@ import com.zero.todo.core.designsystem.hairlineDividerStart
 @Composable
 fun ZeroMarkdownPreview(
     markdown: String,
+    onToggleChecklistItem: (lineIndex: Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val colors = ZeroTheme.colors
@@ -61,7 +65,7 @@ fun ZeroMarkdownPreview(
         modifier = modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
-        lines.forEach { rawLine ->
+        lines.forEachIndexed { lineIndex, rawLine ->
             val trimmed = rawLine.trimStart()
             when {
                 trimmed.isEmpty() -> Spacer(modifier = Modifier.padding(vertical = 2.dp))
@@ -80,16 +84,11 @@ fun ZeroMarkdownPreview(
                     style = MaterialTheme.typography.titleLarge,
                     color = colors.textPrimary
                 )
-                trimmed.startsWith("- [x] ") || trimmed.startsWith("- [X] ") -> {
+                CHECKLIST_MARKER.find(rawLine)?.range?.first == 0 -> {
                     MarkdownChecklistRow(
                         text = trimmed.drop(6),
-                        checked = true
-                    )
-                }
-                trimmed.startsWith("- [ ] ") -> {
-                    MarkdownChecklistRow(
-                        text = trimmed.drop(6),
-                        checked = false
+                        checked = trimmed[3] != ' ',
+                        onToggle = { onToggleChecklistItem(lineIndex) }
                     )
                 }
                 trimmed.startsWith("- ") || trimmed.startsWith("* ") -> {
@@ -132,9 +131,11 @@ fun ZeroMarkdownPreview(
 }
 
 @Composable
-private fun MarkdownChecklistRow(text: String, checked: Boolean) {
+private fun MarkdownChecklistRow(text: String, checked: Boolean, onToggle: () -> Unit) {
     val colors = ZeroTheme.colors
     Row(
+        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
+            .toggleable(value = checked, role = Role.Checkbox, onValueChange = { onToggle() }),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
@@ -166,6 +167,20 @@ private fun MarkdownChecklistRow(text: String, checked: Boolean) {
             color = if (checked) colors.textMuted else colors.textPrimary
         )
     }
+}
+
+private val CHECKLIST_MARKER = Regex("""[ \t]*- \[([ xX])\] """)
+private val MARKDOWN_LINE_BREAK = Regex("\r\n|\n|\r")
+
+internal fun toggleMarkdownChecklistItem(markdown: String, lineIndex: Int): String {
+    if (lineIndex < 0) return markdown
+    val start = if (lineIndex == 0) 0 else {
+        MARKDOWN_LINE_BREAK.findAll(markdown).elementAtOrNull(lineIndex - 1)?.range?.endInclusive?.plus(1)
+            ?: return markdown
+    }
+    val marker = CHECKLIST_MARKER.find(markdown, start)?.takeIf { it.range.first == start }?.groups?.get(1)
+        ?: return markdown
+    return markdown.replaceRange(marker.range, if (marker.value == " ") "x" else " ")
 }
 
 private fun renderInlineMarkdown(

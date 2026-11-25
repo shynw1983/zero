@@ -56,6 +56,10 @@
     <string name="section_completed_tasks">完了済み</string>
     <string name="swipe_release_complete">離して完了</string>
     <string name="swipe_release_restore">離して復元</string>
+    <string name="swipe_release_delete">離して削除</string>
+    <string name="swipe_progress">%1$d%%</string>
+    <string name="task_swipe_complete">完了／未完了</string>
+    <string name="task_swipe_none">操作なし</string>
     <string name="cd_drag_reorder">ドラッグして並べ替え</string>
     <string name="undo_completed">「%1$s」を完了しました</string>
     <string name="undo_restored">「%1$s」を復元しました</string>
@@ -100,7 +104,16 @@
     <string name="detail_add_tag_placeholder">+ タグを追加</string>
     <string name="cd_remove_tag">タグを削除</string>
     <string name="detail_subtasks">階層サブタスク</string>
-    <string name="detail_promote_subtask">昇格</string>
+    <string name="detail_promote_subtask">独立したタスクにする</string>
+    <string name="task_make_subtask">サブタスクにする</string>
+    <string name="task_choose_parent">親タスクを選択</string>
+    <string name="task_parent_search">タスクを検索</string>
+    <string name="task_parent_empty">選択できる親タスクが見つかりません</string>
+    <string name="task_parent_failed">タスクを移動できませんでした。別の親タスクを選ぶか、もう一度お試しください。</string>
+    <string name="task_parent_link">親タスク · %1$s</string>
+    <string name="cd_task_actions">タスクの操作</string>
+    <string name="detail_add_checklist_item">チェック項目を追加</string>
+    <string name="cd_reopen_task">タスクを未完了にする</string>
     <string name="cd_promote_subtask">メインタスクへ昇格</string>
     <string name="cd_add_nested_subtask">下位サブタスクを追加</string>
     <string name="cd_delete_subtask">サブタスクを削除</string>
@@ -127,9 +140,21 @@
     <string name="cd_prev_period">前の期間</string>
     <string name="cd_next_period">次の期間</string>
     <string name="cal_pending_count">%1$s 件未完了</string>
-    <string name="cal_day_empty">この日の予定はありません</string>
-    <string name="cal_all_day_header">終日 · 日付のみ</string>
-    <string name="cal_all_day_empty">終日タスクはありません</string>
+    <string name="cal_day_empty">この日のタスクや予定はありません</string>
+    <string name="cal_all_day_header">終日</string>
+    <string name="cal_all_day_empty">終日のタスクや予定はありません</string>
+    <string name="cal_google_title">Google カレンダー</string>
+    <string name="cal_google_connect">カレンダーを連携</string>
+    <string name="cal_google_connect_description">この端末に同期した Google カレンダーの予定をタスクと一緒に表示します。</string>
+    <string name="cal_google_permission_denied">予定を表示するには、Android の設定で ZERO にカレンダーへのアクセスを許可してください。</string>
+    <string name="cal_google_open_settings">設定を開く</string>
+    <string name="cal_google_loading">Google カレンダーの予定を読み込み中…</string>
+    <string name="cal_google_no_calendars">同期済みの Google カレンダーが見つかりません。Android の設定で Google アカウントのカレンダー同期をオンにし、カレンダーアプリで表示するカレンダーを選択してください。</string>
+    <string name="cal_google_unavailable">予定を読み込めませんでした。</string>
+    <string name="cal_google_retry">カレンダーを再読み込み</string>
+    <string name="cal_google_untitled">タイトルのない予定</string>
+    <string name="cal_google_all_day">終日</string>
+    <string name="cal_google_time_range">%1$s ～ %2$s</string>
 
     <!-- Focus Mode -->
     <string name="focus_header_label">SINGLE FOCUS</string>
@@ -158,11 +183,11 @@
 
     <!-- Anti-Misclick Modes -->
     <string name="antimisclick_hold_title">0.3秒長押し確認</string>
-    <string name="antimisclick_hold_desc">左のチェックを0.3秒長押しして完了（スワイプ完了は無効）</string>
-    <string name="antimisclick_swipe_title">スワイプ抵抗完了</string>
-    <string name="antimisclick_swipe_desc">左右に30%スワイプして完了（チェック長押しは無効）</string>
+    <string name="antimisclick_hold_desc">チェックボックスを0.3秒長押しすると完了します。カードのスワイプは無効です。</string>
+    <string name="antimisclick_swipe_title">抵抗付きスワイプ</string>
+    <string name="antimisclick_swipe_desc">カード幅の30%以上をスワイプすると、選択した操作を実行します。チェックボックスの長押しは無効です。</string>
     <string name="antimisclick_both_title">デュアルモード</string>
-    <string name="antimisclick_both_desc">0.3秒長押し確認と30%スワイプ完了の両方を有効化</string>
+    <string name="antimisclick_both_desc">チェックボックスの0.3秒長押しと、カード幅の30%以上のスワイプを使えます。</string>
 
     <!-- Settings -->
     <string name="settings_title">設定 · ZERO</string>
@@ -177,6 +202,8 @@
     <string name="settings_accent_sage">セージグリーン</string>
     <string name="settings_accent_clay">ウォームクレイ</string>
     <string name="settings_section_antimisclick">誤タップ防止モード</string>
+    <string name="settings_swipe_left">左スワイプ</string>
+    <string name="settings_swipe_right">右スワイプ</string>
     <string name="settings_section_haptics">触覚フィードバック</string>
     <string name="settings_haptics_title">リニアモーター振動</string>
     <string name="settings_haptics_desc">完了スナップ・並べ替え刻み・2分終了時のソフト通知</string>

@@ -13,6 +13,7 @@ interface TaskRepository {
     fun observeTasksDueBetween(startMillis: Long, endMillis: Long): Flow<List<TaskItem>>
     fun observeTodayAndOverdueTasks(todayStartMillis: Long, tomorrowStartMillis: Long): Flow<List<TaskItem>>
     fun observeAllActiveTopLevelTasks(): Flow<List<TaskItem>>
+    fun observeAllActiveTasks(): Flow<List<TaskItem>>
     fun observeDeletedTasks(): Flow<List<TaskItem>>
     fun observeTaskWithTags(taskId: String): Flow<TaskItem?>
 
@@ -29,11 +30,14 @@ interface TaskRepository {
         dueDate: Long? = null,
         isAllDay: Boolean = true,
         reminderAt: Long? = null,
-        recurrenceRule: String? = null
+        recurrenceRule: String? = null,
+        firstStep: String? = null,
+        estimatedMinutes: Int? = null
     ): TaskItem
 
-    suspend fun updateTask(task: TaskItem)
+    suspend fun updateTask(taskId: String, edit: (TaskItem) -> TaskItem): TaskItem?
     suspend fun setTaskCompleted(taskId: String, isCompleted: Boolean)
+    suspend fun completeTask(taskId: String, today: LocalDate = LocalDate.now()): List<TaskItem>?
 
     suspend fun reorderTask(
         taskId: String,
@@ -51,6 +55,7 @@ interface TaskRepository {
     )
 
     suspend fun moveTaskToFolder(taskId: String, targetFolderId: String?)
+    suspend fun moveTaskUnderParent(taskId: String, parentTaskId: String): Boolean
 
     /**
      * Reschedules a list of tasks to [targetDate], preserving specific clock times on timed tasks.
@@ -62,7 +67,7 @@ interface TaskRepository {
      * preserving the root ancestor task's folder placement.
      */
     suspend fun promoteSubtaskToTopLevel(subtaskId: String): TaskItem?
-    suspend fun softDeleteTask(taskId: String)
+    suspend fun softDeleteTask(taskId: String): List<String>
     suspend fun restoreTask(taskId: String)
     suspend fun permanentlyDeleteTask(taskId: String)
     suspend fun emptyTrash()

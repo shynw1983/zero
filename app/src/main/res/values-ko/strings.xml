@@ -56,6 +56,10 @@
     <string name="section_completed_tasks">완료됨</string>
     <string name="swipe_release_complete">놓아서 완료</string>
     <string name="swipe_release_restore">놓아서 복원</string>
+    <string name="swipe_release_delete">놓아서 삭제</string>
+    <string name="swipe_progress">%1$d%%</string>
+    <string name="task_swipe_complete">완료 / 완료 취소</string>
+    <string name="task_swipe_none">동작 없음</string>
     <string name="cd_drag_reorder">드래그하여 정렬</string>
     <string name="undo_completed">「%1$s」 완료됨</string>
     <string name="undo_restored">「%1$s」 복원됨</string>
@@ -100,7 +104,16 @@
     <string name="detail_add_tag_placeholder">+ 태그 추가</string>
     <string name="cd_remove_tag">태그 제거</string>
     <string name="detail_subtasks">무한 하위 작업</string>
-    <string name="detail_promote_subtask">승격</string>
+    <string name="detail_promote_subtask">독립 작업으로 전환</string>
+    <string name="task_make_subtask">하위 작업으로 전환</string>
+    <string name="task_choose_parent">상위 작업 선택</string>
+    <string name="task_parent_search">작업 검색</string>
+    <string name="task_parent_empty">선택할 수 있는 상위 작업이 없습니다</string>
+    <string name="task_parent_failed">작업을 이동할 수 없습니다. 다른 상위 작업을 선택하거나 다시 시도하세요.</string>
+    <string name="task_parent_link">상위 작업 · %1$s</string>
+    <string name="cd_task_actions">작업 메뉴</string>
+    <string name="detail_add_checklist_item">체크리스트 항목 추가</string>
+    <string name="cd_reopen_task">작업을 미완료로 표시</string>
     <string name="cd_promote_subtask">상위 작업으로 승격</string>
     <string name="cd_add_nested_subtask">하위 작업 추가</string>
     <string name="cd_delete_subtask">하위 작업 삭제</string>
@@ -127,9 +140,21 @@
     <string name="cd_prev_period">이전 기간</string>
     <string name="cd_next_period">다음 기간</string>
     <string name="cal_pending_count">%1$s개 남음</string>
-    <string name="cal_day_empty">이 날에 예정된 작업이 없습니다</string>
-    <string name="cal_all_day_header">종일 · 날짜만</string>
-    <string name="cal_all_day_empty">종일 작업 없음</string>
+    <string name="cal_day_empty">이날에는 할 일이나 일정이 없습니다</string>
+    <string name="cal_all_day_header">종일</string>
+    <string name="cal_all_day_empty">종일 할 일이나 일정이 없습니다</string>
+    <string name="cal_google_title">Google 캘린더</string>
+    <string name="cal_google_connect">캘린더 연결</string>
+    <string name="cal_google_connect_description">이 기기에 동기화된 Google 캘린더 일정을 할 일과 함께 표시합니다.</string>
+    <string name="cal_google_permission_denied">일정을 표시하려면 Android 설정에서 ZERO의 캘린더 접근 권한을 허용하세요.</string>
+    <string name="cal_google_open_settings">설정 열기</string>
+    <string name="cal_google_loading">Google 캘린더 일정을 불러오는 중…</string>
+    <string name="cal_google_no_calendars">동기화된 Google 캘린더가 없습니다. Android 설정에서 Google 계정의 캘린더 동기화를 켜고 캘린더 앱에서 표시할 캘린더를 선택하세요.</string>
+    <string name="cal_google_unavailable">일정을 불러오지 못했습니다.</string>
+    <string name="cal_google_retry">캘린더 다시 불러오기</string>
+    <string name="cal_google_untitled">제목 없는 일정</string>
+    <string name="cal_google_all_day">종일</string>
+    <string name="cal_google_time_range">%1$s ~ %2$s</string>
 
     <!-- Focus Mode -->
     <string name="focus_header_label">SINGLE FOCUS</string>
@@ -158,9 +183,9 @@
 
     <!-- Anti-Misclick Modes -->
     <string name="antimisclick_hold_title">0.3초 길게 눌러 확인</string>
-    <string name="antimisclick_hold_desc">왼쪽 체크박스를 0.3초 눌러 완료 (스와이프 비활성)</string>
+    <string name="antimisclick_hold_desc">체크박스를 0.3초 동안 누르면 완료됩니다. 카드 스와이프는 꺼져 있습니다.</string>
     <string name="antimisclick_swipe_title">저항 스와이프</string>
-    <string name="antimisclick_swipe_desc">좌우 30% 이상 밀어 완료 (체크박스 길게 누르기 비활성)</string>
+    <string name="antimisclick_swipe_desc">카드 너비의 30% 이상 밀면 선택한 동작을 실행합니다. 체크박스 길게 누르기는 꺼져 있습니다.</string>
     <string name="antimisclick_both_title">듀얼 모드</string>
     <string name="antimisclick_both_desc">0.3초 길게 누르기와 30% 저항 스와이프 모두 사용</string>
 
@@ -177,6 +202,8 @@
     <string name="settings_accent_sage">세이지 그린</string>
     <string name="settings_accent_clay">웜 클레이</string>
     <string name="settings_section_antimisclick">오터치 방지 모드</string>
+    <string name="settings_swipe_left">왼쪽으로 밀기</string>
+    <string name="settings_swipe_right">오른쪽으로 밀기</string>
     <string name="settings_section_haptics">촉각 피드백</string>
     <string name="settings_haptics_title">리니어 모터 진동</string>
     <string name="settings_haptics_desc">완료 클릭, 드래그 틱, 2분 완료 부드러운 알림</string>

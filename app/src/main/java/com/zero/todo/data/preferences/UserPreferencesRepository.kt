@@ -6,6 +6,9 @@ import com.zero.todo.data.backup.WebDavConfig
 import com.zero.todo.domain.model.AntiMisclickMode
 import com.zero.todo.domain.model.AppLanguage
 import com.zero.todo.domain.model.TaskSortMode
+import com.zero.todo.domain.model.TaskSwipeAction
+import com.zero.todo.domain.model.TaskSwipeActions
+import com.zero.todo.domain.model.TaskSwipeDirection
 import com.zero.todo.domain.model.WorkspaceMode
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -19,6 +22,7 @@ data class UserPreferences(
     val isDarkTheme: Boolean = true,
     val accent: ZeroAccent = ZeroAccent.SlateBlue,
     val antiMisclickMode: AntiMisclickMode = AntiMisclickMode.BOTH,
+    val taskSwipeActions: TaskSwipeActions = TaskSwipeActions(),
     val hapticsEnabled: Boolean = true,
     val appLanguage: AppLanguage = AppLanguage.SYSTEM,
     val taskSortMode: TaskSortMode = TaskSortMode.MANUAL,
@@ -33,6 +37,7 @@ interface UserPreferencesRepository {
     fun setDarkTheme(isDark: Boolean)
     fun setAccent(accent: ZeroAccent)
     fun setAntiMisclickMode(mode: AntiMisclickMode)
+    fun setTaskSwipeAction(direction: TaskSwipeDirection, action: TaskSwipeAction)
     fun setHapticsEnabled(enabled: Boolean)
     fun setAppLanguage(language: AppLanguage)
     fun setTaskSortMode(sortMode: TaskSortMode)
@@ -64,6 +69,15 @@ class SharedPrefsUserPreferencesRepository @Inject constructor(
     override fun setAntiMisclickMode(mode: AntiMisclickMode) {
         prefs.edit().putString(KEY_ANTI_MISCLICK_MODE, mode.name).apply()
         _preferences.update { it.copy(antiMisclickMode = mode) }
+    }
+
+    override fun setTaskSwipeAction(direction: TaskSwipeDirection, action: TaskSwipeAction) {
+        val key = when (direction) {
+            TaskSwipeDirection.LEFT -> KEY_TASK_SWIPE_LEFT
+            TaskSwipeDirection.RIGHT -> KEY_TASK_SWIPE_RIGHT
+        }
+        prefs.edit().putString(key, action.name).apply()
+        _preferences.update { it.copy(taskSwipeActions = it.taskSwipeActions.withAction(direction, action)) }
     }
 
     override fun setHapticsEnabled(enabled: Boolean) {
@@ -132,6 +146,10 @@ class SharedPrefsUserPreferencesRepository @Inject constructor(
             isDarkTheme = isDark,
             accent = accent,
             antiMisclickMode = antiMisclickMode,
+            taskSwipeActions = TaskSwipeActions(
+                left = TaskSwipeAction.fromStorage(prefs.getString(KEY_TASK_SWIPE_LEFT, null)),
+                right = TaskSwipeAction.fromStorage(prefs.getString(KEY_TASK_SWIPE_RIGHT, null))
+            ),
             hapticsEnabled = hapticsEnabled,
             appLanguage = appLanguage,
             taskSortMode = sortMode,
@@ -146,6 +164,8 @@ class SharedPrefsUserPreferencesRepository @Inject constructor(
         private const val KEY_DARK_THEME = "is_dark_theme"
         private const val KEY_ACCENT = "accent"
         private const val KEY_ANTI_MISCLICK_MODE = "anti_misclick_mode"
+        private const val KEY_TASK_SWIPE_LEFT = "task_swipe_left"
+        private const val KEY_TASK_SWIPE_RIGHT = "task_swipe_right"
         private const val KEY_HAPTICS_ENABLED = "haptics_enabled"
         const val KEY_APP_LANGUAGE = "app_language"
         private const val KEY_TASK_SORT_MODE = "task_sort_mode"
@@ -174,6 +194,10 @@ class InMemoryUserPreferencesRepository(
 
     override fun setAntiMisclickMode(mode: AntiMisclickMode) {
         _preferences.update { it.copy(antiMisclickMode = mode) }
+    }
+
+    override fun setTaskSwipeAction(direction: TaskSwipeDirection, action: TaskSwipeAction) {
+        _preferences.update { it.copy(taskSwipeActions = it.taskSwipeActions.withAction(direction, action)) }
     }
 
     override fun setHapticsEnabled(enabled: Boolean) {

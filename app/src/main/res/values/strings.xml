@@ -56,6 +56,10 @@
     <string name="section_completed_tasks">Completed</string>
     <string name="swipe_release_complete">Release to complete</string>
     <string name="swipe_release_restore">Release to restore</string>
+    <string name="swipe_release_delete">Release to delete</string>
+    <string name="swipe_progress">%1$d%%</string>
+    <string name="task_swipe_complete">Complete / Reopen</string>
+    <string name="task_swipe_none">No action</string>
     <string name="cd_drag_reorder">Drag to reorder</string>
     <string name="undo_completed">Completed \"%1$s\"</string>
     <string name="undo_restored">Restored \"%1$s\"</string>
@@ -100,7 +104,15 @@
     <string name="detail_add_tag_placeholder">+ Add tag</string>
     <string name="cd_remove_tag">Remove tag</string>
     <string name="detail_subtasks">Nested Subtasks</string>
-    <string name="detail_promote_subtask">Promote</string>
+    <string name="detail_promote_subtask">Make independent</string>
+    <string name="task_make_subtask">Make subtask</string>
+    <string name="task_choose_parent">Choose parent task</string>
+    <string name="task_parent_search">Search for a task</string>
+    <string name="task_parent_empty">No matching parent tasks</string>
+    <string name="task_parent_failed">Could not move the task. Choose a different parent or try again.</string>
+    <string name="task_parent_link">Parent task · %1$s</string>
+    <string name="cd_task_actions">Task actions</string>
+    <string name="cd_reopen_task">Mark task incomplete</string>
     <string name="cd_promote_subtask">Promote subtask to top-level task</string>
     <string name="cd_add_nested_subtask">Add nested subtask</string>
     <string name="cd_delete_subtask">Delete subtask</string>
@@ -109,6 +121,7 @@
     <string name="detail_markdown_notes">MARKDOWN NOTES</string>
     <string name="detail_mode_edit">Edit</string>
     <string name="detail_mode_preview">Preview</string>
+    <string name="detail_add_checklist_item">Add checklist item</string>
     <string name="detail_markdown_placeholder">Markdown supported (# Heading / - [ ] Checklist / **Bold** / `Code` / > Quote)…</string>
     <string name="detail_markdown_empty">No Markdown notes yet</string>
 
@@ -127,9 +140,21 @@
     <string name="cd_prev_period">Previous period</string>
     <string name="cd_next_period">Next period</string>
     <string name="cal_pending_count">%1$s open</string>
-    <string name="cal_day_empty">No scheduled tasks for this day</string>
-    <string name="cal_all_day_header">All-Day · Date Only</string>
-    <string name="cal_all_day_empty">No all-day tasks</string>
+    <string name="cal_day_empty">No tasks or events for this day</string>
+    <string name="cal_all_day_header">All day</string>
+    <string name="cal_all_day_empty">No all-day tasks or events</string>
+    <string name="cal_google_title">Google Calendar</string>
+    <string name="cal_google_connect">Connect calendar</string>
+    <string name="cal_google_connect_description">Show Google Calendar events synced to this device alongside your tasks.</string>
+    <string name="cal_google_permission_denied">Allow calendar access for ZERO in Android settings to show your events here.</string>
+    <string name="cal_google_open_settings">Open settings</string>
+    <string name="cal_google_loading">Loading Google Calendar events…</string>
+    <string name="cal_google_no_calendars">No synced Google calendars found. Enable calendar sync for your Google account in Android settings and make the calendars visible in your calendar app.</string>
+    <string name="cal_google_unavailable">Calendar events could not be loaded.</string>
+    <string name="cal_google_retry">Reload calendar</string>
+    <string name="cal_google_untitled">Untitled event</string>
+    <string name="cal_google_all_day">All day</string>
+    <string name="cal_google_time_range">%1$s – %2$s</string>
 
     <!-- Focus Mode -->
     <string name="focus_header_label">SINGLE FOCUS</string>
@@ -158,9 +183,9 @@
 
     <!-- Anti-Misclick Modes -->
     <string name="antimisclick_hold_title">Hold to Confirm</string>
-    <string name="antimisclick_hold_desc">Hold left checkbox for 0.3s radial fill; swipe disabled</string>
+    <string name="antimisclick_hold_desc">Hold the checkbox for 0.3s to complete. Card swipes are off.</string>
     <string name="antimisclick_swipe_title">Damped Swipe</string>
-    <string name="antimisclick_swipe_desc">Swipe left or right past 30% resistance; checkbox hold disabled</string>
+    <string name="antimisclick_swipe_desc">Swipe at least 30% of the card width to trigger the chosen action. Checkbox hold is off.</string>
     <string name="antimisclick_both_title">Dual Mode</string>
     <string name="antimisclick_both_desc">Enable both 0.3s radial hold and 30% damped swipe</string>
 
@@ -177,6 +202,8 @@
     <string name="settings_accent_sage">Sage</string>
     <string name="settings_accent_clay">Warm Clay</string>
     <string name="settings_section_antimisclick">Anti-Misclick Mode</string>
+    <string name="settings_swipe_left">Swipe left</string>
+    <string name="settings_swipe_right">Swipe right</string>
     <string name="settings_section_haptics">Tactile &amp; Motion</string>
     <string name="settings_haptics_title">Linear Motor Haptics</string>
     <string name="settings_haptics_desc">Task completion, drag ticks, and gentle 2-min starter cues</string>

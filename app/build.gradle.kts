@@ -14,8 +14,8 @@ android {
         applicationId = "com.zero.todo"
         minSdk = 26
         targetSdk = 35
-        versionCode = 7
-        versionName = "2.0.1"
+        versionCode = 8
+        versionName = "2.1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
