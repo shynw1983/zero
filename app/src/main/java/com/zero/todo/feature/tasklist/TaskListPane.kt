@@ -252,26 +252,28 @@ fun TaskListPane(
                     .padding(horizontal = 12.dp, vertical = 10.dp)
             ) {
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(38.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     if (showDrawerButton) {
                         IconButton(
                             onClick = onOpenDrawer,
-                            modifier = Modifier.size(34.dp)
+                            modifier = Modifier.size(36.dp)
                         ) {
                             Icon(
                                 imageVector = Icons.Rounded.Menu,
                                 contentDescription = stringResource(R.string.cd_open_drawer),
                                 tint = colors.textPrimary,
-                                modifier = Modifier.size(20.dp)
+                                modifier = Modifier.size(19.dp)
                             )
                         }
                         Spacer(modifier = Modifier.width(4.dp))
                     } else if (showTreeToggleButton) {
                         IconButton(
                             onClick = onToggleTreePanel,
-                            modifier = Modifier.size(34.dp)
+                            modifier = Modifier.size(36.dp)
                         ) {
                             Icon(
                                 imageVector = Icons.AutoMirrored.Rounded.ViewSidebar,
@@ -292,97 +294,113 @@ fun TaskListPane(
                         modifier = Modifier.weight(1f)
                     )
 
-                    if (selectedDestination is NavigationDestination.FolderView) {
-                        IncludeSubfoldersPill(
-                            includeSubfolders = includeSubfolders,
-                            onToggle = onToggleIncludeSubfolders
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        IconButton(
-                            onClick = onRequestCreateSubfolder,
-                            modifier = Modifier.size(28.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Rounded.CreateNewFolder,
-                                contentDescription = stringResource(R.string.cd_create_subfolder),
-                                tint = colors.textSecondary,
-                                modifier = Modifier.size(16.dp)
+                    // Group 1: Framed 36.dp Pill Pair (Subfolder Filter + Sort)
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        if (selectedDestination is NavigationDestination.FolderView) {
+                            IncludeSubfoldersPill(
+                                includeSubfolders = includeSubfolders,
+                                onToggle = onToggleIncludeSubfolders
                             )
                         }
-                    }
 
-                    Box(modifier = Modifier.padding(start = 4.dp)) {
-                        val automaticSort = taskSortMode != TaskSortMode.MANUAL
-                        val sortColor = if (automaticSort) colors.accent else colors.textSecondary
-                        Row(
-                            modifier = Modifier
-                                .heightIn(min = 44.dp)
-                                .clip(ZeroSmallShape)
-                                .background(if (automaticSort) colors.accentSubtle else colors.surface)
-                                .hairlineBorder(
-                                    shape = ZeroSmallShape,
-                                    color = if (automaticSort) colors.accent else colors.hairlineBorder
+                        Box {
+                            val automaticSort = taskSortMode != TaskSortMode.MANUAL
+                            val sortColor = if (automaticSort) colors.accent else colors.textSecondary
+                            Row(
+                                modifier = Modifier
+                                    .height(36.dp)
+                                    .clip(ZeroSmallShape)
+                                    .background(if (automaticSort) colors.accentSubtle else colors.surface)
+                                    .hairlineBorder(
+                                        shape = ZeroSmallShape,
+                                        color = if (automaticSort) colors.accent else colors.hairlineBorder
+                                    )
+                                    .clickable { showSortMenu = true }
+                                    .padding(horizontal = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Rounded.Sort,
+                                    contentDescription = stringResource(R.string.cd_task_sort),
+                                    tint = sortColor,
+                                    modifier = Modifier.size(14.dp)
                                 )
-                                .clickable { showSortMenu = true }
-                                .padding(horizontal = 8.dp, vertical = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Rounded.Sort,
-                                contentDescription = stringResource(R.string.cd_task_sort),
-                                tint = sortColor,
-                                modifier = Modifier.size(15.dp)
-                            )
-                            Text(
-                                text = stringResource(taskSortMode.labelRes),
-                                style = MaterialTheme.typography.labelSmall,
-                                color = sortColor
-                            )
-                        }
-                        DropdownMenu(expanded = showSortMenu, onDismissRequest = { showSortMenu = false }) {
-                            TaskSortMode.entries.forEach { mode ->
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(mode.labelRes)) },
-                                    trailingIcon = {
-                                        if (mode == taskSortMode) Icon(Icons.Rounded.Check, contentDescription = null)
-                                    },
-                                    onClick = {
-                                        showSortMenu = false
-                                        haptics.reorderTick()
-                                        onSetSortMode(mode)
-                                    }
+                                Text(
+                                    text = stringResource(taskSortMode.labelRes),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = sortColor,
+                                    maxLines = 1
                                 )
+                            }
+                            DropdownMenu(expanded = showSortMenu, onDismissRequest = { showSortMenu = false }) {
+                                TaskSortMode.entries.forEach { mode ->
+                                    DropdownMenuItem(
+                                        text = { Text(stringResource(mode.labelRes)) },
+                                        trailingIcon = {
+                                            if (mode == taskSortMode) Icon(Icons.Rounded.Check, contentDescription = null)
+                                        },
+                                        onClick = {
+                                            showSortMenu = false
+                                            haptics.reorderTick()
+                                            onSetSortMode(mode)
+                                        }
+                                    )
+                                }
                             }
                         }
                     }
 
-                    // Global Search Toggle (generous 38dp target)
-                    IconButton(
-                        onClick = { onToggleSearch(!isSearchOpen) },
-                        modifier = Modifier.size(38.dp)
+                    Spacer(modifier = Modifier.width(6.dp))
+
+                    // Group 2: Uniform 36.dp Icon Actions (Subfolder + Search + Focus Timer)
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(2.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(
-                            imageVector = if (isSearchOpen) Icons.Rounded.Close else Icons.Rounded.Search,
-                            contentDescription = stringResource(R.string.cd_search_tasks),
-                            tint = if (isSearchOpen) colors.accent else colors.textSecondary,
-                            modifier = Modifier.size(19.dp)
-                        )
+                        if (selectedDestination is NavigationDestination.FolderView) {
+                            IconButton(
+                                onClick = onRequestCreateSubfolder,
+                                modifier = Modifier.size(36.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.CreateNewFolder,
+                                    contentDescription = stringResource(R.string.cd_create_subfolder),
+                                    tint = colors.textSecondary,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        }
+
+                        IconButton(
+                            onClick = { onToggleSearch(!isSearchOpen) },
+                            modifier = Modifier.size(36.dp)
+                        ) {
+                            Icon(
+                                imageVector = if (isSearchOpen) Icons.Rounded.Close else Icons.Rounded.Search,
+                                contentDescription = stringResource(R.string.cd_search_tasks),
+                                tint = if (isSearchOpen) colors.accent else colors.textSecondary,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+
+                        IconButton(
+                            onClick = onOpenFocusMode,
+                            modifier = Modifier.size(36.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Timer,
+                                contentDescription = stringResource(R.string.cd_enter_focus),
+                                tint = colors.accent,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
                     }
 
-                    IconButton(
-                        onClick = onOpenFocusMode,
-                        modifier = Modifier.size(38.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.Timer,
-                            contentDescription = stringResource(R.string.cd_enter_focus),
-                            tint = colors.accent,
-                            modifier = Modifier.size(19.dp)
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.width(2.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
                     Text(
                         text = incompleteCount.toString().padStart(2, '0'),
                         style = tabular.counter,

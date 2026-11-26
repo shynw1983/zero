@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -313,7 +314,7 @@ fun FolderTreePanel(
                         Spacer(modifier = Modifier.width(6.dp))
                         Box(
                             modifier = Modifier
-                                .size(38.dp)
+                                .size(36.dp)
                                 .clip(ZeroSmallShape)
                                 .clickable { onRequestCreateFolder(null) },
                             contentAlignment = Alignment.Center
@@ -322,7 +323,7 @@ fun FolderTreePanel(
                                 imageVector = Icons.Rounded.CreateNewFolder,
                                 contentDescription = stringResource(R.string.cd_create_root_folder),
                                 tint = colors.textSecondary,
-                                modifier = Modifier.size(19.dp)
+                                modifier = Modifier.size(18.dp)
                             )
                         }
                     }
@@ -476,12 +477,12 @@ fun IncludeSubfoldersPill(
 
     Box(
         modifier = modifier
-            .heightIn(min = 34.dp)
+            .height(36.dp)
             .clip(ZeroSmallShape)
             .background(bgColor)
             .hairlineBorder(shape = ZeroSmallShape, color = borderColor)
             .clickable(onClick = onToggle)
-            .padding(horizontal = 10.dp, vertical = 6.dp),
+            .padding(horizontal = 10.dp),
         contentAlignment = Alignment.Center
     ) {
         Text(
@@ -489,7 +490,8 @@ fun IncludeSubfoldersPill(
                 if (includeSubfolders) R.string.filter_include_subfolders else R.string.filter_current_folder
             ),
             style = MaterialTheme.typography.labelSmall,
-            color = textColor
+            color = textColor,
+            maxLines = 1
         )
     }
 }
