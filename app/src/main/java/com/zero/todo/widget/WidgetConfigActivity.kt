@@ -242,16 +242,20 @@ private fun WidgetConfigScreen(
         }
     }
 
+    val tagDisplayNames = remember(tags) {
+        WidgetTaskQueryEngine.buildTagPathMap(tags)
+    }
+
     val previewPalette = remember(draft, appIsDark, appAccent) {
         resolveWidgetPalette(draft, appIsDark, appAccent)
     }
 
-    val headerTitlePreview = remember(draft, folders, tags, context) {
+    val headerTitlePreview = remember(draft, folders, tags, tagDisplayNames, context) {
         resolveWidgetHeaderTitle(
             locContext = context,
             config = draft,
             folderName = draft.folderId?.let { fid -> folders.firstOrNull { it.id == fid }?.name },
-            tagName = draft.tagId?.let { tid -> tags.firstOrNull { it.id == tid }?.name }
+            tagName = draft.tagId?.let { tid -> tagDisplayNames[tid] ?: tags.firstOrNull { it.id == tid }?.name }
         )
     }
 
@@ -465,9 +469,10 @@ private fun WidgetConfigScreen(
                                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                                     verticalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
-                                    tags.forEach { tag ->
+                                    tags.sortedBy { (tagDisplayNames[it.id] ?: it.name).lowercase() }.forEach { tag ->
+                                        val labelPath = tagDisplayNames[tag.id] ?: tag.name
                                         SelectableChip(
-                                            label = "#${tag.name}",
+                                            label = "#$labelPath",
                                             selected = draft.tagId == tag.id,
                                             leadingIcon = Icons.Rounded.Tag,
                                             onClick = {

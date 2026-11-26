@@ -103,11 +103,13 @@ import com.zero.todo.feature.calendar.CalendarPane
 import com.zero.todo.feature.calendar.CalendarViewMode
 import com.zero.todo.feature.focus.SingleTaskFocusOverlay
 import com.zero.todo.feature.folder.CreateFolderDialog
+import com.zero.todo.feature.folder.CreateTagDialog
 import com.zero.todo.feature.folder.DeleteFolderConfirmDialog
 import com.zero.todo.feature.folder.DeleteTagConfirmDialog
 import com.zero.todo.feature.folder.FolderActionMenuDialog
 import com.zero.todo.feature.folder.FolderTreePanel
 import com.zero.todo.feature.folder.MoveFolderDialog
+import com.zero.todo.feature.folder.MoveTagDialog
 import com.zero.todo.feature.folder.NavigationDestination
 import com.zero.todo.feature.folder.RenameFolderDialog
 import com.zero.todo.feature.folder.RenameTagDialog
@@ -146,6 +148,9 @@ data class ZeroShellCallbacks(
     val onTriageScheduleToday: (TaskItem) -> Unit = {},
     val onTriageDeferTomorrow: (TaskItem) -> Unit = {},
     val onTriageMoveToFolder: (TaskItem, String) -> Unit = { _, _ -> },
+    val onCreateTag: (name: String, parentId: String?) -> Unit = { _, _ -> },
+    val onToggleTagExpanded: (tagId: String, isExpanded: Boolean) -> Unit = { _, _ -> },
+    val onMoveTag: (tagId: String, newParentId: String?) -> Unit = { _, _ -> },
     val onRenameTag: (tagId: String, newName: String) -> Unit = { _, _ -> },
     val onDeleteTag: (tagId: String) -> Unit = {},
     val onSelectDestination: (NavigationDestination) -> Unit = {},
@@ -243,6 +248,9 @@ fun ZeroAdaptiveShell(
     var deleteTargetFolder by remember { mutableStateOf<Folder?>(null) }
 
     var tagMenuTarget by remember { mutableStateOf<TagItem?>(null) }
+    var createTagParent by remember { mutableStateOf<TagItem?>(null) }
+    var showCreateTagDialog by remember { mutableStateOf(false) }
+    var moveTargetTag by remember { mutableStateOf<TagItem?>(null) }
     var renameTargetTag by remember { mutableStateOf<TagItem?>(null) }
     var deleteTargetTag by remember { mutableStateOf<TagItem?>(null) }
 
@@ -255,6 +263,11 @@ fun ZeroAdaptiveShell(
     val openCreateFolderDialog: (Folder?) -> Unit = { parent ->
         createFolderParent = parent
         showCreateFolderDialog = true
+    }
+
+    val openCreateTagDialog: (TagItem?) -> Unit = { parent ->
+        createTagParent = parent
+        showCreateTagDialog = true
     }
 
     // Tablet & Desktop external keyboard shortcuts (Ctrl/Cmd + N, Ctrl/Cmd + F, Esc, Ctrl/Cmd + ',', Ctrl/Cmd + 1..5)
@@ -339,6 +352,14 @@ fun ZeroAdaptiveShell(
                         }
                         deleteTargetFolder != null -> {
                             deleteTargetFolder = null
+                            true
+                        }
+                        showCreateTagDialog -> {
+                            showCreateTagDialog = false
+                            true
+                        }
+                        moveTargetTag != null -> {
+                            moveTargetTag = null
                             true
                         }
                         renameTargetTag != null -> {
@@ -467,6 +488,7 @@ fun ZeroAdaptiveShell(
                                     quickInputFocusRequester = quickInputFocusRequester,
                                     onRequestCreateFolder = openCreateFolderDialog,
                                     onRequestFolderMenu = { folderMenuTarget = it },
+                                    onRequestCreateTag = openCreateTagDialog,
                                     onRequestTagMenu = { tagMenuTarget = it }
                                 )
                             }
@@ -478,6 +500,7 @@ fun ZeroAdaptiveShell(
                                     quickInputFocusRequester = quickInputFocusRequester,
                                     onRequestCreateFolder = openCreateFolderDialog,
                                     onRequestFolderMenu = { folderMenuTarget = it },
+                                    onRequestCreateTag = openCreateTagDialog,
                                     onRequestTagMenu = { tagMenuTarget = it }
                                 )
                             }
@@ -489,6 +512,7 @@ fun ZeroAdaptiveShell(
                                     quickInputFocusRequester = quickInputFocusRequester,
                                     onRequestCreateFolder = openCreateFolderDialog,
                                     onRequestFolderMenu = { folderMenuTarget = it },
+                                    onRequestCreateTag = openCreateTagDialog,
                                     onRequestTagMenu = { tagMenuTarget = it }
                                 )
                             }
@@ -667,14 +691,43 @@ fun ZeroAdaptiveShell(
         )
     }
 
-    // Tag Global Management Action Sheet + Dialogs (Rename & Delete Tag!)
+    // Tag Global Management Action Sheet + Dialogs (Create Sub-tag / Rename / Move / Delete Tag)
+    if (showCreateTagDialog) {
+        CreateTagDialog(
+            parentTag = createTagParent,
+            parentPath = createTagParent?.let { uiState.tagPathById[it.id] ?: it.name },
+            onDismiss = { showCreateTagDialog = false },
+            onConfirm = { name, parentId ->
+                showCreateTagDialog = false
+                callbacks.onCreateTag(name, parentId)
+            }
+        )
+    }
+
     val menuTag = tagMenuTarget
     if (menuTag != null) {
         TagActionMenuDialog(
             tag = menuTag,
+            displayTitle = "#${uiState.tagPathById[menuTag.id] ?: menuTag.name}",
+            onCreateSubtag = { openCreateTagDialog(menuTag) },
             onRename = { renameTargetTag = menuTag },
+            onMove = { moveTargetTag = menuTag },
             onDelete = { deleteTargetTag = menuTag },
             onDismiss = { tagMenuTarget = null }
+        )
+    }
+
+    val tagToMove = moveTargetTag
+    if (tagToMove != null) {
+        MoveTagDialog(
+            tag = tagToMove,
+            allTags = uiState.tagsWithCounts.map { it.tag },
+            displayPath = uiState.tagPathById[tagToMove.id] ?: tagToMove.name,
+            onDismiss = { moveTargetTag = null },
+            onMoveToParent = { tagId, newParentId ->
+                moveTargetTag = null
+                callbacks.onMoveTag(tagId, newParentId)
+            }
         )
     }
 
@@ -1002,6 +1055,8 @@ private fun BoundTaskDetailPane(
             onNavigateBack()
         },
         onDeleteTask = callbacks.onDeleteTask,
+        tagPathById = uiState.tagPathById,
+        allTags = uiState.tagsWithCounts.map { it.tag },
         modifier = modifier
     )
 }
@@ -1014,6 +1069,7 @@ private fun CompactSinglePaneLayout(
     quickInputFocusRequester: FocusRequester,
     onRequestCreateFolder: (Folder?) -> Unit,
     onRequestFolderMenu: (Folder) -> Unit,
+    onRequestCreateTag: (TagItem?) -> Unit,
     onRequestTagMenu: (TagItem) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -1066,6 +1122,8 @@ private fun CompactSinglePaneLayout(
                     onToggleFolderExpanded = callbacks.onToggleFolderExpanded,
                     onRequestCreateFolder = onRequestCreateFolder,
                     onRequestFolderMenu = onRequestFolderMenu,
+                    onToggleTagExpanded = callbacks.onToggleTagExpanded,
+                    onRequestCreateTag = onRequestCreateTag,
                     onRequestTagMenu = onRequestTagMenu,
                     onToggleIncludeSubfolders = callbacks.onToggleIncludeSubfolders,
                     onToggleTheme = callbacks.onToggleTheme,
@@ -1126,6 +1184,7 @@ private fun MediumTwoPaneLayout(
     quickInputFocusRequester: FocusRequester,
     onRequestCreateFolder: (Folder?) -> Unit,
     onRequestFolderMenu: (Folder) -> Unit,
+    onRequestCreateTag: (TagItem?) -> Unit,
     onRequestTagMenu: (TagItem) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -1169,6 +1228,8 @@ private fun MediumTwoPaneLayout(
                     onToggleFolderExpanded = callbacks.onToggleFolderExpanded,
                     onRequestCreateFolder = onRequestCreateFolder,
                     onRequestFolderMenu = onRequestFolderMenu,
+                    onToggleTagExpanded = callbacks.onToggleTagExpanded,
+                    onRequestCreateTag = onRequestCreateTag,
                     onRequestTagMenu = onRequestTagMenu,
                     onToggleIncludeSubfolders = callbacks.onToggleIncludeSubfolders,
                     onToggleTheme = callbacks.onToggleTheme,
@@ -1207,6 +1268,8 @@ private fun MediumTwoPaneLayout(
                         onToggleFolderExpanded = callbacks.onToggleFolderExpanded,
                         onRequestCreateFolder = onRequestCreateFolder,
                         onRequestFolderMenu = onRequestFolderMenu,
+                        onToggleTagExpanded = callbacks.onToggleTagExpanded,
+                        onRequestCreateTag = onRequestCreateTag,
                         onRequestTagMenu = onRequestTagMenu,
                         onToggleIncludeSubfolders = callbacks.onToggleIncludeSubfolders,
                         onToggleTheme = callbacks.onToggleTheme,
@@ -1262,6 +1325,7 @@ private fun ExpandedThreePaneLayout(
     quickInputFocusRequester: FocusRequester,
     onRequestCreateFolder: (Folder?) -> Unit,
     onRequestFolderMenu: (Folder) -> Unit,
+    onRequestCreateTag: (TagItem?) -> Unit,
     onRequestTagMenu: (TagItem) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -1280,6 +1344,8 @@ private fun ExpandedThreePaneLayout(
             onToggleFolderExpanded = callbacks.onToggleFolderExpanded,
             onRequestCreateFolder = onRequestCreateFolder,
             onRequestFolderMenu = onRequestFolderMenu,
+            onToggleTagExpanded = callbacks.onToggleTagExpanded,
+            onRequestCreateTag = onRequestCreateTag,
             onRequestTagMenu = onRequestTagMenu,
             onToggleIncludeSubfolders = callbacks.onToggleIncludeSubfolders,
             onToggleTheme = callbacks.onToggleTheme,

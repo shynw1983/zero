@@ -15,9 +15,12 @@ interface TagRepository {
     fun observeTagsForTask(taskId: String): Flow<List<TagItem>>
     fun observeTasksByTag(tagId: String): Flow<List<TaskItem>>
 
-    suspend fun getOrCreateTag(name: String, colorHex: String? = null): TagItem
+    suspend fun getOrCreateTag(name: String, colorHex: String? = null, parentId: String? = null): TagItem
+    suspend fun createTag(name: String, parentId: String? = null, colorHex: String? = null): TagItem
     suspend fun attachTagToTask(taskId: String, tagId: String)
     suspend fun detachTagFromTask(taskId: String, tagId: String)
     suspend fun renameTag(tagId: String, newName: String)
+    suspend fun setTagExpanded(tagId: String, isExpanded: Boolean)
+    suspend fun moveTag(tagId: String, newParentId: String?): Boolean
     suspend fun softDeleteTag(tagId: String)
 }

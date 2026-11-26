@@ -398,4 +398,16 @@
     <string name="widget_up_next">接下来</string>
     <string name="widget_focus_done">完成</string>
     <string name="widget_cd_configure">设置小组件</string>
+
+    <!-- 多级层级标签 -->
+    <string name="cd_create_root_tag">新建标签</string>
+    <string name="tags_empty_hint">输入 #一级/二级 或点 + 创建层级标签</string>
+    <string name="action_create_subtag">新建子标签</string>
+    <string name="action_move_tag">移动到上级标签</string>
+    <string name="dialog_create_tag_title">新建标签</string>
+    <string name="dialog_create_subtag_title">在 #%1$s 下新建子标签</string>
+    <string name="dialog_create_tag_placeholder">名称或路径（例：外出/便利店）</string>
+    <string name="dialog_move_tag_title">移动 %1$s</string>
+    <string name="dialog_move_tag_root">顶层标签</string>
+    <string name="dialog_move_tag_hint">选择新的上级标签</string>
 </resources>

@@ -89,6 +89,7 @@ import com.zero.todo.core.designsystem.rememberZeroHaptics
 import com.zero.todo.domain.model.EffortTier
 import com.zero.todo.domain.model.FocusMode
 import com.zero.todo.domain.model.FolderNode
+import com.zero.todo.domain.model.TagItem
 import com.zero.todo.domain.model.TaskItem
 import com.zero.todo.domain.model.TaskPriority
 import com.zero.todo.feature.calendar.ZeroMiniCalendar
@@ -156,6 +157,8 @@ fun TaskDetailPane(
     onRemoveTag: (taskId: String, tagId: String) -> Unit,
     onSelectTag: (tagId: String) -> Unit,
     onDeleteTask: (TaskItem) -> Unit,
+    tagPathById: Map<String, String> = emptyMap(),
+    allTags: List<TagItem> = emptyList(),
     modifier: Modifier = Modifier
 ) {
     val colors = ZeroTheme.colors
@@ -1047,7 +1050,7 @@ fun TaskDetailPane(
                             horizontalArrangement = Arrangement.spacedBy(2.dp)
                         ) {
                             Text(
-                                text = "#${tag.name}",
+                                text = "#${tagPathById[tag.id] ?: tag.name}",
                                 style = MaterialTheme.typography.labelMedium,
                                 color = colors.textPrimary,
                                 modifier = Modifier
@@ -1076,7 +1079,7 @@ fun TaskDetailPane(
 
                     Box(
                         modifier = Modifier
-                            .width(120.dp)
+                            .width(136.dp)
                             .clip(ZeroSmallShape)
                             .background(colors.surface)
                             .hairlineBorder(shape = ZeroSmallShape)
@@ -1106,6 +1109,48 @@ fun TaskDetailPane(
                                 }
                             )
                         )
+                    }
+                }
+
+                val attachedIds = remember(task.tags) { task.tags.map { it.id }.toSet() }
+                val tagSuggestions = remember(allTags, attachedIds, newTagDraft, tagPathById) {
+                    val q = newTagDraft.trim().removePrefix("#").lowercase()
+                    allTags.asSequence()
+                        .filter { it.id !in attachedIds }
+                        .map { it to (tagPathById[it.id] ?: it.name) }
+                        .filter { (_, path) -> q.isEmpty() || path.lowercase().contains(q) }
+                        .sortedBy { (_, path) -> path.lowercase() }
+                        .take(12)
+                        .toList()
+                }
+                if (tagSuggestions.isNotEmpty()) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        tagSuggestions.forEach { (candidate, path) ->
+                            Box(
+                                modifier = Modifier
+                                    .clip(ZeroSmallShape)
+                                    .background(colors.background)
+                                    .hairlineBorder(shape = ZeroSmallShape)
+                                    .clickable {
+                                        haptics.reorderTick()
+                                        onAddTag(task.id, path)
+                                        newTagDraft = ""
+                                    }
+                                    .padding(horizontal = 8.dp, vertical = 5.dp)
+                            ) {
+                                Text(
+                                    text = "+ #$path",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = colors.textSecondary
+                                )
+                            }
+                        }
                     }
                 }
             }

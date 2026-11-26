@@ -73,14 +73,16 @@ class TodayTasksWidget : GlanceAppWidget() {
             allTasks = allTasks,
             allFolders = allFolders,
             config = config,
-            today = LocalDate.now()
+            today = LocalDate.now(),
+            allTags = allTags
         )
+        val tagPaths = WidgetTaskQueryEngine.buildTagPathMap(allTags)
 
         val headerTitle = resolveWidgetHeaderTitle(
             locContext = locContext,
             config = config,
             folderName = config.folderId?.let { fid -> allFolders.firstOrNull { it.id == fid }?.name },
-            tagName = config.tagId?.let { tid -> allTags.firstOrNull { it.id == tid }?.name }
+            tagName = config.tagId?.let { tid -> tagPaths[tid] ?: allTags.firstOrNull { it.id == tid }?.name }
         )
 
         provideContent {

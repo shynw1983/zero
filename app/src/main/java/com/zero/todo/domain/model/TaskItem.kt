@@ -37,8 +37,10 @@ data class TaskItem(
 
 data class TagItem(
     val id: String,
+    val parentId: String? = null,
     val name: String,
     val colorHex: String? = null,
+    val isExpanded: Boolean = true,
     val createdAt: Long = 0L,
     val updatedAt: Long = 0L,
     val isDeleted: Boolean = false

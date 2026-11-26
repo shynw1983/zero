@@ -128,7 +128,22 @@ class WidgetConfigAndFilterTest {
         )
         assertEquals(listOf("today_open"), folderOnly.map { it.id })
 
-        // TAG
+        // TAG (single tag + hierarchical parent tag matching child tag)
+        val childTag = TagEntity(id = "tag_convenience", parentId = "tag_outing", name = "便利店")
+        val parentOutingTag = TagEntity(id = "tag_outing", name = "外出")
+        val subTagTask = TaskWithTags(
+            task("subtag_task", folderId = "f_work", priority = 2),
+            listOf(childTag)
+        )
+        val tagHierarchyFiltered = WidgetTaskQueryEngine.filterTasks(
+            allTasks = allTasks + subTagTask,
+            allFolders = folders,
+            config = ZeroWidgetConfig(filterScope = WidgetFilterScope.TAG, tagId = parentOutingTag.id),
+            today = today,
+            allTags = listOf(parentOutingTag, childTag, focusTag)
+        )
+        assertEquals(listOf("subtag_task"), tagHierarchyFiltered.map { it.id })
+
         val tagged = WidgetTaskQueryEngine.filterTasks(
             allTasks,
             folders,

@@ -42,8 +42,33 @@ interface TagDao {
     @Query("SELECT * FROM tags WHERE isDeleted = 0 AND LOWER(name) = LOWER(:name) LIMIT 1")
     suspend fun getTagByName(name: String): TagEntity?
 
+    @Query(
+        """
+        SELECT * FROM tags
+        WHERE isDeleted = 0
+          AND LOWER(name) = LOWER(:name)
+          AND ((:parentId IS NULL AND parentId IS NULL) OR parentId = :parentId)
+        LIMIT 1
+        """
+    )
+    suspend fun getTagByNameInParent(name: String, parentId: String?): TagEntity?
+
     @Query("SELECT * FROM tags WHERE id = :id AND isDeleted = 0 LIMIT 1")
     suspend fun getTagById(id: String): TagEntity?
+
+    @Query(
+        """
+        WITH RECURSIVE tag_tree(id) AS (
+            SELECT id FROM tags WHERE id = :rootTagId AND isDeleted = 0
+            UNION ALL
+            SELECT tg.id FROM tags tg
+            INNER JOIN tag_tree tt ON tg.parentId = tt.id
+            WHERE tg.isDeleted = 0
+        )
+        SELECT id FROM tag_tree
+        """
+    )
+    suspend fun getDescendantTagIds(rootTagId: String): List<String>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertTag(tag: TagEntity)
@@ -51,8 +76,17 @@ interface TagDao {
     @Query("UPDATE tags SET name = :newName, updatedAt = :updatedAt WHERE id = :tagId AND isDeleted = 0")
     suspend fun renameTag(tagId: String, newName: String, updatedAt: Long)
 
+    @Query("UPDATE tags SET isExpanded = :isExpanded, updatedAt = :updatedAt WHERE id = :tagId AND isDeleted = 0")
+    suspend fun updateTagExpanded(tagId: String, isExpanded: Boolean, updatedAt: Long)
+
+    @Query("UPDATE tags SET parentId = :newParentId, updatedAt = :updatedAt WHERE id = :tagId AND isDeleted = 0")
+    suspend fun moveTag(tagId: String, newParentId: String?, updatedAt: Long)
+
     @Query("UPDATE tags SET isDeleted = 1, updatedAt = :updatedAt WHERE id = :tagId")
     suspend fun softDeleteTag(tagId: String, updatedAt: Long)
+
+    @Query("UPDATE tags SET isDeleted = 1, updatedAt = :updatedAt WHERE id IN (:tagIds)")
+    suspend fun softDeleteTags(tagIds: List<String>, updatedAt: Long)
 
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun attachTagToTask(crossRef: TaskTagCrossRef)
@@ -73,10 +107,17 @@ interface TagDao {
     @Transaction
     @Query(
         """
-        SELECT t.* FROM tasks t
+        WITH RECURSIVE tag_tree(id) AS (
+            SELECT id FROM tags WHERE id = :tagId AND isDeleted = 0
+            UNION ALL
+            SELECT tg.id FROM tags tg
+            INNER JOIN tag_tree tt ON tg.parentId = tt.id
+            WHERE tg.isDeleted = 0
+        )
+        SELECT DISTINCT t.* FROM tasks t
         INNER JOIN task_tag_cross_ref ref ON t.id = ref.taskId
-        INNER JOIN tags tg ON tg.id = ref.tagId
-        WHERE ref.tagId = :tagId AND t.isDeleted = 0 AND tg.isDeleted = 0
+        INNER JOIN tag_tree tt ON ref.tagId = tt.id
+        WHERE t.isDeleted = 0
         ORDER BY t.isCompleted ASC, t.sortOrder ASC, t.createdAt ASC
         """
     )

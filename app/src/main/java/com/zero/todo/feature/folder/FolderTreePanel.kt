@@ -25,6 +25,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
+import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.AllInbox
 import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material.icons.rounded.CreateNewFolder
@@ -69,6 +70,8 @@ import com.zero.todo.domain.model.Folder
 import com.zero.todo.domain.model.FolderNode
 import com.zero.todo.domain.model.FolderTreeBuilder
 import com.zero.todo.domain.model.TagItem
+import com.zero.todo.domain.model.TagNode
+import com.zero.todo.domain.model.TagTreeBuilder
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -86,6 +89,8 @@ fun FolderTreePanel(
     onToggleFolderExpanded: (folderId: String, isExpanded: Boolean) -> Unit,
     onRequestCreateFolder: (parentFolder: Folder?) -> Unit,
     onRequestFolderMenu: (folder: Folder) -> Unit,
+    onToggleTagExpanded: (tagId: String, isExpanded: Boolean) -> Unit = { _, _ -> },
+    onRequestCreateTag: (parentTag: TagItem?) -> Unit = {},
     onRequestTagMenu: (tag: TagItem) -> Unit,
     onToggleIncludeSubfolders: () -> Unit,
     onToggleTheme: () -> Unit,
@@ -96,6 +101,8 @@ fun FolderTreePanel(
     val colors = ZeroTheme.colors
     val tabular = ZeroTheme.tabularTypography
     val visibleNodes = remember(folderTree) { FolderTreeBuilder.flattenVisible(folderTree) }
+    val tagTree = remember(tagsWithCounts) { TagTreeBuilder.buildTree(tagsWithCounts) }
+    val visibleTagNodes = remember(tagTree) { TagTreeBuilder.flattenVisible(tagTree) }
 
     Column(
         modifier = modifier
@@ -359,42 +366,75 @@ fun FolderTreePanel(
                 }
             }
 
-            // Tags Section (with global Rename & Delete via long-press or generous 38dp More menu!)
-            if (tagsWithCounts.isNotEmpty()) {
-                item(key = "tags_header") {
+            // Tags Section (Hierarchical collapsible Tag Tree with Create / Rename / Move / Delete!)
+            item(key = "tags_header") {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 12.dp, bottom = 4.dp)
+                        .hairlineDividerTop()
+                        .padding(start = 16.dp, end = 8.dp, top = 12.dp, bottom = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
                     Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 12.dp, bottom = 4.dp)
-                            .hairlineDividerTop()
-                            .padding(start = 16.dp, end = 12.dp, top = 12.dp, bottom = 4.dp),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Text(
                             text = stringResource(R.string.section_tags),
                             style = MaterialTheme.typography.labelMedium,
                             color = colors.textMuted
                         )
-                        Text(
-                            text = tagsWithCounts.size.toString().padStart(2, '0'),
-                            style = tabular.dateCompact,
-                            color = colors.textMuted
+                        if (tagsWithCounts.isNotEmpty()) {
+                            Text(
+                                text = tagsWithCounts.size.toString().padStart(2, '0'),
+                                style = tabular.dateCompact,
+                                color = colors.textMuted
+                            )
+                        }
+                    }
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(ZeroSmallShape)
+                            .clickable { onRequestCreateTag(null) },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Add,
+                            contentDescription = stringResource(R.string.cd_create_root_tag),
+                            tint = colors.textSecondary,
+                            modifier = Modifier.size(18.dp)
                         )
                     }
                 }
+            }
 
+            if (visibleTagNodes.isEmpty()) {
+                item(key = "tags_empty") {
+                    Text(
+                        text = stringResource(R.string.tags_empty_hint),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = colors.textMuted,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)
+                    )
+                }
+            } else {
                 items(
-                    items = tagsWithCounts,
+                    items = visibleTagNodes,
                     key = { "tag_${it.tag.id}" }
-                ) { item ->
+                ) { node ->
                     val isSelected = selectedDestination is NavigationDestination.TagView &&
-                        selectedDestination.tagId == item.tag.id
-                    TagSidebarRow(
-                        item = item,
+                        selectedDestination.tagId == node.tag.id
+                    TagTreeRow(
+                        node = node,
                         selected = isSelected,
-                        onSelect = { onSelectDestination(NavigationDestination.TagView(item.tag.id)) },
-                        onOpenMenu = { onRequestTagMenu(item.tag) }
+                        onSelect = { onSelectDestination(NavigationDestination.TagView(node.tag.id)) },
+                        onToggleExpand = {
+                            onToggleTagExpanded(node.tag.id, !node.tag.isExpanded)
+                        },
+                        onOpenMenu = { onRequestTagMenu(node.tag) }
                     )
                 }
             }
@@ -558,14 +598,24 @@ private fun SmartViewRow(
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun TagSidebarRow(
-    item: TagWithCount,
+private fun TagTreeRow(
+    node: TagNode,
     selected: Boolean,
     onSelect: () -> Unit,
+    onToggleExpand: () -> Unit,
     onOpenMenu: () -> Unit
 ) {
     val colors = ZeroTheme.colors
     val tabular = ZeroTheme.tabularTypography
+    val hasChildren = node.children.isNotEmpty()
+    val chevronRotation by animateFloatAsState(
+        targetValue = if (node.tag.isExpanded) 90f else 0f,
+        animationSpec = ZeroMotion.FloatSpring,
+        label = "tag_tree_chevron"
+    )
+    val visualDepth = node.depth.coerceAtMost(ZeroDimens.MaxVisibleTreeDepth)
+    val indentPadding = ZeroDimens.TreeIndentPerLevel * visualDepth
+    val displayedCount = node.totalTaskCount
 
     Row(
         modifier = Modifier
@@ -579,30 +629,70 @@ private fun TagSidebarRow(
                 onClick = onSelect,
                 onLongClick = onOpenMenu
             )
-            .padding(start = 12.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
+            .padding(start = 6.dp + indentPadding, end = 4.dp, top = 4.dp, bottom = 4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        Box(
+            modifier = Modifier
+                .size(28.dp)
+                .clip(ZeroSmallShape)
+                .then(if (hasChildren) Modifier.clickable(onClick = onToggleExpand) else Modifier),
+            contentAlignment = Alignment.Center
+        ) {
+            if (hasChildren) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
+                    contentDescription = stringResource(
+                        if (node.tag.isExpanded) R.string.cd_collapse else R.string.cd_expand
+                    ),
+                    tint = colors.textMuted,
+                    modifier = Modifier
+                        .size(18.dp)
+                        .rotate(chevronRotation)
+                )
+            }
+        }
+
         Icon(
             imageVector = Icons.Rounded.Tag,
             contentDescription = null,
             tint = if (selected) colors.accent else colors.textSecondary,
-            modifier = Modifier.size(17.dp)
+            modifier = Modifier.size(16.dp)
         )
-        Spacer(modifier = Modifier.width(10.dp))
-        Text(
-            text = "#${item.tag.name}",
-            style = MaterialTheme.typography.bodyMedium,
-            color = if (selected) colors.textPrimary else colors.textSecondary,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f)
-        )
-        if (item.activeTaskCount > 0) {
+        Spacer(modifier = Modifier.width(8.dp))
+
+        if (node.depth > ZeroDimens.MaxVisibleTreeDepth) {
             Text(
-                text = item.activeTaskCount.toString(),
+                text = "L${node.depth + 1}",
+                style = tabular.dateCompact,
+                color = colors.accent,
+                modifier = Modifier
+                    .clip(ZeroSmallShape)
+                    .background(colors.accentSubtle)
+                    .padding(horizontal = 4.dp, vertical = 1.dp)
+            )
+            Spacer(modifier = Modifier.width(4.dp))
+        }
+
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .horizontalScroll(rememberScrollState())
+        ) {
+            Text(
+                text = node.tag.name,
+                style = MaterialTheme.typography.bodyMedium,
+                color = if (selected) colors.textPrimary else colors.textSecondary,
+                maxLines = 1,
+                softWrap = false
+            )
+        }
+        if (displayedCount > 0) {
+            Text(
+                text = displayedCount.toString(),
                 style = tabular.counter,
                 color = if (selected) colors.accent else colors.textMuted,
-                modifier = Modifier.padding(end = 4.dp)
+                modifier = Modifier.padding(horizontal = 4.dp)
             )
         }
         Box(
@@ -615,7 +705,7 @@ private fun TagSidebarRow(
             Icon(
                 imageVector = Icons.Rounded.MoreHoriz,
                 contentDescription = stringResource(R.string.cd_tag_options),
-                tint = colors.textMuted,
+                tint = if (selected) colors.textPrimary else colors.textMuted,
                 modifier = Modifier.size(18.dp)
             )
         }

@@ -398,4 +398,16 @@
     <string name="widget_up_next">次のタスク</string>
     <string name="widget_focus_done">完了</string>
     <string name="widget_cd_configure">ウィジェット設定</string>
+
+    <!-- 階層タグ -->
+    <string name="cd_create_root_tag">タグを追加</string>
+    <string name="tags_empty_hint">#親/子 を入力または + で階層タグを作成</string>
+    <string name="action_create_subtag">サブタグを作成</string>
+    <string name="action_move_tag">親タグを変更</string>
+    <string name="dialog_create_tag_title">新しいタグ</string>
+    <string name="dialog_create_subtag_title">#%1$s のサブタグを作成</string>
+    <string name="dialog_create_tag_placeholder">名前またはパス（例：外出/コンビニ）</string>
+    <string name="dialog_move_tag_title">%1$s を移動</string>
+    <string name="dialog_move_tag_root">最上位タグ</string>
+    <string name="dialog_move_tag_hint">移動先の親タグを選択</string>
 </resources>

@@ -22,7 +22,7 @@ import com.zero.todo.data.local.entity.TaskTagCrossRef
         TaskTagCrossRef::class,
         FocusSessionEntity::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = true
 )
 abstract class ZeroDatabase : RoomDatabase() {
@@ -39,6 +39,14 @@ abstract class ZeroDatabase : RoomDatabase() {
                 db.execSQL("ALTER TABLE tasks ADD COLUMN firstStep TEXT DEFAULT NULL")
                 db.execSQL("ALTER TABLE tasks ADD COLUMN firstStepCompleted INTEGER NOT NULL DEFAULT 0")
                 db.execSQL("ALTER TABLE tasks ADD COLUMN estimatedMinutes INTEGER DEFAULT NULL")
+            }
+        }
+
+        val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE tags ADD COLUMN parentId TEXT DEFAULT NULL")
+                db.execSQL("ALTER TABLE tags ADD COLUMN isExpanded INTEGER NOT NULL DEFAULT 1")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_tags_parentId ON tags(parentId)")
             }
         }
     }

@@ -398,4 +398,16 @@
     <string name="widget_up_next">UP NEXT</string>
     <string name="widget_focus_done">Done</string>
     <string name="widget_cd_configure">Configure widget</string>
+
+    <!-- Hierarchical Tags -->
+    <string name="cd_create_root_tag">Create tag</string>
+    <string name="tags_empty_hint">Type #group/name or tap + to add nested tags</string>
+    <string name="action_create_subtag">New Sub-tag</string>
+    <string name="action_move_tag">Move to Parent Tag</string>
+    <string name="dialog_create_tag_title">New Tag</string>
+    <string name="dialog_create_subtag_title">Sub-tag under #%1$s</string>
+    <string name="dialog_create_tag_placeholder">Name or path (e.g. Outing/Errand)</string>
+    <string name="dialog_move_tag_title">Move %1$s</string>
+    <string name="dialog_move_tag_root">Top Level</string>
+    <string name="dialog_move_tag_hint">Choose new parent tag</string>
 </resources>

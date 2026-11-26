@@ -40,8 +40,10 @@ fun Folder.toEntity(): FolderEntity = FolderEntity(
 
 fun TagEntity.toDomain(): TagItem = TagItem(
     id = id,
+    parentId = parentId,
     name = name,
     colorHex = colorHex,
+    isExpanded = isExpanded,
     createdAt = createdAt,
     updatedAt = updatedAt,
     isDeleted = isDeleted

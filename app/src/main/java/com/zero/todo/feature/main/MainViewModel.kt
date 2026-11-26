@@ -64,6 +64,7 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.flow.stateIn
+import com.zero.todo.domain.model.TagTreeBuilder
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.ZoneId
@@ -89,6 +90,7 @@ data class MainUiState(
     val folderNameById: Map<String, String> = emptyMap(),
     val tagsWithCounts: List<TagWithCount> = emptyList(),
     val tagNameById: Map<String, String> = emptyMap(),
+    val tagPathById: Map<String, String> = emptyMap(),
     val smartViewCounts: SmartViewCounts = SmartViewCounts(),
     val tasks: List<TaskItem> = emptyList(),
     val allActiveTasks: List<TaskItem> = emptyList(),
@@ -471,6 +473,7 @@ class MainViewModel @Inject constructor(
         val folderById = nav.activeFolders.associateBy { it.id }
         val folderNameById = nav.activeFolders.associate { it.id to it.name }
         val tagNameById = nav.tagsWithCounts.associate { it.tag.id to it.tag.name }
+        val tagPathById = TagTreeBuilder.buildPathMap(nav.tagsWithCounts.map { it.tag })
 
         val breadcrumbs = when (val dest = nav.destination) {
             is NavigationDestination.FolderView -> buildBreadcrumbs(dest.folderId, folderById)
@@ -487,7 +490,7 @@ class MainViewModel @Inject constructor(
             NavigationDestination.Matrix -> "四象限"
             NavigationDestination.Trash -> "回收站"
             is NavigationDestination.FolderView -> folderById[dest.folderId]?.name ?: "收集箱"
-            is NavigationDestination.TagView -> tagNameById[dest.tagId]?.let { "#$it" } ?: "收集箱"
+            is NavigationDestination.TagView -> tagPathById[dest.tagId]?.let { "#$it" } ?: "收集箱"
         }
 
         // Search includes nested tasks so they can be opened independently.
@@ -497,7 +500,10 @@ class MainViewModel @Inject constructor(
             allTasks.filter { task ->
                 task.title.lowercase().contains(q) ||
                     task.description.lowercase().contains(q) ||
-                    task.tags.any { it.name.lowercase().contains(q) } ||
+                    task.tags.any {
+                        it.name.lowercase().contains(q) ||
+                            (tagPathById[it.id]?.lowercase()?.contains(q) == true)
+                    } ||
                     (task.folderId != null && folderNameById[task.folderId]?.lowercase()?.contains(q) == true)
             }
         } else {
@@ -568,6 +574,7 @@ class MainViewModel @Inject constructor(
             folderNameById = folderNameById,
             tagsWithCounts = nav.tagsWithCounts,
             tagNameById = tagNameById,
+            tagPathById = tagPathById,
             smartViewCounts = nav.smartViewCounts,
             tasks = sortedTasks,
             allActiveTasks = allTasks,
@@ -915,19 +922,49 @@ class MainViewModel @Inject constructor(
         }
     }
 
+    fun createTag(name: String, parentId: String? = null) {
+        viewModelScope.launch {
+            if (TagTreeBuilder.parseTagPathSegments(name).isEmpty()) return@launch
+            tagRepository.createTag(name = name, parentId = parentId)
+            widgetRefresher.refreshAll()
+        }
+    }
+
+    fun toggleTagExpanded(tagId: String, isExpanded: Boolean) {
+        viewModelScope.launch {
+            tagRepository.setTagExpanded(tagId, isExpanded)
+        }
+    }
+
+    fun moveTag(tagId: String, newParentId: String?) {
+        viewModelScope.launch {
+            if (tagRepository.moveTag(tagId, newParentId)) {
+                widgetRefresher.refreshAll()
+            }
+        }
+    }
+
     fun renameTag(tagId: String, newName: String) {
         viewModelScope.launch {
             tagRepository.renameTag(tagId, newName)
+            widgetRefresher.refreshAll()
         }
     }
 
     fun deleteTag(tagId: String) {
         viewModelScope.launch {
+            val subtreeIds = TagTreeBuilder.collectDescendantIds(
+                rootTagId = tagId,
+                tags = uiState.value.tagsWithCounts.map { it.tag }
+            )
             tagRepository.softDeleteTag(tagId)
             val currentDest = NavigationDestination.fromStorageKey(destinationKeyFlow.value)
-            if (currentDest is NavigationDestination.TagView && currentDest.tagId == tagId) {
+            if (currentDest is NavigationDestination.TagView &&
+                (currentDest.tagId == tagId || currentDest.tagId in subtreeIds)
+            ) {
                 selectDestination(NavigationDestination.Inbox)
             }
+            widgetRefresher.refreshAll()
         }
     }
 

@@ -133,6 +133,17 @@ class ZeroBackupManager @Inject constructor(
         )
 
         val tagIds = rawTags.mapTo(HashSet()) { it.id }
+        val sanitizedTags = topologicallyOrder(
+            items = rawTags.map { tag ->
+                if (tag.parentId != null && (tag.parentId !in tagIds || tag.parentId == tag.id)) {
+                    tag.copy(parentId = null)
+                } else {
+                    tag
+                }
+            },
+            idSelector = { it.id },
+            parentSelector = { it.parentId }
+        )
         val validCrossRefs = rawCrossRefs.filter { it.taskId in taskIds && it.tagId in tagIds }
         val validSessions = rawSessions.map { session ->
             val validTaskId = session.taskId?.takeIf { it in taskIds }
@@ -152,8 +163,8 @@ class ZeroBackupManager @Inject constructor(
             for (folder in sanitizedFolders) {
                 folderDao.upsertFolder(folder)
             }
-            if (rawTags.isNotEmpty()) {
-                tagDao.upsertTags(rawTags)
+            if (sanitizedTags.isNotEmpty()) {
+                tagDao.upsertTags(sanitizedTags)
             }
             for (task in sanitizedTasks) {
                 taskDao.upsertTask(task)
@@ -169,7 +180,7 @@ class ZeroBackupManager @Inject constructor(
         return BackupSummary(
             foldersCount = sanitizedFolders.count { !it.isDeleted },
             tasksCount = sanitizedTasks.count { !it.isDeleted },
-            tagsCount = rawTags.count { !it.isDeleted },
+            tagsCount = sanitizedTags.count { !it.isDeleted },
             focusSessionsCount = validSessions.count { !it.isDeleted }
         )
     }
@@ -413,8 +424,10 @@ class ZeroBackupManager @Inject constructor(
 
     private fun TagEntity.toJson(): JSONObject = JSONObject().apply {
         put("id", id)
+        put("parentId", parentId ?: JSONObject.NULL)
         put("name", name)
         put("colorHex", colorHex ?: JSONObject.NULL)
+        put("isExpanded", isExpanded)
         put("createdAt", createdAt)
         put("updatedAt", updatedAt)
         put("isDeleted", isDeleted)
@@ -422,8 +435,10 @@ class ZeroBackupManager @Inject constructor(
 
     private fun JSONObject.toTagEntity(): TagEntity = TagEntity(
         id = getString("id"),
+        parentId = optNullableString("parentId"),
         name = getString("name"),
         colorHex = optNullableString("colorHex"),
+        isExpanded = optBoolean("isExpanded", true),
         createdAt = optLong("createdAt", System.currentTimeMillis()),
         updatedAt = optLong("updatedAt", System.currentTimeMillis()),
         isDeleted = optBoolean("isDeleted", false)

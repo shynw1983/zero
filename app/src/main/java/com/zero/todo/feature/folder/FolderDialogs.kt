@@ -19,6 +19,8 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.DriveFileMove
+import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.ArrowDownward
 import androidx.compose.material.icons.rounded.ArrowUpward
 import androidx.compose.material.icons.rounded.Check
@@ -28,6 +30,7 @@ import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Folder
 import androidx.compose.material.icons.rounded.Inbox
 import androidx.compose.material.icons.rounded.SwapVert
+import androidx.compose.material.icons.rounded.Tag
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -60,6 +63,8 @@ import com.zero.todo.core.designsystem.hairlineBorder
 import com.zero.todo.domain.model.Folder
 import com.zero.todo.domain.model.FolderNode
 import com.zero.todo.domain.model.TagItem
+import com.zero.todo.domain.model.TagNode
+import com.zero.todo.domain.model.TagTreeBuilder
 
 @Composable
 fun FolderPickerDialog(
@@ -669,12 +674,15 @@ fun FolderActionMenuDialog(
 }
 
 /**
- * Touch-friendly 50dp action menu for globally renaming or deleting a Tag.
+ * Touch-friendly 50dp action menu for managing a Tag (Create Sub-tag / Rename / Move / Delete).
  */
 @Composable
 fun TagActionMenuDialog(
     tag: TagItem,
+    displayTitle: String = "#${tag.name}",
+    onCreateSubtag: () -> Unit,
     onRename: () -> Unit,
+    onMove: () -> Unit,
     onDelete: () -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -690,12 +698,21 @@ fun TagActionMenuDialog(
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Text(
-                text = "#${tag.name}",
+                text = displayTitle,
                 style = MaterialTheme.typography.titleMedium,
                 color = colors.textPrimary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.padding(bottom = 4.dp)
+            )
+            TactileMenuRow(
+                icon = Icons.Rounded.Add,
+                label = stringResource(R.string.action_create_subtag),
+                tint = colors.textPrimary,
+                onClick = {
+                    onDismiss()
+                    onCreateSubtag()
+                }
             )
             TactileMenuRow(
                 icon = Icons.Rounded.Edit,
@@ -707,6 +724,15 @@ fun TagActionMenuDialog(
                 }
             )
             TactileMenuRow(
+                icon = Icons.AutoMirrored.Rounded.DriveFileMove,
+                label = stringResource(R.string.action_move_tag),
+                tint = colors.textPrimary,
+                onClick = {
+                    onDismiss()
+                    onMove()
+                }
+            )
+            TactileMenuRow(
                 icon = Icons.Rounded.DeleteOutline,
                 label = stringResource(R.string.action_delete_tag),
                 tint = colors.priorityUrgent,
@@ -715,6 +741,285 @@ fun TagActionMenuDialog(
                     onDelete()
                 }
             )
+        }
+    }
+}
+
+@Composable
+fun CreateTagDialog(
+    parentTag: TagItem?,
+    parentPath: String? = parentTag?.name,
+    onDismiss: () -> Unit,
+    onConfirm: (name: String, parentId: String?) -> Unit
+) {
+    val colors = ZeroTheme.colors
+    var nameDraft by rememberSaveable(parentTag?.id) { mutableStateOf("") }
+    val focusRequester = remember { FocusRequester() }
+
+    LaunchedEffect(Unit) { focusRequester.requestFocus() }
+
+    fun submit() {
+        val segments = TagTreeBuilder.parseTagPathSegments(nameDraft)
+        if (segments.isNotEmpty()) {
+            onConfirm(segments.joinToString("/"), parentTag?.id)
+        }
+    }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(ZeroCardShape)
+                .background(colors.surfaceElevated)
+                .hairlineBorder(shape = ZeroCardShape)
+                .padding(20.dp)
+        ) {
+            Text(
+                text = if (parentTag != null) {
+                    stringResource(R.string.dialog_create_subtag_title, parentPath ?: parentTag.name)
+                } else {
+                    stringResource(R.string.dialog_create_tag_title)
+                },
+                style = MaterialTheme.typography.titleMedium,
+                color = colors.textPrimary
+            )
+            Spacer(modifier = Modifier.height(14.dp))
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(ZeroSmallShape)
+                    .background(colors.surface)
+                    .hairlineBorder(
+                        shape = ZeroSmallShape,
+                        color = if (nameDraft.isNotBlank()) colors.accent else colors.hairlineBorder
+                    )
+                    .padding(horizontal = 12.dp, vertical = 14.dp)
+            ) {
+                if (nameDraft.isEmpty()) {
+                    Text(
+                        text = stringResource(R.string.dialog_create_tag_placeholder),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = colors.textMuted
+                    )
+                }
+                BasicTextField(
+                    value = nameDraft,
+                    onValueChange = { nameDraft = it },
+                    singleLine = true,
+                    textStyle = MaterialTheme.typography.bodyMedium.copy(color = colors.textPrimary),
+                    cursorBrush = SolidColor(colors.accent),
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                    keyboardActions = KeyboardActions(onDone = { submit() }),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .focusRequester(focusRequester)
+                )
+            }
+            Spacer(modifier = Modifier.height(18.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End
+            ) {
+                Box(
+                    modifier = Modifier
+                        .heightIn(min = 44.dp)
+                        .clip(ZeroSmallShape)
+                        .hairlineBorder(shape = ZeroSmallShape)
+                        .clickable(onClick = onDismiss)
+                        .padding(horizontal = 16.dp, vertical = 10.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = stringResource(R.string.action_cancel),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = colors.textSecondary
+                    )
+                }
+                Spacer(modifier = Modifier.width(8.dp))
+                val canSave = TagTreeBuilder.parseTagPathSegments(nameDraft).isNotEmpty()
+                Box(
+                    modifier = Modifier
+                        .heightIn(min = 44.dp)
+                        .clip(ZeroSmallShape)
+                        .background(if (canSave) colors.accent else colors.surface)
+                        .clickable(enabled = canSave, onClick = ::submit)
+                        .padding(horizontal = 18.dp, vertical = 10.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = stringResource(R.string.action_create),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = if (canSave) colors.onAccent else colors.textMuted
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun MoveTagDialog(
+    tag: TagItem,
+    allTags: List<TagItem>,
+    displayPath: String = tag.name,
+    onDismiss: () -> Unit,
+    onMoveToParent: (tagId: String, targetParentId: String?) -> Unit
+) {
+    val colors = ZeroTheme.colors
+    val blockedIds = remember(tag.id, allTags) {
+        TagTreeBuilder.collectDescendantIds(tag.id, allTags) + tag.id
+    }
+    val validTargets = remember(allTags, blockedIds) {
+        val dummyCounts = allTags.map { com.zero.todo.data.repository.TagWithCount(it, 0) }
+        val roots = TagTreeBuilder.buildTree(dummyCounts)
+        buildList<TagNode> {
+            fun walk(nodes: List<TagNode>) {
+                for (n in nodes) {
+                    if (n.tag.id !in blockedIds) {
+                        add(n)
+                        walk(n.children)
+                    }
+                }
+            }
+            walk(roots)
+        }
+    }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(ZeroCardShape)
+                .background(colors.surfaceElevated)
+                .hairlineBorder(shape = ZeroCardShape)
+                .padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text(
+                text = stringResource(R.string.dialog_move_tag_title, "#$displayPath"),
+                style = MaterialTheme.typography.titleMedium,
+                color = colors.textPrimary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text = stringResource(R.string.dialog_move_tag_hint),
+                style = MaterialTheme.typography.labelMedium,
+                color = colors.textMuted
+            )
+
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 260.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                item(key = "tag_root_level") {
+                    val isCurrent = tag.parentId == null
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(ZeroSmallShape)
+                            .background(if (isCurrent) colors.accentSubtle else colors.surface)
+                            .hairlineBorder(
+                                shape = ZeroSmallShape,
+                                color = if (isCurrent) colors.accent else colors.hairlineBorder
+                            )
+                            .clickable {
+                                onMoveToParent(tag.id, null)
+                                onDismiss()
+                            }
+                            .padding(horizontal = 12.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Tag,
+                            contentDescription = null,
+                            tint = if (isCurrent) colors.accent else colors.textSecondary,
+                            modifier = Modifier.size(15.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = stringResource(R.string.dialog_move_tag_root),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = if (isCurrent) colors.accent else colors.textPrimary,
+                            modifier = Modifier.weight(1f)
+                        )
+                        if (isCurrent) {
+                            Icon(
+                                imageVector = Icons.Rounded.Check,
+                                contentDescription = null,
+                                tint = colors.accent,
+                                modifier = Modifier.size(15.dp)
+                            )
+                        }
+                    }
+                }
+
+                items(items = validTargets, key = { it.tag.id }) { node ->
+                    val isCurrent = node.tag.id == tag.parentId
+                    val indent = ZeroDimens.TreeIndentPerLevel * node.depth.coerceAtMost(ZeroDimens.MaxVisibleTreeDepth)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(ZeroSmallShape)
+                            .background(if (isCurrent) colors.accentSubtle else colors.surface)
+                            .hairlineBorder(
+                                shape = ZeroSmallShape,
+                                color = if (isCurrent) colors.accent else colors.hairlineBorder
+                            )
+                            .clickable {
+                                onMoveToParent(tag.id, node.tag.id)
+                                onDismiss()
+                            }
+                            .padding(start = 12.dp + indent, end = 12.dp, top = 9.dp, bottom = 9.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Tag,
+                            contentDescription = null,
+                            tint = if (isCurrent) colors.accent else colors.textSecondary,
+                            modifier = Modifier.size(15.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = node.tag.name,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = if (isCurrent) colors.accent else colors.textPrimary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f)
+                        )
+                        if (isCurrent) {
+                            Icon(
+                                imageVector = Icons.Rounded.Check,
+                                contentDescription = null,
+                                tint = colors.accent,
+                                modifier = Modifier.size(15.dp)
+                            )
+                        }
+                    }
+                }
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End
+            ) {
+                Box(
+                    modifier = Modifier
+                        .clip(ZeroSmallShape)
+                        .hairlineBorder(shape = ZeroSmallShape)
+                        .clickable(onClick = onDismiss)
+                        .padding(horizontal = 14.dp, vertical = 8.dp)
+                ) {
+                    Text(
+                        text = stringResource(R.string.action_close),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = colors.textSecondary
+                    )
+                }
+            }
         }
     }
 }
