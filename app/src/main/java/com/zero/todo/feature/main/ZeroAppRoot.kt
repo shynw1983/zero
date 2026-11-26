@@ -21,6 +21,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.material3.adaptive.currentWindowAdaptiveInfo
 import androidx.core.view.WindowCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
@@ -117,8 +118,11 @@ fun ZeroAppRoot(
         }
     }
 
+    val windowWidthSizeClass = currentWindowAdaptiveInfo().windowSizeClass.windowWidthSizeClass
+
     val localizedContext = remember(baseContext, localizedConfig) {
-        baseContext.createConfigurationContext(localizedConfig)
+        val localizedResources = baseContext.createConfigurationContext(localizedConfig).resources
+        LocalizedContextWrapper(baseContext, localizedResources)
     }
 
     val callbacks = remember(viewModel, baseContext) {
@@ -256,13 +260,21 @@ fun ZeroAppRoot(
                             uiState = uiState,
                             callbacks = callbacks,
                             executeUiState = executeUiState,
-                            taskParentPicker = taskParentPicker
+                            taskParentPicker = taskParentPicker,
+                            windowWidthSizeClass = windowWidthSizeClass
                         )
                     }
                 }
             }
         }
     }
+}
+
+internal class LocalizedContextWrapper(
+    base: Context,
+    private val localizedResources: android.content.res.Resources
+) : ContextWrapper(base) {
+    override fun getResources(): android.content.res.Resources = localizedResources
 }
 
 private tailrec fun Context.findActivity(): Activity? = when (this) {

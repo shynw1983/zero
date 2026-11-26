@@ -476,7 +476,9 @@ private fun ExecuteThemeSwatch(theme: ExecuteTheme) {
     ) {
         when (theme) {
             ExecuteTheme.MONOLITH -> {
+                if (size.minDimension <= 0f) return@Canvas
                 val c = Offset(size.width * 0.5f, size.height * 0.5f)
+                val radius = (size.minDimension * 0.44f).coerceAtLeast(1f)
                 drawCircle(
                     brush = Brush.radialGradient(
                         colors = listOf(
@@ -485,9 +487,9 @@ private fun ExecuteThemeSwatch(theme: ExecuteTheme) {
                             Color.Transparent
                         ),
                         center = c,
-                        radius = size.minDimension * 0.44f
+                        radius = radius
                     ),
-                    radius = size.minDimension * 0.44f,
+                    radius = radius,
                     center = c
                 )
                 drawLine(

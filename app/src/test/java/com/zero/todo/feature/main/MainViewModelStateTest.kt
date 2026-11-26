@@ -653,4 +653,34 @@ class MainViewModelStateTest {
         execJob.cancel()
         uiJob.cancel()
     }
+
+    @Test
+    fun `LocalizedContextWrapper preserves Activity UiContext for WindowMetrics and resolves localized strings`() {
+        val activity = org.robolectric.Robolectric.buildActivity(androidx.activity.ComponentActivity::class.java)
+            .setup()
+            .get()
+        val resolvedStrings = mutableSetOf<String>()
+
+        for (tag in listOf("en", "zh", "ja", "ko")) {
+            val locale = java.util.Locale.forLanguageTag(tag)
+            val config = Configuration(activity.resources.configuration).apply {
+                setLocale(locale)
+                setLocales(LocaleList(locale))
+            }
+            val localizedResources = activity.createConfigurationContext(config).resources
+            val wrapped = LocalizedContextWrapper(activity, localizedResources)
+
+            org.junit.Assert.assertSame(activity, wrapped.baseContext)
+            val metrics = androidx.window.layout.WindowMetricsCalculator.getOrCreate()
+                .computeCurrentWindowMetrics(wrapped)
+            assertTrue(metrics.bounds.width() > 0)
+            assertTrue(metrics.bounds.height() > 0)
+
+            val label = wrapped.getString(R.string.now_header_title)
+            assertTrue(label.isNotBlank())
+            resolvedStrings.add(label)
+        }
+
+        assertTrue(resolvedStrings.size >= 3)
+    }
 }

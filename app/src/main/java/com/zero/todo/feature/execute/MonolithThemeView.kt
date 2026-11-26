@@ -589,8 +589,10 @@ private fun MonolithBreathingAura(
     )
 
     Canvas(modifier = modifier) {
+        if (size.minDimension <= 0f) return@Canvas
         val center = Offset(size.width * 0.5f, size.height * 0.46f)
-        val radius = size.minDimension * (0.42f * baseScale + 0.08f * breathe + 0.24f * holdCharge + 0.14f * flowBoost)
+        val radius = (size.minDimension * (0.42f * baseScale + 0.08f * breathe + 0.24f * holdCharge + 0.14f * flowBoost))
+            .coerceAtLeast(1f)
         val alpha = (baseAlpha + 0.10f * breathe + 0.30f * holdCharge + 0.14f * flowBoost).coerceAtMost(0.68f)
 
         drawCircle(
