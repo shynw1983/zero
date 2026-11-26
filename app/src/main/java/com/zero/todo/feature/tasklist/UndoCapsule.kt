@@ -1,33 +1,38 @@
 package com.zero.todo.feature.tasklist
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
@@ -35,12 +40,9 @@ import androidx.compose.ui.unit.dp
 import com.zero.todo.R
 import com.zero.todo.core.designsystem.ZeroCapsuleShape
 import com.zero.todo.core.designsystem.ZeroMotion
-import com.zero.todo.core.designsystem.ZeroSmallShape
 import com.zero.todo.core.designsystem.ZeroTheme
 import com.zero.todo.core.designsystem.hairlineBorder
 import com.zero.todo.domain.model.TaskPlacementChange
-import kotlinx.coroutines.delay
-import java.util.Locale
 
 data class UndoBannerState(
     val id: Long = System.currentTimeMillis(),
@@ -60,7 +62,7 @@ enum class UndoType {
 }
 
 /**
- * Floating Undo capsule for recent task actions.
+ * Floating Undo pill for recent task actions.
  */
 @Composable
 fun UndoCapsule(
@@ -70,7 +72,6 @@ fun UndoCapsule(
     modifier: Modifier = Modifier
 ) {
     val colors = ZeroTheme.colors
-    val tabular = ZeroTheme.tabularTypography
 
     AnimatedVisibility(
         visible = banner != null,
@@ -81,19 +82,20 @@ fun UndoCapsule(
         modifier = modifier
     ) {
         val activeBanner = banner ?: return@AnimatedVisibility
-        var remainingMs by remember(activeBanner.id) { mutableLongStateOf(activeBanner.durationMillis) }
+        val progress = remember(activeBanner.id) { Animatable(1f) }
 
         LaunchedEffect(activeBanner.id) {
-            val stepMs = 50L
-            while (remainingMs > 0L) {
-                delay(stepMs)
-                remainingMs = (remainingMs - stepMs).coerceAtLeast(0L)
-            }
+            progress.snapTo(1f)
+            progress.animateTo(
+                targetValue = 0f,
+                animationSpec = tween(
+                    durationMillis = activeBanner.durationMillis.toInt().coerceAtLeast(1),
+                    easing = LinearEasing
+                )
+            )
             onTimeout(activeBanner.id)
         }
 
-        val progress = (remainingMs.toFloat() / activeBanner.durationMillis.toFloat()).coerceIn(0f, 1f)
-        val secondsText = String.format(Locale.US, "%.1fs", remainingMs / 1000f)
         val messageText = when (activeBanner.undoType) {
             UndoType.REVERT_COMPLETE -> stringResource(R.string.undo_completed, activeBanner.taskTitle)
             UndoType.REVERT_UNCOMPLETE -> stringResource(R.string.undo_restored, activeBanner.taskTitle)
@@ -101,71 +103,75 @@ fun UndoCapsule(
             UndoType.RESTORE_TASK_PLACEMENT -> stringResource(R.string.undo_task_moved, activeBanner.taskTitle)
         }
 
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(ZeroCapsuleShape)
-                .background(colors.surfaceElevated)
-                .hairlineBorder(shape = ZeroCapsuleShape, color = colors.hairlineBorder)
+        Box(
+            modifier = Modifier.fillMaxWidth(),
+            contentAlignment = Alignment.Center
         ) {
             Row(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 14.dp, vertical = 6.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
+                    .widthIn(max = 360.dp)
+                    .height(42.dp)
+                    .clip(ZeroCapsuleShape)
+                    .background(colors.surfaceElevated)
+                    .hairlineBorder(shape = ZeroCapsuleShape, color = colors.hairlineBorder)
+                    .padding(start = 14.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text(
-                        text = secondsText,
-                        style = tabular.dateCompact,
-                        color = colors.accent
+                Canvas(modifier = Modifier.size(16.dp)) {
+                    val strokePx = 1.5.dp.toPx()
+                    val activeStrokePx = 1.75.dp.toPx()
+                    val inset = activeStrokePx / 2f
+                    val diameter = size.minDimension - activeStrokePx
+
+                    drawCircle(
+                        color = colors.hairlineBorder,
+                        radius = diameter / 2f,
+                        style = Stroke(width = strokePx)
                     )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = messageText,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = colors.textPrimary,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                    drawArc(
+                        color = colors.accent,
+                        startAngle = -90f,
+                        sweepAngle = 360f * progress.value,
+                        useCenter = false,
+                        topLeft = Offset(inset, inset),
+                        size = Size(diameter, diameter),
+                        style = Stroke(width = activeStrokePx, cap = StrokeCap.Round)
                     )
                 }
 
                 Spacer(modifier = Modifier.width(10.dp))
 
+                Text(
+                    text = messageText,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = colors.textPrimary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false)
+                )
+
+                Spacer(modifier = Modifier.width(12.dp))
+
                 Box(
                     modifier = Modifier
-                        .heightIn(min = 48.dp)
-                        .clip(ZeroSmallShape)
-                        .background(colors.accentSubtle)
-                        .hairlineBorder(shape = ZeroSmallShape, color = colors.accent)
+                        .width(0.5.dp)
+                        .height(16.dp)
+                        .background(colors.hairlineBorder)
+                )
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxHeight()
                         .clickable(role = Role.Button) { onUndo(activeBanner) }
                         .padding(horizontal = 14.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
                         text = stringResource(R.string.action_undo),
-                        style = MaterialTheme.typography.labelMedium,
+                        style = MaterialTheme.typography.labelLarge,
                         color = colors.accent
                     )
                 }
-            }
-
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(1.5.dp)
-                    .background(colors.surface)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth(progress)
-                        .height(1.5.dp)
-                        .background(colors.accent)
-                )
             }
         }
     }
