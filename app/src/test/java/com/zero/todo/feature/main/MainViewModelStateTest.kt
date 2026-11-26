@@ -683,4 +683,44 @@ class MainViewModelStateTest {
 
         assertTrue(resolvedStrings.size >= 3)
     }
+
+    @Test
+    fun `buildRunwayEntries omits limit line under capacity and inserts limit rail before overflowing task`() {
+        val t1 = com.zero.todo.domain.model.TaskItem(id = "t1", title = "Task 1", estimatedMinutes = 15)
+        val t2 = com.zero.todo.domain.model.TaskItem(id = "t2", title = "Task 2", estimatedMinutes = 15)
+
+        val underEntries = com.zero.todo.feature.execute.buildRunwayEntries(
+            queue = listOf(t1, t2),
+            dailyCapacityMinutes = 240
+        )
+        assertEquals(3, underEntries.size)
+        val underFirst = underEntries[0] as com.zero.todo.feature.execute.RunwayListEntry.TaskBlock
+        val underSecond = underEntries[1] as com.zero.todo.feature.execute.RunwayListEntry.TaskBlock
+        val summary = underEntries[2] as com.zero.todo.feature.execute.RunwayListEntry.CapacityFooterSummary
+        assertEquals(0, underFirst.slot.startMinutes)
+        assertEquals(15, underSecond.slot.startMinutes)
+        assertTrue(!underFirst.slot.isOverCapacity)
+        assertTrue(!underSecond.slot.isOverCapacity)
+        assertEquals(30, summary.allocatedMinutes)
+        assertEquals(240, summary.capacityMinutes)
+        assertTrue(underEntries.none { it is com.zero.todo.feature.execute.RunwayListEntry.CapacityLimitLine })
+
+        val big1 = com.zero.todo.domain.model.TaskItem(id = "b1", title = "Deep 1", estimatedMinutes = 120)
+        val big2 = com.zero.todo.domain.model.TaskItem(id = "b2", title = "Deep 2", estimatedMinutes = 120)
+        val big3 = com.zero.todo.domain.model.TaskItem(id = "b3", title = "Overflow", estimatedMinutes = 60)
+
+        val overEntries = com.zero.todo.feature.execute.buildRunwayEntries(
+            queue = listOf(big1, big2, big3),
+            dailyCapacityMinutes = 240
+        )
+        assertEquals(4, overEntries.size)
+        val b1 = overEntries[0] as com.zero.todo.feature.execute.RunwayListEntry.TaskBlock
+        val b2 = overEntries[1] as com.zero.todo.feature.execute.RunwayListEntry.TaskBlock
+        val limit = overEntries[2] as com.zero.todo.feature.execute.RunwayListEntry.CapacityLimitLine
+        val b3 = overEntries[3] as com.zero.todo.feature.execute.RunwayListEntry.TaskBlock
+        assertTrue(!b1.slot.isOverCapacity)
+        assertTrue(!b2.slot.isOverCapacity)
+        assertEquals(240, limit.limitMinutes)
+        assertTrue(b3.slot.isOverCapacity)
+    }
 }

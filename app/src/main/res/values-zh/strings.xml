@@ -350,4 +350,5 @@
     <string name="execute_theme_runway_desc">精密等宽时间标尺 · 体量成比例色块 · 居中 NOW 瞄准框与上限警戒线</string>
     <string name="monolith_gesture_hint">长按中央 2 分钟起步 · 左右滑切换任务 · 轻点标题调权重或破冰</string>
     <string name="runway_limit_label">%1$s 上限</string>
+    <string name="runway_capacity_summary">已排 %1$s / %2$s · 剩余 %3$s</string>
 </resources>

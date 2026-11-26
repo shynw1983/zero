@@ -350,4 +350,5 @@
     <string name="execute_theme_runway_desc">精密時間スケール · 比例ブロック · 中央NOWレティクル＆上限ライン</string>
     <string name="monolith_gesture_hint">中央長押しで2分開始 · 左右スワイプで切替 · タイトルタップで設定</string>
     <string name="runway_limit_label">%1$s 限界</string>
+    <string name="runway_capacity_summary">%1$s / %2$s · 残り %3$s</string>
 </resources>

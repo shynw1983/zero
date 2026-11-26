@@ -1,12 +1,15 @@
 package com.zero.todo.feature.execute
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.snapping.SnapPosition
@@ -55,6 +58,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.stringResource
@@ -80,23 +84,31 @@ import kotlinx.coroutines.launch
 import kotlin.math.abs
 
 @Immutable
-private data class RunwayTimelineSlot(
+internal data class RunwayTimelineSlot(
     val task: TaskItem,
     val startMinutes: Int,
     val durationMinutes: Int,
     val endMinutes: Int,
-    val isOverCapacity: Boolean,
-    val showLimitRailAbove: Boolean,
-    val showLimitRailBelow: Boolean
+    val isOverCapacity: Boolean
 )
+
+@Immutable
+internal sealed interface RunwayListEntry {
+    data class TaskBlock(val slot: RunwayTimelineSlot) : RunwayListEntry
+    data class CapacityLimitLine(val limitMinutes: Int) : RunwayListEntry
+    data class CapacityFooterSummary(
+        val allocatedMinutes: Int,
+        val capacityMinutes: Int
+    ) : RunwayListEntry
+}
 
 /**
  * Execution Theme 2: RUNWAY (Physical Energy Timeline)
- * - Left column: `tnum` monospace cumulative timeline ruler (`0m`, `30m`, `1h`, `2h`...).
- * - Right column: proportional geometric task blocks (`5m` slender bar, `25m` medium, `1h` tall) with `0.5.dp` borders.
- * - Fixed vertical-center NOW Reticle (`#FF4D00` border) with center-snap fling physics & mechanical tick haptics.
- * - Full-width red-orange limit warning line at `dailyCapacityMinutes` (default `4h`), dimming overflow tasks below.
- * - Quick actions (`2m` / `Next` / `Hold Done`) expand ONLY inside the currently snapped NOW block.
+ * - Left column: continuous vertical rail + `tnum` monospace cumulative timeline ticks (`0m`, `30m`, `1h`, `2h`...).
+ * - Right column: proportional geometric task blocks (`5m` slender bar, `25m` medium, `1h` tall) with `0.5.dp` hairline borders.
+ * - Precision horizontal targeting reticle pointers at vertical center + single highlighted active block (`#FF4D00` border) with center-snap fling physics.
+ * - Full-width red-orange limit warning line inserted only when cumulative time reaches/exceeds `dailyCapacityMinutes` (default `4h`); otherwise an understated capacity footer.
+ * - Quick actions (`2m` / `Next` / `Hold Done`) expand ONLY inside the currently snapped active block.
  */
 @Composable
 fun RunwayThemeView(
@@ -117,12 +129,13 @@ fun RunwayThemeView(
 ) {
     val colors = ZeroTheme.colors
     val haptics = rememberZeroHaptics()
+    val scope = rememberCoroutineScope()
 
-    val slots = remember(state.runwayQueue, state.dailyCapacityMinutes) {
-        buildTimelineSlots(state.runwayQueue, state.dailyCapacityMinutes)
+    val entries = remember(state.runwayQueue, state.dailyCapacityMinutes) {
+        buildRunwayEntries(state.runwayQueue, state.dailyCapacityMinutes)
     }
 
-    if (slots.isEmpty()) {
+    if (entries.isEmpty()) {
         Box(
             modifier = modifier
                 .fillMaxSize()
@@ -194,22 +207,34 @@ fun RunwayThemeView(
         return
     }
 
-    val listState = rememberLazyListState(initialFirstVisibleItemIndex = state.focusedTaskIndex.coerceIn(0, slots.lastIndex))
+    val initialEntryIndex = remember(entries, state.focusedTaskId) {
+        val targetId = state.focusedTaskId
+        val matched = entries.indexOfFirst { (it as? RunwayListEntry.TaskBlock)?.slot?.task?.id == targetId }
+        if (matched >= 0) matched else entries.indexOfFirst { it is RunwayListEntry.TaskBlock }.coerceAtLeast(0)
+    }
+    val listState = rememberLazyListState(initialFirstVisibleItemIndex = initialEntryIndex)
     val snapFling = rememberSnapFlingBehavior(
         lazyListState = listState,
         snapPosition = SnapPosition.Center
     )
 
-    val centeredTaskId by remember(slots) {
+    val centeredTaskId by remember(entries) {
         derivedStateOf {
             val info = listState.layoutInfo
             val items = info.visibleItemsInfo
-            if (items.isEmpty()) return@derivedStateOf slots.firstOrNull()?.task?.id
+            val firstTaskId = (entries.firstOrNull { it is RunwayListEntry.TaskBlock } as? RunwayListEntry.TaskBlock)
+                ?.slot?.task?.id
+            if (items.isEmpty()) return@derivedStateOf firstTaskId
             val viewportCenter = (info.viewportStartOffset + info.viewportEndOffset) / 2
-            val closest = items.minByOrNull { item ->
-                abs((item.offset + item.size / 2) - viewportCenter)
-            } ?: return@derivedStateOf slots.firstOrNull()?.task?.id
-            slots.getOrNull(closest.index)?.task?.id
+            val closestTask = items
+                .mapNotNull { item ->
+                    val block = entries.getOrNull(item.index) as? RunwayListEntry.TaskBlock ?: return@mapNotNull null
+                    item to block
+                }
+                .minByOrNull { (item, _) ->
+                    abs((item.offset + item.size / 2) - viewportCenter)
+                }
+            closestTask?.second?.slot?.task?.id ?: firstTaskId
         }
     }
 
@@ -233,13 +258,24 @@ fun RunwayThemeView(
             .background(MonolithBlack),
         contentAlignment = Alignment.Center
     ) {
-        val verticalCenterPad = ((maxHeight - 148.dp) / 2).coerceAtLeast(48.dp)
+        val verticalCenterPad = ((maxHeight - 120.dp) / 2).coerceAtLeast(48.dp)
 
         Box(
             modifier = Modifier
                 .widthIn(max = ExecuteMaxContentWidth)
                 .fillMaxSize()
         ) {
+            // Continuous full-height vertical time ruler rail (x = 12.dp start padding + 54.dp ruler - 4.dp inset)
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                val railX = 62.dp.toPx()
+                drawLine(
+                    color = Color(0xFF27272A),
+                    start = Offset(railX, 0f),
+                    end = Offset(railX, size.height),
+                    strokeWidth = 0.5.dp.toPx()
+                )
+            }
+
             LazyColumn(
                 state = listState,
                 flingBehavior = snapFling,
@@ -253,76 +289,155 @@ fun RunwayThemeView(
                 modifier = Modifier.fillMaxSize()
             ) {
                 itemsIndexed(
-                    items = slots,
-                    key = { _, slot -> slot.task.id }
-                ) { _, slot ->
-                    val isSnappedActive = slot.task.id == (centeredTaskId ?: state.focusedTaskId ?: slots.first().task.id)
-                    val isTaskFlowing = isSnappedActive &&
-                        state.focusState.isActive &&
-                        state.focusState.task?.id == slot.task.id
-
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        if (slot.showLimitRailAbove) {
+                    items = entries,
+                    key = { _, entry ->
+                        when (entry) {
+                            is RunwayListEntry.TaskBlock -> "task_${entry.slot.task.id}"
+                            is RunwayListEntry.CapacityLimitLine -> "limit_${entry.limitMinutes}"
+                            is RunwayListEntry.CapacityFooterSummary -> "summary_${entry.allocatedMinutes}_${entry.capacityMinutes}"
+                        }
+                    }
+                ) { entryIndex, entry ->
+                    when (entry) {
+                        is RunwayListEntry.CapacityLimitLine -> {
                             CapacityLimitRail(label = limitLabel)
                         }
 
-                        RunwayTimelineBlockRow(
-                            slot = slot,
-                            isActive = isSnappedActive,
-                            isFlowActive = isTaskFlowing,
-                            focusState = state.focusState,
-                            folderName = slot.task.folderId?.let(state.folderNameById::get),
-                            onComplete = { onCompleteTask(slot.task) },
-                            onSkip = { onSkipTask(slot.task) },
-                            onOpenDetail = { onOpenTaskDetail(slot.task) },
-                            onStartTwoMin = { onStartFocus(slot.task, FocusMode.TWO_MIN_STARTER) },
-                            onPauseFocus = onPauseFocus,
-                            onStartOrResumeFocus = onStartOrResumeFocus,
-                            onContinueFocusToPomodoro = onContinueFocusToPomodoro,
-                            onCompleteFocusedTask = { onCompleteFocusedTask(slot.task) },
-                            onExitFocus = onExitFocus
-                        )
+                        is RunwayListEntry.CapacityFooterSummary -> {
+                            CapacityFooterSummaryRow(
+                                allocatedMinutes = entry.allocatedMinutes,
+                                capacityMinutes = entry.capacityMinutes
+                            )
+                        }
 
-                        if (slot.showLimitRailBelow) {
-                            CapacityLimitRail(label = limitLabel)
+                        is RunwayListEntry.TaskBlock -> {
+                            val slot = entry.slot
+                            val activeId = centeredTaskId ?: state.focusedTaskId
+                                ?: (entries.firstOrNull { it is RunwayListEntry.TaskBlock } as? RunwayListEntry.TaskBlock)?.slot?.task?.id
+                            val isSnappedActive = slot.task.id == activeId
+                            val isTaskFlowing = isSnappedActive &&
+                                state.focusState.isActive &&
+                                state.focusState.task?.id == slot.task.id
+
+                            RunwayTimelineBlockRow(
+                                slot = slot,
+                                isActive = isSnappedActive,
+                                isFlowActive = isTaskFlowing,
+                                focusState = state.focusState,
+                                folderName = slot.task.folderId?.let(state.folderNameById::get),
+                                onComplete = { onCompleteTask(slot.task) },
+                                onSkip = { onSkipTask(slot.task) },
+                                onBlockTap = {
+                                    if (isSnappedActive) {
+                                        onOpenTaskDetail(slot.task)
+                                    } else {
+                                        val info = listState.layoutInfo
+                                        val tappedItem = info.visibleItemsInfo.firstOrNull { it.index == entryIndex }
+                                        if (tappedItem != null) {
+                                            val viewportCenter = (info.viewportStartOffset + info.viewportEndOffset) / 2
+                                            val delta = (tappedItem.offset + tappedItem.size / 2) - viewportCenter
+                                            scope.launch {
+                                                listState.animateScrollBy(delta.toFloat())
+                                            }
+                                        } else {
+                                            scope.launch {
+                                                listState.animateScrollToItem(entryIndex)
+                                            }
+                                        }
+                                    }
+                                },
+                                onStartTwoMin = { onStartFocus(slot.task, FocusMode.TWO_MIN_STARTER) },
+                                onPauseFocus = onPauseFocus,
+                                onStartOrResumeFocus = onStartOrResumeFocus,
+                                onContinueFocusToPomodoro = onContinueFocusToPomodoro,
+                                onCompleteFocusedTask = { onCompleteFocusedTask(slot.task) },
+                                onExitFocus = onExitFocus
+                            )
                         }
                     }
                 }
             }
 
-            // Fixed Center NOW Reticle Overlay (visual targeting frame aligned to the timeline block column)
-            Row(
+            // Center Targeting Reticle Pointers (left pointer from rail + right edge sight tick; zero overlapping card box)
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                val cy = size.height * 0.5f
+                val railX = 62.dp.toPx()
+                val pointer = Path().apply {
+                    moveTo(railX - 1.dp.toPx(), cy - 5.dp.toPx())
+                    lineTo(railX + 6.dp.toPx(), cy)
+                    lineTo(railX - 1.dp.toPx(), cy + 5.dp.toPx())
+                    close()
+                }
+                drawPath(path = pointer, color = SignalOrange)
+
+                val rightTickX = size.width - 5.dp.toPx()
+                drawLine(
+                    color = SignalOrange,
+                    start = Offset(rightTickX, cy - 9.dp.toPx()),
+                    end = Offset(rightTickX, cy + 9.dp.toPx()),
+                    strokeWidth = 2.dp.toPx()
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun CapacityFooterSummaryRow(
+    allocatedMinutes: Int,
+    capacityMinutes: Int
+) {
+    val colors = ZeroTheme.colors
+    val tabular = ZeroTheme.tabularTypography
+    val remaining = (capacityMinutes - allocatedMinutes).coerceAtLeast(0)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .width(54.dp)
+                .height(24.dp)
+        ) {
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                val railX = size.width - 4.dp.toPx()
+                drawCircle(
+                    color = Color(0xFF52525B),
+                    radius = 2.5.dp.toPx(),
+                    center = Offset(railX, size.height / 2f)
+                )
+            }
+        }
+        Row(
+            modifier = Modifier.weight(1f),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Canvas(
                 modifier = Modifier
-                    .align(Alignment.Center)
-                    .fillMaxWidth()
-                    .padding(start = 70.dp, end = 12.dp),
-                verticalAlignment = Alignment.CenterVertically
+                    .width(20.dp)
+                    .height(2.dp)
             ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(148.dp)
-                        .hairlineBorder(
-                            shape = RoundedCornerShape(16.dp),
-                            color = SignalOrange.copy(alpha = 0.55f)
-                        )
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .align(Alignment.TopEnd)
-                            .padding(top = 6.dp, end = 8.dp)
-                            .clip(ZeroCapsuleShape)
-                            .background(SignalOrange.copy(alpha = 0.18f))
-                            .padding(horizontal = 7.dp, vertical = 2.dp)
-                    ) {
-                        Text(
-                            text = stringResource(R.string.mode_now),
-                            style = ZeroTheme.tabularTypography.priorityTag,
-                            color = SignalOrange
-                        )
-                    }
-                }
+                drawLine(
+                    color = Color(0xFF3F3F46),
+                    start = Offset(0f, size.height / 2f),
+                    end = Offset(size.width, size.height / 2f),
+                    strokeWidth = 0.5.dp.toPx(),
+                    pathEffect = PathEffect.dashPathEffect(floatArrayOf(6f, 6f))
+                )
             }
+            Text(
+                text = stringResource(
+                    R.string.runway_capacity_summary,
+                    formatAxisMinutes(allocatedMinutes),
+                    formatAxisMinutes(capacityMinutes),
+                    formatAxisMinutes(remaining)
+                ),
+                style = tabular.dateCompact,
+                color = colors.textMuted
+            )
         }
     }
 }
@@ -375,7 +490,7 @@ private fun RunwayTimelineBlockRow(
     folderName: String?,
     onComplete: () -> Unit,
     onSkip: () -> Unit,
-    onOpenDetail: () -> Unit,
+    onBlockTap: () -> Unit,
     onStartTwoMin: () -> Unit,
     onPauseFocus: () -> Unit,
     onStartOrResumeFocus: () -> Unit,
@@ -390,10 +505,10 @@ private fun RunwayTimelineBlockRow(
     val holdProgress = remember(slot.task.id) { Animatable(0f) }
 
     val baseHeight: Dp = when {
-        slot.durationMinutes <= 5 -> 72.dp
-        slot.durationMinutes <= 15 -> 92.dp
-        slot.durationMinutes <= 30 -> 118.dp
-        else -> 156.dp
+        slot.durationMinutes <= 5 -> 48.dp
+        slot.durationMinutes <= 15 -> 60.dp
+        slot.durationMinutes <= 30 -> 82.dp
+        else -> 124.dp
     }
     val blockAlpha = when {
         slot.isOverCapacity && isActive -> 0.86f
@@ -409,40 +524,36 @@ private fun RunwayTimelineBlockRow(
         TaskPriority.NONE -> colors.textMuted
     }
 
+    val blockShape = RoundedCornerShape(14.dp)
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .alpha(blockAlpha),
         verticalAlignment = Alignment.Top
     ) {
-        // Left Time Ruler Column (tnum ticks)
+        // Left Time Ruler Column (horizontal tnum tick anchored to the continuous background rail)
         Box(
             modifier = Modifier
-                .width(56.dp)
+                .width(54.dp)
                 .height(baseHeight)
                 .padding(end = 6.dp)
         ) {
             Canvas(modifier = Modifier.fillMaxSize()) {
                 val railX = size.width - 4.dp.toPx()
-                drawLine(
-                    color = Color(0xFF27272A),
-                    start = Offset(railX, 0f),
-                    end = Offset(railX, size.height),
-                    strokeWidth = 0.5.dp.toPx()
-                )
                 // Major tick at start of slot
                 drawLine(
                     color = if (isActive) SignalOrange else Color(0xFF52525B),
-                    start = Offset(railX - 7.dp.toPx(), 10.dp.toPx()),
-                    end = Offset(railX, 10.dp.toPx()),
-                    strokeWidth = 1.dp.toPx()
+                    start = Offset(railX - 7.dp.toPx(), 14.dp.toPx()),
+                    end = Offset(railX, 14.dp.toPx()),
+                    strokeWidth = if (isActive) 1.5.dp.toPx() else 1.dp.toPx()
                 )
                 // Intermediate minor tick for larger blocks
                 if (slot.durationMinutes >= 25) {
                     drawLine(
                         color = Color(0xFF3F3F46),
-                        start = Offset(railX - 4.dp.toPx(), size.height * 0.52f),
-                        end = Offset(railX, size.height * 0.52f),
+                        start = Offset(railX - 4.dp.toPx(), size.height * 0.56f),
+                        end = Offset(railX, size.height * 0.56f),
                         strokeWidth = 0.5.dp.toPx()
                     )
                 }
@@ -453,7 +564,7 @@ private fun RunwayTimelineBlockRow(
                 color = if (isActive) SignalOrange else colors.textMuted,
                 modifier = Modifier
                     .align(Alignment.TopStart)
-                    .padding(top = 2.dp)
+                    .padding(top = 6.dp)
             )
         }
 
@@ -461,19 +572,27 @@ private fun RunwayTimelineBlockRow(
         Column(
             modifier = Modifier
                 .weight(1f)
-                .heightIn(min = if (isActive) maxOf(baseHeight.value, 140f).dp else baseHeight)
-                .clip(RoundedCornerShape(14.dp))
-                .background(if (isActive) Color(0xFF17171C) else Color(0xFF111115))
-                .hairlineBorder(
-                    shape = RoundedCornerShape(14.dp),
-                    color = if (isActive) SignalOrange else Color(0xFF27272A)
+                .animateContentSize()
+                .heightIn(min = if (isActive) maxOf(baseHeight.value, 112f).dp else baseHeight)
+                .clip(blockShape)
+                .background(if (isActive) Color(0xFF17171D) else Color(0xFF111115))
+                .then(
+                    if (isActive) {
+                        Modifier.border(width = 1.dp, color = SignalOrange, shape = blockShape)
+                    } else {
+                        Modifier.hairlineBorder(shape = blockShape, color = Color(0xFF27272A))
+                    }
                 )
                 .clickable {
                     haptics.reorderTick()
-                    onOpenDetail()
+                    onBlockTap()
                 }
-                .padding(horizontal = 14.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.SpaceBetween
+                .padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalArrangement = if (isActive && baseHeight <= 82.dp) {
+                Arrangement.spacedBy(12.dp)
+            } else {
+                Arrangement.SpaceBetween
+            }
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -507,14 +626,36 @@ private fun RunwayTimelineBlockRow(
                 Box(
                     modifier = Modifier
                         .clip(ZeroCapsuleShape)
-                        .background(Color.White.copy(alpha = 0.06f))
-                        .padding(horizontal = 7.dp, vertical = 3.dp)
+                        .background(
+                            if (isActive) SignalOrange.copy(alpha = 0.14f)
+                            else Color.White.copy(alpha = 0.06f)
+                        )
+                        .padding(horizontal = 8.dp, vertical = 3.dp)
                 ) {
-                    Text(
-                        text = formatAxisMinutes(slot.durationMinutes),
-                        style = tabular.dateCompact,
-                        color = if (isActive) SignalOrange else colors.textSecondary
-                    )
+                    if (isActive) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(5.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(5.dp)
+                                    .clip(CircleShape)
+                                    .background(SignalOrange)
+                            )
+                            Text(
+                                text = "${stringResource(R.string.mode_now)} · ${formatAxisMinutes(slot.durationMinutes)}",
+                                style = tabular.dateCompact,
+                                color = SignalOrange
+                            )
+                        }
+                    } else {
+                        Text(
+                            text = formatAxisMinutes(slot.durationMinutes),
+                            style = tabular.dateCompact,
+                            color = colors.textSecondary
+                        )
+                    }
                 }
             }
 
@@ -758,35 +899,47 @@ private fun RunwayTimelineBlockRow(
     }
 }
 
-private fun buildTimelineSlots(
+internal fun buildRunwayEntries(
     queue: List<TaskItem>,
     dailyCapacityMinutes: Int
-): List<RunwayTimelineSlot> {
+): List<RunwayListEntry> {
     if (queue.isEmpty()) return emptyList()
     var cursor = 0
-    var limitMarkerPlaced = false
-    val slots = queue.mapIndexed { index, task ->
+    var limitPlaced = false
+    val entries = mutableListOf<RunwayListEntry>()
+
+    for (task in queue) {
         val dur = task.estimatedMinutes ?: EffortTier.DEFAULT_UNSET_MINUTES
         val start = cursor
         val end = cursor + dur
         cursor = end
         val over = end > dailyCapacityMinutes
-        val showAbove = over && !limitMarkerPlaced
-        if (showAbove) {
-            limitMarkerPlaced = true
+        if (over && !limitPlaced) {
+            entries += RunwayListEntry.CapacityLimitLine(dailyCapacityMinutes)
+            limitPlaced = true
         }
-        val showBelow = !limitMarkerPlaced && index == queue.lastIndex
-        RunwayTimelineSlot(
-            task = task,
-            startMinutes = start,
-            durationMinutes = dur,
-            endMinutes = end,
-            isOverCapacity = over,
-            showLimitRailAbove = showAbove,
-            showLimitRailBelow = showBelow
+        entries += RunwayListEntry.TaskBlock(
+            RunwayTimelineSlot(
+                task = task,
+                startMinutes = start,
+                durationMinutes = dur,
+                endMinutes = end,
+                isOverCapacity = over
+            )
         )
     }
-    return slots
+
+    if (!limitPlaced) {
+        if (cursor >= dailyCapacityMinutes) {
+            entries += RunwayListEntry.CapacityLimitLine(dailyCapacityMinutes)
+        } else {
+            entries += RunwayListEntry.CapacityFooterSummary(
+                allocatedMinutes = cursor,
+                capacityMinutes = dailyCapacityMinutes
+            )
+        }
+    }
+    return entries
 }
 
 private fun formatAxisMinutes(minutes: Int): String {
