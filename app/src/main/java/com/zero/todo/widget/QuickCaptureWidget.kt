@@ -1,14 +1,16 @@
 package com.zero.todo.widget
 
+import android.appwidget.AppWidgetManager
 import android.content.Context
 import android.content.Intent
-import androidx.compose.ui.graphics.Color
+import android.net.Uri
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
 import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
+import androidx.glance.appwidget.GlanceAppWidgetManager
 import androidx.glance.appwidget.GlanceAppWidgetReceiver
 import androidx.glance.appwidget.action.actionStartActivity
 import androidx.glance.appwidget.cornerRadius
@@ -27,23 +29,27 @@ import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
 import androidx.glance.unit.ColorProvider
 import com.zero.todo.MainActivity
-import com.zero.todo.feature.folder.NavigationDestination
-
-private val CapsuleObsidian = Color(0xFF09090B)
-private val CapsuleSurface = Color(0xFF141417)
-private val CapsuleAccent = Color(0xFF7B9CC2)
-private val CapsuleText = Color(0xFFF4F4F5)
 
 /**
- * 1x1 minimalist dark quick-capture capsule widget.
- * Launches ZERO directly into Inbox with the Quick Input Capsule focused (< 3s capture).
+ * 1x1 minimalist configurable quick-capture capsule widget.
+ * Supports configurable theme + accent + target capture destination (Inbox / Today / Folder).
  */
 class QuickCaptureWidget : GlanceAppWidget() {
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
+        val manager = GlanceAppWidgetManager(context)
+        val appWidgetId = runCatching { manager.getAppWidgetId(id) }
+            .getOrDefault(AppWidgetManager.INVALID_APPWIDGET_ID)
+
+        val config = WidgetConfigStore.load(context, appWidgetId, defaultScope = WidgetFilterScope.INBOX)
+        val (appDark, appAccent) = readAppThemePrefs(context)
+        val palette = resolveWidgetPalette(config, appDark, appAccent)
+        val destinationKey = WidgetTaskQueryEngine.destinationStorageKey(config)
+
         val launchIntent = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-            putExtra(ZeroWidgetIntents.EXTRA_DESTINATION_KEY, NavigationDestination.Inbox.toStorageKey())
+            data = Uri.parse("zero://widget-quick/$appWidgetId")
+            putExtra(ZeroWidgetIntents.EXTRA_DESTINATION_KEY, destinationKey)
             putExtra(ZeroWidgetIntents.EXTRA_LAUNCH_QUICK_INPUT, true)
         }
 
@@ -51,7 +57,7 @@ class QuickCaptureWidget : GlanceAppWidget() {
             Box(
                 modifier = GlanceModifier
                     .fillMaxSize()
-                    .background(CapsuleObsidian)
+                    .background(palette.background)
                     .cornerRadius(24.dp)
                     .padding(4.dp)
                     .clickable(actionStartActivity(launchIntent)),
@@ -60,7 +66,7 @@ class QuickCaptureWidget : GlanceAppWidget() {
                 Column(
                     modifier = GlanceModifier
                         .fillMaxSize()
-                        .background(CapsuleSurface)
+                        .background(palette.cardSurface)
                         .cornerRadius(20.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalAlignment = Alignment.CenterHorizontally
@@ -68,14 +74,14 @@ class QuickCaptureWidget : GlanceAppWidget() {
                     Box(
                         modifier = GlanceModifier
                             .size(6.dp)
-                            .background(CapsuleAccent)
+                            .background(palette.accent)
                             .cornerRadius(3.dp)
                     ) {}
                     Spacer(modifier = GlanceModifier.height(2.dp))
                     Text(
                         text = "+",
                         style = TextStyle(
-                            color = ColorProvider(CapsuleText),
+                            color = ColorProvider(palette.textPrimary),
                             fontSize = 22.sp,
                             fontWeight = FontWeight.Medium
                         )
@@ -88,4 +94,9 @@ class QuickCaptureWidget : GlanceAppWidget() {
 
 class QuickCaptureWidgetReceiver : GlanceAppWidgetReceiver() {
     override val glanceAppWidget: GlanceAppWidget = QuickCaptureWidget()
+
+    override fun onDeleted(context: Context, appWidgetIds: IntArray) {
+        super.onDeleted(context, appWidgetIds)
+        WidgetConfigStore.delete(context, appWidgetIds)
+    }
 }

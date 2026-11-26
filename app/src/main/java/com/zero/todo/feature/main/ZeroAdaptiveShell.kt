@@ -117,6 +117,7 @@ import com.zero.todo.feature.matrix.MatrixPane
 import com.zero.todo.feature.execute.ExecuteHostScreen
 import com.zero.todo.feature.execute.ExecuteUiState
 import com.zero.todo.feature.execute.MonolithBlack
+import com.zero.todo.feature.execute.SignalOrange
 import com.zero.todo.feature.settings.BackupUiStatus
 import com.zero.todo.feature.settings.SettingsOverlay
 import com.zero.todo.feature.taskdetail.TaskDetailPane
@@ -419,6 +420,7 @@ fun ZeroAdaptiveShell(
                         ZeroTheme(
                             darkTheme = true,
                             accent = uiState.activeAccent,
+                            accentOverride = SignalOrange,
                             hapticsEnabled = uiState.hapticsEnabled
                         ) {
                             ExecuteHostScreen(
@@ -499,6 +501,7 @@ fun ZeroAdaptiveShell(
             ZeroTheme(
                 darkTheme = isNowStage || uiState.isDarkTheme,
                 accent = uiState.activeAccent,
+                accentOverride = if (isNowStage) SignalOrange else null,
                 hapticsEnabled = uiState.hapticsEnabled
             ) {
                 DualStateModeBar(

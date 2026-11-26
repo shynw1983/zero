@@ -178,6 +178,10 @@ interface TaskDao {
     fun observeAllActiveTasks(): Flow<List<TaskWithTags>>
 
     @Transaction
+    @Query("SELECT * FROM tasks WHERE isDeleted = 0 ORDER BY isCompleted ASC, sortOrder ASC, createdAt ASC")
+    suspend fun getActiveTasksWithTagsSnapshot(): List<TaskWithTags>
+
+    @Transaction
     @Query(
         """
         SELECT * FROM tasks

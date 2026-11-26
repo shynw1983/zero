@@ -6,6 +6,7 @@ import androidx.compose.material3.Shapes
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.ReadOnlyComposable
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 
 val ZeroShapes = Shapes(
@@ -24,13 +25,23 @@ val ZeroShapes = Shapes(
 fun ZeroTheme(
     darkTheme: Boolean = true,
     accent: ZeroAccent = ZeroAccent.SlateBlue,
+    accentOverride: Color? = null,
     hapticsEnabled: Boolean = true,
     content: @Composable () -> Unit
 ) {
-    val palette = if (darkTheme) {
+    val basePalette = if (darkTheme) {
         zeroDarkPalette(accent)
     } else {
         zeroLightPalette(accent)
+    }
+    val palette = if (accentOverride != null) {
+        basePalette.copy(
+            accent = accentOverride,
+            onAccent = Color.White,
+            accentSubtle = accentOverride.copy(alpha = if (darkTheme) 0.16f else 0.11f)
+        )
+    } else {
+        basePalette
     }
     val tabularTypography = ZeroTabularTypography()
 

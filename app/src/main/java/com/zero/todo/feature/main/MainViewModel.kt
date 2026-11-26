@@ -749,21 +749,27 @@ class MainViewModel @Inject constructor(
         savedStateHandle[KEY_SETTINGS_OPEN] = false
     }
 
-    fun setDarkTheme(isDark: Boolean) = userPreferencesRepository.setDarkTheme(isDark)
+    fun setDarkTheme(isDark: Boolean) {
+        userPreferencesRepository.setDarkTheme(isDark)
+        viewModelScope.launch { widgetRefresher.refreshAll() }
+    }
 
     fun toggleTheme() {
         userPreferencesRepository.setDarkTheme(!userPreferencesRepository.preferences.value.isDarkTheme)
+        viewModelScope.launch { widgetRefresher.refreshAll() }
     }
 
     fun setAccent(accent: ZeroAccent) {
         userPreferencesRepository.setAccent(accent)
         appIconSwitcher.syncAccentIcon(accent)
+        viewModelScope.launch { widgetRefresher.refreshAll() }
     }
 
     fun toggleAccent() {
         val next = userPreferencesRepository.preferences.value.accent.next()
         userPreferencesRepository.setAccent(next)
         appIconSwitcher.syncAccentIcon(next)
+        viewModelScope.launch { widgetRefresher.refreshAll() }
     }
 
     fun setAntiMisclickMode(mode: AntiMisclickMode) = userPreferencesRepository.setAntiMisclickMode(mode)

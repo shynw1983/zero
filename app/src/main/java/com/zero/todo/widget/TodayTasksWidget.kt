@@ -1,17 +1,22 @@
 package com.zero.todo.widget
 
+import android.appwidget.AppWidgetManager
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.glance.ColorFilter
 import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
+import androidx.glance.Image
+import androidx.glance.ImageProvider
 import androidx.glance.action.ActionParameters
 import androidx.glance.action.actionParametersOf
 import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
+import androidx.glance.appwidget.GlanceAppWidgetManager
 import androidx.glance.appwidget.GlanceAppWidgetReceiver
 import androidx.glance.appwidget.action.ActionCallback
 import androidx.glance.appwidget.action.actionRunCallback
@@ -39,102 +44,177 @@ import com.zero.todo.R
 import com.zero.todo.core.common.ZeroDateFormatter
 import com.zero.todo.core.notification.syncTaskReminder
 import com.zero.todo.data.local.entity.TaskEntity
-import com.zero.todo.feature.folder.NavigationDestination
 import java.time.LocalDate
-
-private val WidgetObsidian = Color(0xFF09090B)
-private val WidgetCarbon = Color(0xFF141417)
-private val WidgetSurfaceElevated = Color(0xFF1C1C21)
-private val WidgetHairline = Color(0xFF27272A)
-private val WidgetTextPrimary = Color(0xFFF4F4F5)
-private val WidgetTextSecondary = Color(0xFFA1A1AA)
-private val WidgetTextMuted = Color(0xFF63636B)
-private val WidgetAccent = Color(0xFF7B9CC2)
-private val WidgetPriorityUrgent = Color(0xFFD66A6A)
-private val WidgetPriorityHigh = Color(0xFFCFA052)
-private val WidgetPriorityMedium = Color(0xFF7B9CC2)
 
 private val PARAM_TASK_ID = ActionParameters.Key<String>("zero_widget_task_id")
 
 /**
- * Minimalist dark "Today Tasks" Android home screen widget built with Jetpack Glance.
+ * Configurable minimalist ZERO task list home screen widget built with Jetpack Glance.
+ * Supports per-instance Filter Scope, View Mode (List / Compact / Focus Spotlight), and Theme + Accent.
  */
 class TodayTasksWidget : GlanceAppWidget() {
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
-        val today = LocalDate.now()
-        val end = ZeroDateFormatter.endOfDayExclusiveMillis(today)
+        val manager = GlanceAppWidgetManager(context)
+        val appWidgetId = runCatching { manager.getAppWidgetId(id) }
+            .getOrDefault(AppWidgetManager.INVALID_APPWIDGET_ID)
 
-        val todayTasks = runCatching {
-            ZeroWidgetUpdater.entryPoint(context)
-                .taskDao()
-                .getActiveTasksDueBefore(end)
-        }.getOrDefault(emptyList())
+        val config = WidgetConfigStore.load(context, appWidgetId, defaultScope = WidgetFilterScope.TODAY)
+        val locContext = localizedWidgetContext(context)
+        val (appDark, appAccent) = readAppThemePrefs(context)
+        val palette = resolveWidgetPalette(config, appDark, appAccent)
+
+        val entryPoint = ZeroWidgetUpdater.entryPoint(context)
+        val allTasks = runCatching { entryPoint.taskDao().getActiveTasksWithTagsSnapshot() }.getOrDefault(emptyList())
+        val allFolders = runCatching { entryPoint.folderDao().getActiveFolders() }.getOrDefault(emptyList())
+        val allTags = runCatching { entryPoint.tagDao().getActiveTagsSnapshot() }.getOrDefault(emptyList())
+
+        val filteredTasks = WidgetTaskQueryEngine.filterTasks(
+            allTasks = allTasks,
+            allFolders = allFolders,
+            config = config,
+            today = LocalDate.now()
+        )
+
+        val headerTitle = resolveWidgetHeaderTitle(
+            locContext = locContext,
+            config = config,
+            folderName = config.folderId?.let { fid -> allFolders.firstOrNull { it.id == fid }?.name },
+            tagName = config.tagId?.let { tid -> allTags.firstOrNull { it.id == tid }?.name }
+        )
 
         provideContent {
-            TodayTasksWidgetContent(context = context, tasks = todayTasks)
+            ZeroTasksWidgetContent(
+                context = locContext,
+                appWidgetId = appWidgetId,
+                config = config,
+                palette = palette,
+                headerTitle = headerTitle,
+                tasks = filteredTasks
+            )
         }
     }
 }
 
+internal fun resolveWidgetHeaderTitle(
+    locContext: Context,
+    config: ZeroWidgetConfig,
+    folderName: String?,
+    tagName: String?
+): String = when (config.filterScope) {
+    WidgetFilterScope.TODAY -> locContext.getString(R.string.widget_header_today)
+    WidgetFilterScope.INBOX -> locContext.getString(R.string.widget_header_inbox)
+    WidgetFilterScope.NEXT_7_DAYS -> locContext.getString(R.string.widget_header_next7)
+    WidgetFilterScope.HIGH_PRIORITY -> locContext.getString(R.string.widget_header_priority)
+    WidgetFilterScope.ALL_ACTIVE -> locContext.getString(R.string.widget_header_all)
+    WidgetFilterScope.FOLDER -> folderName?.takeIf { it.isNotBlank() }
+        ?: locContext.getString(R.string.widget_header_folder_fallback)
+    WidgetFilterScope.TAG -> tagName?.takeIf { it.isNotBlank() }?.let { "#$it" }
+        ?: locContext.getString(R.string.widget_header_tag_fallback)
+}
+
 @Composable
-private fun TodayTasksWidgetContent(
+private fun ZeroTasksWidgetContent(
     context: Context,
+    appWidgetId: Int,
+    config: ZeroWidgetConfig,
+    palette: WidgetVisualPalette,
+    headerTitle: String,
     tasks: List<TaskEntity>
 ) {
-    val openTodayIntent = Intent(context, MainActivity::class.java).apply {
+    val destinationKey = WidgetTaskQueryEngine.destinationStorageKey(config)
+    val openListIntent = Intent(context, MainActivity::class.java).apply {
         flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-        putExtra(ZeroWidgetIntents.EXTRA_DESTINATION_KEY, NavigationDestination.Today.toStorageKey())
+        data = Uri.parse("zero://widget-open/$appWidgetId")
+        putExtra(ZeroWidgetIntents.EXTRA_DESTINATION_KEY, destinationKey)
     }
     val quickCaptureIntent = Intent(context, MainActivity::class.java).apply {
         flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-        putExtra(ZeroWidgetIntents.EXTRA_DESTINATION_KEY, NavigationDestination.Today.toStorageKey())
+        data = Uri.parse("zero://widget-capture/$appWidgetId")
+        putExtra(ZeroWidgetIntents.EXTRA_DESTINATION_KEY, destinationKey)
         putExtra(ZeroWidgetIntents.EXTRA_LAUNCH_QUICK_INPUT, true)
     }
+    val configureIntent = Intent(context, WidgetConfigActivity::class.java).apply {
+        action = AppWidgetManager.ACTION_APPWIDGET_CONFIGURE
+        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        data = Uri.parse("zero://widget-config/$appWidgetId")
+        putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+        putExtra(WidgetConfigActivity.EXTRA_IS_QUICK_CAPTURE, false)
+    }
+
+    val activeIncompleteCount = tasks.count { !it.isCompleted }
 
     Column(
         modifier = GlanceModifier
             .fillMaxSize()
-            .background(WidgetObsidian)
+            .background(palette.background)
             .cornerRadius(16.dp)
             .padding(14.dp)
     ) {
         // Header Row
         Row(
-            modifier = GlanceModifier
-                .fillMaxWidth()
-                .clickable(actionStartActivity(openTodayIntent)),
+            modifier = GlanceModifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Box(
+            Row(
                 modifier = GlanceModifier
-                    .size(7.dp)
-                    .background(WidgetAccent)
-                    .cornerRadius(4.dp)
-            ) {}
-            Spacer(modifier = GlanceModifier.width(8.dp))
-            Text(
-                text = context.getString(R.string.widget_today_header),
-                style = TextStyle(
-                    color = ColorProvider(WidgetTextPrimary),
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Medium
-                ),
-                modifier = GlanceModifier.defaultWeight()
-            )
-            Text(
-                text = tasks.size.toString().padStart(2, '0'),
-                style = TextStyle(
-                    color = ColorProvider(WidgetAccent),
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Medium
+                    .defaultWeight()
+                    .clickable(actionStartActivity(openListIntent)),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = GlanceModifier
+                        .size(7.dp)
+                        .background(palette.accent)
+                        .cornerRadius(4.dp)
+                ) {}
+                Spacer(modifier = GlanceModifier.width(8.dp))
+                Text(
+                    text = headerTitle,
+                    maxLines = 1,
+                    style = TextStyle(
+                        color = ColorProvider(palette.textPrimary),
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium
+                    ),
+                    modifier = GlanceModifier.defaultWeight()
                 )
-            )
-            Spacer(modifier = GlanceModifier.width(10.dp))
+                Spacer(modifier = GlanceModifier.width(6.dp))
+                Text(
+                    text = activeIncompleteCount.toString().padStart(2, '0'),
+                    style = TextStyle(
+                        color = ColorProvider(palette.accent),
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                )
+            }
+
+            Spacer(modifier = GlanceModifier.width(8.dp))
+
+            if (appWidgetId != AppWidgetManager.INVALID_APPWIDGET_ID) {
+                Box(
+                    modifier = GlanceModifier
+                        .size(26.dp)
+                        .background(palette.surfaceElevated)
+                        .cornerRadius(13.dp)
+                        .clickable(actionStartActivity(configureIntent)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Image(
+                        provider = ImageProvider(R.drawable.ic_widget_tune),
+                        contentDescription = context.getString(R.string.widget_cd_configure),
+                        colorFilter = ColorFilter.tint(ColorProvider(palette.textSecondary)),
+                        modifier = GlanceModifier.size(14.dp)
+                    )
+                }
+                Spacer(modifier = GlanceModifier.width(6.dp))
+            }
+
             Box(
                 modifier = GlanceModifier
                     .size(26.dp)
-                    .background(WidgetSurfaceElevated)
+                    .background(palette.surfaceElevated)
                     .cornerRadius(13.dp)
                     .clickable(actionStartActivity(quickCaptureIntent)),
                 contentAlignment = Alignment.Center
@@ -142,7 +222,7 @@ private fun TodayTasksWidgetContent(
                 Text(
                     text = "+",
                     style = TextStyle(
-                        color = ColorProvider(WidgetAccent),
+                        color = ColorProvider(palette.accent),
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Medium
                     )
@@ -155,11 +235,16 @@ private fun TodayTasksWidgetContent(
             modifier = GlanceModifier
                 .fillMaxWidth()
                 .height(1.dp)
-                .background(WidgetHairline)
+                .background(palette.hairline)
         ) {}
         Spacer(modifier = GlanceModifier.height(8.dp))
 
         if (tasks.isEmpty()) {
+            val emptyText = if (config.filterScope == WidgetFilterScope.TODAY) {
+                context.getString(R.string.widget_today_empty)
+            } else {
+                context.getString(R.string.widget_empty_filtered)
+            }
             Box(
                 modifier = GlanceModifier
                     .fillMaxSize()
@@ -170,37 +255,291 @@ private fun TodayTasksWidgetContent(
                     Text(
                         text = "00",
                         style = TextStyle(
-                            color = ColorProvider(WidgetTextMuted),
+                            color = ColorProvider(palette.textMuted),
                             fontSize = 22.sp,
                             fontWeight = FontWeight.Medium
                         )
                     )
                     Spacer(modifier = GlanceModifier.height(4.dp))
                     Text(
-                        text = context.getString(R.string.widget_today_empty),
+                        text = emptyText,
                         style = TextStyle(
-                            color = ColorProvider(WidgetTextSecondary),
+                            color = ColorProvider(palette.textSecondary),
                             fontSize = 11.sp
                         )
                     )
                 }
             }
         } else {
-            Column(modifier = GlanceModifier.fillMaxWidth()) {
-                tasks.take(6).forEach { task ->
-                    WidgetTaskRow(context = context, task = task)
-                    Spacer(modifier = GlanceModifier.height(6.dp))
-                }
-                if (tasks.size > 6) {
+            when (config.viewMode) {
+                WidgetViewMode.LIST -> WidgetListBody(
+                    context = context,
+                    destinationKey = destinationKey,
+                    openListIntent = openListIntent,
+                    palette = palette,
+                    tasks = tasks
+                )
+                WidgetViewMode.COMPACT -> WidgetCompactBody(
+                    context = context,
+                    destinationKey = destinationKey,
+                    openListIntent = openListIntent,
+                    palette = palette,
+                    tasks = tasks
+                )
+                WidgetViewMode.FOCUS_NOW -> WidgetFocusNowBody(
+                    context = context,
+                    destinationKey = destinationKey,
+                    openListIntent = openListIntent,
+                    palette = palette,
+                    tasks = tasks
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun WidgetListBody(
+    context: Context,
+    destinationKey: String,
+    openListIntent: Intent,
+    palette: WidgetVisualPalette,
+    tasks: List<TaskEntity>
+) {
+    Column(modifier = GlanceModifier.fillMaxWidth()) {
+        tasks.take(6).forEach { task ->
+            WidgetTaskCardRow(
+                context = context,
+                destinationKey = destinationKey,
+                palette = palette,
+                task = task
+            )
+            Spacer(modifier = GlanceModifier.height(6.dp))
+        }
+        if (tasks.size > 6) {
+            Text(
+                text = context.getString(R.string.widget_more_tasks, tasks.size - 6),
+                style = TextStyle(
+                    color = ColorProvider(palette.textMuted),
+                    fontSize = 11.sp
+                ),
+                modifier = GlanceModifier
+                    .padding(top = 2.dp)
+                    .clickable(actionStartActivity(openListIntent))
+            )
+        }
+    }
+}
+
+@Composable
+private fun WidgetCompactBody(
+    context: Context,
+    destinationKey: String,
+    openListIntent: Intent,
+    palette: WidgetVisualPalette,
+    tasks: List<TaskEntity>
+) {
+    Column(modifier = GlanceModifier.fillMaxWidth()) {
+        val visible = tasks.take(10)
+        visible.forEachIndexed { index, task ->
+            val openTaskIntent = Intent(context, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                data = Uri.parse("zero://widget-task/${task.id}")
+                putExtra(ZeroWidgetIntents.EXTRA_DESTINATION_KEY, destinationKey)
+                putExtra(ZeroWidgetIntents.EXTRA_TASK_ID, task.id)
+            }
+            val indicatorColor = priorityColorFor(task, palette)
+            Row(
+                modifier = GlanceModifier
+                    .fillMaxWidth()
+                    .padding(vertical = 5.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                WidgetCheckDot(
+                    task = task,
+                    indicatorColor = indicatorColor,
+                    palette = palette,
+                    boxSizeDp = 15
+                )
+                Spacer(modifier = GlanceModifier.width(8.dp))
+                Text(
+                    text = task.title,
+                    maxLines = 1,
+                    style = TextStyle(
+                        color = ColorProvider(if (task.isCompleted) palette.textMuted else palette.textPrimary),
+                        fontSize = 12.sp
+                    ),
+                    modifier = GlanceModifier
+                        .defaultWeight()
+                        .clickable(actionStartActivity(openTaskIntent))
+                )
+                val badgeText = formatTaskMeta(task)
+                if (badgeText != null) {
+                    Spacer(modifier = GlanceModifier.width(6.dp))
                     Text(
-                        text = context.getString(R.string.widget_more_tasks, tasks.size - 6),
+                        text = badgeText,
                         style = TextStyle(
-                            color = ColorProvider(WidgetTextMuted),
-                            fontSize = 11.sp
-                        ),
+                            color = ColorProvider(palette.textMuted),
+                            fontSize = 10.sp
+                        )
+                    )
+                }
+            }
+            if (index < visible.lastIndex) {
+                Box(
+                    modifier = GlanceModifier
+                        .fillMaxWidth()
+                        .height(1.dp)
+                        .background(palette.hairline)
+                ) {}
+            }
+        }
+        if (tasks.size > 10) {
+            Text(
+                text = context.getString(R.string.widget_more_tasks, tasks.size - 10),
+                style = TextStyle(
+                    color = ColorProvider(palette.textMuted),
+                    fontSize = 10.sp
+                ),
+                modifier = GlanceModifier
+                    .padding(top = 4.dp)
+                    .clickable(actionStartActivity(openListIntent))
+            )
+        }
+    }
+}
+
+@Composable
+private fun WidgetFocusNowBody(
+    context: Context,
+    destinationKey: String,
+    openListIntent: Intent,
+    palette: WidgetVisualPalette,
+    tasks: List<TaskEntity>
+) {
+    val hero = tasks.first()
+    val heroIntent = Intent(context, MainActivity::class.java).apply {
+        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        data = Uri.parse("zero://widget-task/${hero.id}")
+        putExtra(ZeroWidgetIntents.EXTRA_DESTINATION_KEY, destinationKey)
+        putExtra(ZeroWidgetIntents.EXTRA_TASK_ID, hero.id)
+    }
+
+    Column(modifier = GlanceModifier.fillMaxWidth()) {
+        // Hero Spotlight Card
+        Column(
+            modifier = GlanceModifier
+                .fillMaxWidth()
+                .background(palette.cardSurface)
+                .cornerRadius(12.dp)
+                .padding(12.dp)
+        ) {
+            Row(
+                modifier = GlanceModifier
+                    .fillMaxWidth()
+                    .clickable(actionStartActivity(heroIntent)),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = GlanceModifier
+                        .size(8.dp)
+                        .background(priorityColorFor(hero, palette))
+                        .cornerRadius(4.dp)
+                ) {}
+                Spacer(modifier = GlanceModifier.width(8.dp))
+                Text(
+                    text = hero.title,
+                    maxLines = 2,
+                    style = TextStyle(
+                        color = ColorProvider(if (hero.isCompleted) palette.textMuted else palette.textPrimary),
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Medium
+                    ),
+                    modifier = GlanceModifier.defaultWeight()
+                )
+            }
+
+            val subMeta = hero.firstStep?.takeIf { it.isNotBlank() } ?: formatTaskMeta(hero)
+            if (subMeta != null) {
+                Spacer(modifier = GlanceModifier.height(6.dp))
+                Text(
+                    text = subMeta,
+                    maxLines = 1,
+                    style = TextStyle(
+                        color = ColorProvider(palette.textSecondary),
+                        fontSize = 11.sp
+                    )
+                )
+            }
+
+            if (!hero.isCompleted) {
+                Spacer(modifier = GlanceModifier.height(10.dp))
+                Box(
+                    modifier = GlanceModifier
+                        .background(palette.accent)
+                        .cornerRadius(8.dp)
+                        .clickable(
+                            actionRunCallback<CompleteTaskWidgetAction>(
+                                actionParametersOf(PARAM_TASK_ID to hero.id)
+                            )
+                        )
+                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = context.getString(R.string.widget_focus_done),
+                        style = TextStyle(
+                            color = ColorProvider(palette.onAccent),
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    )
+                }
+            }
+        }
+
+        val upNext = tasks.drop(1).take(2)
+        if (upNext.isNotEmpty()) {
+            Spacer(modifier = GlanceModifier.height(8.dp))
+            Text(
+                text = context.getString(R.string.widget_up_next),
+                style = TextStyle(
+                    color = ColorProvider(palette.textMuted),
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Medium
+                ),
+                modifier = GlanceModifier.clickable(actionStartActivity(openListIntent))
+            )
+            Spacer(modifier = GlanceModifier.height(4.dp))
+            upNext.forEach { task ->
+                val taskIntent = Intent(context, MainActivity::class.java).apply {
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                    data = Uri.parse("zero://widget-task/${task.id}")
+                    putExtra(ZeroWidgetIntents.EXTRA_DESTINATION_KEY, destinationKey)
+                    putExtra(ZeroWidgetIntents.EXTRA_TASK_ID, task.id)
+                }
+                Row(
+                    modifier = GlanceModifier
+                        .fillMaxWidth()
+                        .padding(vertical = 3.dp)
+                        .clickable(actionStartActivity(taskIntent)),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
                         modifier = GlanceModifier
-                            .padding(top = 2.dp)
-                            .clickable(actionStartActivity(openTodayIntent))
+                            .size(5.dp)
+                            .background(priorityColorFor(task, palette))
+                            .cornerRadius(3.dp)
+                    ) {}
+                    Spacer(modifier = GlanceModifier.width(8.dp))
+                    Text(
+                        text = task.title,
+                        maxLines = 1,
+                        style = TextStyle(
+                            color = ColorProvider(if (task.isCompleted) palette.textMuted else palette.textSecondary),
+                            fontSize = 12.sp
+                        ),
+                        modifier = GlanceModifier.defaultWeight()
                     )
                 }
             }
@@ -209,51 +548,34 @@ private fun TodayTasksWidgetContent(
 }
 
 @Composable
-private fun WidgetTaskRow(
+private fun WidgetTaskCardRow(
     context: Context,
+    destinationKey: String,
+    palette: WidgetVisualPalette,
     task: TaskEntity
 ) {
     val openTaskIntent = Intent(context, MainActivity::class.java).apply {
         flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-        putExtra(ZeroWidgetIntents.EXTRA_DESTINATION_KEY, NavigationDestination.Today.toStorageKey())
+        data = Uri.parse("zero://widget-task/${task.id}")
+        putExtra(ZeroWidgetIntents.EXTRA_DESTINATION_KEY, destinationKey)
         putExtra(ZeroWidgetIntents.EXTRA_TASK_ID, task.id)
     }
-
-    val indicatorColor = when (task.priority) {
-        1 -> WidgetPriorityUrgent
-        2 -> WidgetPriorityHigh
-        3 -> WidgetPriorityMedium
-        else -> WidgetTextMuted
-    }
+    val indicatorColor = priorityColorFor(task, palette)
 
     Row(
         modifier = GlanceModifier
             .fillMaxWidth()
-            .background(WidgetCarbon)
+            .background(palette.cardSurface)
             .cornerRadius(8.dp)
             .padding(horizontal = 10.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Complete checkbox button
-        Box(
-            modifier = GlanceModifier
-                .size(18.dp)
-                .background(WidgetSurfaceElevated)
-                .cornerRadius(9.dp)
-                .clickable(
-                    actionRunCallback<CompleteTaskWidgetAction>(
-                        actionParametersOf(PARAM_TASK_ID to task.id)
-                    )
-                ),
-            contentAlignment = Alignment.Center
-        ) {
-            Box(
-                modifier = GlanceModifier
-                    .size(6.dp)
-                    .background(indicatorColor)
-                    .cornerRadius(3.dp)
-            ) {}
-        }
+        WidgetCheckDot(
+            task = task,
+            indicatorColor = indicatorColor,
+            palette = palette,
+            boxSizeDp = 18
+        )
 
         Spacer(modifier = GlanceModifier.width(10.dp))
 
@@ -261,7 +583,7 @@ private fun WidgetTaskRow(
             text = task.title,
             maxLines = 1,
             style = TextStyle(
-                color = ColorProvider(WidgetTextPrimary),
+                color = ColorProvider(if (task.isCompleted) palette.textMuted else palette.textPrimary),
                 fontSize = 13.sp
             ),
             modifier = GlanceModifier
@@ -269,18 +591,76 @@ private fun WidgetTaskRow(
                 .clickable(actionStartActivity(openTaskIntent))
         )
 
-        if (task.dueDate != null && !task.isAllDay) {
+        val meta = formatTaskMeta(task)
+        if (meta != null) {
             Spacer(modifier = GlanceModifier.width(6.dp))
             Text(
-                text = ZeroDateFormatter.formatDueDate(task.dueDate, isAllDay = false)
-                    .substringAfter(' '),
+                text = meta,
                 style = TextStyle(
-                    color = ColorProvider(WidgetTextSecondary),
+                    color = ColorProvider(palette.textSecondary),
                     fontSize = 11.sp
                 )
             )
         }
     }
+}
+
+@Composable
+private fun WidgetCheckDot(
+    task: TaskEntity,
+    indicatorColor: androidx.compose.ui.graphics.Color,
+    palette: WidgetVisualPalette,
+    boxSizeDp: Int
+) {
+    val radius = boxSizeDp / 2
+    val modifier = if (task.isCompleted) {
+        GlanceModifier
+            .size(boxSizeDp.dp)
+            .background(palette.accent)
+            .cornerRadius(radius.dp)
+    } else {
+        GlanceModifier
+            .size(boxSizeDp.dp)
+            .background(palette.surfaceElevated)
+            .cornerRadius(radius.dp)
+            .clickable(
+                actionRunCallback<CompleteTaskWidgetAction>(
+                    actionParametersOf(PARAM_TASK_ID to task.id)
+                )
+            )
+    }
+    Box(
+        modifier = modifier,
+        contentAlignment = Alignment.Center
+    ) {
+        if (!task.isCompleted) {
+            Box(
+                modifier = GlanceModifier
+                    .size(6.dp)
+                    .background(indicatorColor)
+                    .cornerRadius(3.dp)
+            ) {}
+        }
+    }
+}
+
+private fun priorityColorFor(task: TaskEntity, palette: WidgetVisualPalette): androidx.compose.ui.graphics.Color =
+    when (task.priority) {
+        1 -> palette.priorityUrgent
+        2 -> palette.priorityHigh
+        3 -> palette.priorityMedium
+        else -> palette.textMuted
+    }
+
+private fun formatTaskMeta(task: TaskEntity): String? {
+    if (task.dueDate != null && !task.isAllDay) {
+        return ZeroDateFormatter.formatDueDate(task.dueDate, isAllDay = false).substringAfter(' ')
+    }
+    val est = task.estimatedMinutes
+    if (est != null && est > 0) {
+        return if (est >= 60 && est % 60 == 0) "${est / 60}h" else "${est}m"
+    }
+    return null
 }
 
 class CompleteTaskWidgetAction : ActionCallback {
@@ -301,4 +681,9 @@ class CompleteTaskWidgetAction : ActionCallback {
 
 class TodayTasksWidgetReceiver : GlanceAppWidgetReceiver() {
     override val glanceAppWidget: GlanceAppWidget = TodayTasksWidget()
+
+    override fun onDeleted(context: Context, appWidgetIds: IntArray) {
+        super.onDeleted(context, appWidgetIds)
+        WidgetConfigStore.delete(context, appWidgetIds)
+    }
 }

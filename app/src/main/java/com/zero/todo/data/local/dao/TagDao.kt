@@ -22,6 +22,9 @@ interface TagDao {
     @Query("SELECT * FROM tags WHERE isDeleted = 0 ORDER BY name COLLATE NOCASE ASC")
     fun observeActiveTags(): Flow<List<TagEntity>>
 
+    @Query("SELECT * FROM tags WHERE isDeleted = 0 ORDER BY name COLLATE NOCASE ASC")
+    suspend fun getActiveTagsSnapshot(): List<TagEntity>
+
     @Query(
         """
         SELECT tg.*, COUNT(t.id) AS activeTaskCount
