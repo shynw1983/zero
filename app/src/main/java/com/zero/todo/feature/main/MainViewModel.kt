@@ -45,6 +45,7 @@ import com.zero.todo.feature.tasklist.FolderPathSuggestion
 import com.zero.todo.feature.tasklist.UndoBannerState
 import com.zero.todo.feature.tasklist.UndoType
 import com.zero.todo.widget.WidgetRefresher
+import com.zero.todo.core.designsystem.AppIconSwitcher
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.CancellationException
@@ -134,7 +135,8 @@ class MainViewModel @Inject constructor(
     private val webDavSyncManager: WebDavSyncManager,
     private val reminderScheduler: ReminderScheduler,
     private val widgetRefresher: WidgetRefresher,
-    getFolderTreeUseCase: GetFolderTreeUseCase
+    getFolderTreeUseCase: GetFolderTreeUseCase,
+    private val appIconSwitcher: AppIconSwitcher
 ) : ViewModel() {
 
     private val focusController = FocusTimerController(
@@ -684,11 +686,15 @@ class MainViewModel @Inject constructor(
         userPreferencesRepository.setDarkTheme(!userPreferencesRepository.preferences.value.isDarkTheme)
     }
 
-    fun setAccent(accent: ZeroAccent) = userPreferencesRepository.setAccent(accent)
+    fun setAccent(accent: ZeroAccent) {
+        userPreferencesRepository.setAccent(accent)
+        appIconSwitcher.syncAccentIcon(accent)
+    }
 
     fun toggleAccent() {
-        val current = userPreferencesRepository.preferences.value.accent
-        userPreferencesRepository.setAccent(current.next())
+        val next = userPreferencesRepository.preferences.value.accent.next()
+        userPreferencesRepository.setAccent(next)
+        appIconSwitcher.syncAccentIcon(next)
     }
 
     fun setAntiMisclickMode(mode: AntiMisclickMode) = userPreferencesRepository.setAntiMisclickMode(mode)

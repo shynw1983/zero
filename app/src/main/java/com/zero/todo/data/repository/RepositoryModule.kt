@@ -1,5 +1,7 @@
 package com.zero.todo.data.repository
 
+import com.zero.todo.core.designsystem.AndroidAppIconSwitcher
+import com.zero.todo.core.designsystem.AppIconSwitcher
 import com.zero.todo.core.notification.AlarmReminderScheduler
 import com.zero.todo.core.notification.ReminderScheduler
 import com.zero.todo.data.preferences.SharedPrefsUserPreferencesRepository
@@ -35,6 +37,10 @@ abstract class RepositoryModule {
     @Binds
     @Singleton
     abstract fun bindWidgetRefresher(impl: GlanceWidgetRefresher): WidgetRefresher
+
+    @Binds
+    @Singleton
+    abstract fun bindAppIconSwitcher(impl: AndroidAppIconSwitcher): AppIconSwitcher
 
     @Binds
     @Singleton

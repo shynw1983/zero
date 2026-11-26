@@ -6,6 +6,7 @@ import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.zero.todo.core.common.RecurrenceRule
 import com.zero.todo.core.common.ZeroDateFormatter
+import com.zero.todo.core.designsystem.AppIconSwitcher
 import com.zero.todo.core.designsystem.ZeroAccent
 import com.zero.todo.core.nlp.QuickInputParser
 import com.zero.todo.core.notification.NoOpReminderScheduler
@@ -92,6 +93,15 @@ class MainViewModelStateTest {
         Dispatchers.resetMain()
     }
 
+    private val iconSwitcher = RecordingIconSwitcher()
+
+    private class RecordingIconSwitcher : AppIconSwitcher {
+        var lastSynced: ZeroAccent? = null
+        override fun syncAccentIcon(accent: ZeroAccent) {
+            lastSynced = accent
+        }
+    }
+
     private fun newViewModel(savedStateHandle: SavedStateHandle = SavedStateHandle()): MainViewModel =
         MainViewModel(
             savedStateHandle = savedStateHandle,
@@ -104,7 +114,8 @@ class MainViewModelStateTest {
             webDavSyncManager = webDavSyncManager,
             reminderScheduler = NoOpReminderScheduler,
             widgetRefresher = NoOpWidgetRefresher,
-            getFolderTreeUseCase = getFolderTreeUseCase
+            getFolderTreeUseCase = getFolderTreeUseCase,
+            appIconSwitcher = iconSwitcher
         )
 
     @Test
@@ -458,6 +469,7 @@ class MainViewModelStateTest {
         assertEquals(ZeroAccent.Sage, updated.activeAccent)
         assertEquals(AntiMisclickMode.SWIPE_DAMPED, updated.antiMisclickMode)
         assertFalse(updated.hapticsEnabled)
+        assertEquals(ZeroAccent.Sage, iconSwitcher.lastSynced)
         collectJob.cancel()
     }
 

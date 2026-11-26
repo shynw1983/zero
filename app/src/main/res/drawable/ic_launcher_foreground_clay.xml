@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- 45-degree diagonal wide Swiss geometric ZERO with edge bleed & O completion progress ring (WarmClay) -->
+    <group
+        android:pivotX="54"
+        android:pivotY="54"
+        android:rotation="-45">
+        <path
+            android:fillColor="#F4F4F5"
+            android:pathData="M12.0,44.0 L28.5,44.0 L28.5,47.9 L17.6,60.1 L28.5,60.1 L28.5,64.0 L12.0,64.0 L12.0,60.1 L22.9,47.9 L12.0,47.9 Z" />
+        <path
+            android:fillColor="#F4F4F5"
+            android:pathData="M32.5,44.0 L47.5,44.0 L47.5,47.9 L36.6,47.9 L36.6,52.1 L45.5,52.1 L45.5,55.9 L36.6,55.9 L36.6,60.1 L47.5,60.1 L47.5,64.0 L32.5,64.0 Z" />
+        <path
+            android:fillColor="#F4F4F5"
+            android:pathData="M51.5,44.0 L55.6,44.0 L55.6,64.0 L51.5,64.0 Z" />
+        <path
+            android:fillColor="#F4F4F5"
+            android:pathData="M55.4,44.0 L60.6,44.0 A6.2,6.2 0 0,1 60.6,56.4 L55.4,56.4 L55.4,52.5 L60.6,52.5 A2.3,2.3 0 0,0 60.6,47.9 L55.4,47.9 Z" />
+        <path
+            android:fillColor="#F4F4F5"
+            android:pathData="M58.4,55.2 L62.8,54.8 L67.8,64.0 L63.0,64.0 Z" />
+        <!-- O: unfilled progress track -->
+        <path
+            android:pathData="M82.5,45.6 A8.4,8.4 0 1,1 82.49,45.6 Z"
+            android:strokeWidth="4.1"
+            android:strokeColor="#2E2420" />
+        <!-- O: 268-deg clockwise accent progress arc (flat terminals) -->
+        <path
+            android:pathData="M82.5,45.6 A8.4,8.4 0 1,1 74.10,54.29"
+            android:strokeWidth="4.1"
+            android:strokeColor="#C98365"
+            android:strokeLineCap="butt" />
+        <!-- O: bright leading progress slice -->
+        <path
+            android:pathData="M74.10,54.29 A8.4,8.4 0 0,1 74.28,52.25"
+            android:strokeWidth="4.1"
+            android:strokeColor="#FBE8DF"
+            android:strokeLineCap="butt" />
+    </group>
+</vector>

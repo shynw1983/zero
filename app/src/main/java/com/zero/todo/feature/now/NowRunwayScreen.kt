@@ -759,7 +759,7 @@ private fun StackedDarkroomDeck(
     val thirdTask = visibleDeck.getOrNull(2)
     val colors = ZeroTheme.colors
     val density = LocalDensity.current
-    val dragThresholdPx = with(density) { 128.dp.toPx() }
+    val dragThresholdPx = with(density) { 96.dp.toPx() }
     var dragRatio by remember(activeTask.id) { mutableFloatStateOf(0f) }
 
     Column(
@@ -969,13 +969,14 @@ private fun HeroDarkroomCard(
     val deckCornerPx = with(LocalDensity.current) { 22.dp.toPx() }
     val glowStrokePx = with(LocalDensity.current) { 1.5.dp.toPx() }
     val hairlineStrokePx = with(LocalDensity.current) { 0.5.dp.toPx() }
+    val maxDragPx = dragThresholdPx * 2.2f
 
     Column(
         modifier = modifier
             .fillMaxWidth()
             .offset { IntOffset(swipeOffsetX.value.roundToInt(), 0) }
             .graphicsLayer {
-                rotationZ = (swipeOffsetX.value / 48f).coerceIn(-6f, 6f)
+                rotationZ = (swipeOffsetX.value / (dragThresholdPx * 0.35f)).coerceIn(-7f, 7f)
             }
             .clip(DarkroomDeckShape)
             .background(DarkroomHeroSurface)
@@ -1022,7 +1023,7 @@ private fun HeroDarkroomCard(
                     }
                 ) { _, dragAmount ->
                     scope.launch {
-                        swipeOffsetX.snapTo((swipeOffsetX.value + dragAmount).coerceIn(-280f, 280f))
+                        swipeOffsetX.snapTo((swipeOffsetX.value + dragAmount).coerceIn(-maxDragPx, maxDragPx))
                     }
                 }
             }
