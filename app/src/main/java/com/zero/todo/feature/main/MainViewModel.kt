@@ -22,6 +22,7 @@ import com.zero.todo.data.repository.TaskRepository
 import com.zero.todo.domain.model.AntiMisclickMode
 import com.zero.todo.domain.model.AppLanguage
 import com.zero.todo.domain.model.EffortTier
+import com.zero.todo.domain.model.ExecuteTheme
 import com.zero.todo.domain.model.FocusMode
 import com.zero.todo.domain.model.Folder
 import com.zero.todo.domain.model.FolderNode
@@ -35,6 +36,8 @@ import com.zero.todo.domain.model.TaskSwipeDirection
 import com.zero.todo.domain.model.WorkspaceMode
 import com.zero.todo.domain.usecase.GetFolderTreeUseCase
 import com.zero.todo.feature.calendar.CalendarViewMode
+import com.zero.todo.feature.execute.ExecuteUiState
+import com.zero.todo.feature.execute.ExecuteViewModel
 import com.zero.todo.feature.focus.FocusTimerController
 import com.zero.todo.feature.focus.FocusUiState
 import com.zero.todo.feature.folder.NavigationDestination
@@ -69,10 +72,12 @@ import javax.inject.Inject
 data class MainUiState(
     val currentDate: LocalDate = LocalDate.now(),
     val workspaceMode: WorkspaceMode = WorkspaceMode.NOW,
+    val executeTheme: ExecuteTheme = ExecuteTheme.MONOLITH,
     val dailyCapacityMinutes: Int = 240,
     val scheduledTodayMinutes: Int = 0,
     val todayCompletedCount: Int = 0,
     val runwayQueue: List<TaskItem> = emptyList(),
+    val focusedRunwayTaskId: String? = null,
     val triageQueue: List<TaskItem> = emptyList(),
     val quickFolders: List<Folder> = emptyList(),
     val isTriageOpen: Boolean = false,
@@ -137,7 +142,7 @@ class MainViewModel @Inject constructor(
     private val widgetRefresher: WidgetRefresher,
     getFolderTreeUseCase: GetFolderTreeUseCase,
     private val appIconSwitcher: AppIconSwitcher
-) : ViewModel() {
+) : ViewModel(), ExecuteViewModel {
 
     private val focusController = FocusTimerController(
         scope = viewModelScope,
@@ -190,6 +195,7 @@ class MainViewModel @Inject constructor(
     private val triageOpenFlow = MutableStateFlow(false)
     private val skippedRunwayIdsFlow = MutableStateFlow<List<String>>(emptyList())
     private val pinnedRunwayTaskIdFlow = MutableStateFlow<String?>(null)
+    private val focusedRunwayTaskIdFlow = MutableStateFlow<String?>(null)
 
     private val folderTreeFlow = getFolderTreeUseCase()
     private val activeFoldersFlow = folderRepository.observeActiveFolders()
@@ -329,7 +335,8 @@ class MainViewModel @Inject constructor(
         val webDavStatus: WebDavUiStatus?,
         val isTriageOpen: Boolean,
         val skippedRunwayIds: List<String>,
-        val pinnedRunwayTaskId: String?
+        val pinnedRunwayTaskId: String?,
+        val focusedRunwayTaskId: String?
     )
 
     private data class InputAndUiBundle(
@@ -390,7 +397,8 @@ class MainViewModel @Inject constructor(
         webDavStatusFlow,
         triageOpenFlow,
         skippedRunwayIdsFlow,
-        pinnedRunwayTaskIdFlow
+        pinnedRunwayTaskIdFlow,
+        focusedRunwayTaskIdFlow
     ) { values ->
         val query = values[0] as String
         val isOpen = values[1] as Boolean
@@ -401,7 +409,8 @@ class MainViewModel @Inject constructor(
         @Suppress("UNCHECKED_CAST")
         val skippedIds = values[5] as List<String>
         val pinnedId = values[6] as String?
-        SearchAndTrashBundle(query, isOpen, deleted, webDavStatus, isTriageOpen, skippedIds, pinnedId)
+        val focusedId = values[7] as String?
+        SearchAndTrashBundle(query, isOpen, deleted, webDavStatus, isTriageOpen, skippedIds, pinnedId, focusedId)
     }
 
     private val inputAndUiBundleFlow: Flow<InputAndUiBundle> = combine(
@@ -535,13 +544,19 @@ class MainViewModel @Inject constructor(
             isOverdue || isUnfiledInbox
         }.sortedWith(compareBy<TaskItem>({ it.dueDate ?: Long.MAX_VALUE }, { it.createdAt }))
 
+        val resolvedFocusedId = searchTrash.focusedRunwayTaskId
+            ?.takeIf { id -> runwayQueue.any { it.id == id } }
+            ?: runwayQueue.firstOrNull()?.id
+
         MainUiState(
             currentDate = nav.currentDate,
             workspaceMode = ui.preferences.workspaceMode,
+            executeTheme = ui.preferences.executeTheme,
             dailyCapacityMinutes = ui.preferences.dailyCapacityMinutes,
             scheduledTodayMinutes = scheduledTodayMinutes,
             todayCompletedCount = todayCompletedCount,
             runwayQueue = runwayQueue,
+            focusedRunwayTaskId = resolvedFocusedId,
             triageQueue = triageQueue,
             quickFolders = nav.activeFolders.take(10),
             isTriageOpen = searchTrash.isTriageOpen,
@@ -592,6 +607,7 @@ class MainViewModel @Inject constructor(
 
     private fun initialUiStateFromPreferences(prefs: UserPreferences): MainUiState = MainUiState(
         workspaceMode = prefs.workspaceMode,
+        executeTheme = prefs.executeTheme,
         dailyCapacityMinutes = prefs.dailyCapacityMinutes,
         isDarkTheme = prefs.isDarkTheme,
         activeAccent = prefs.accent,
@@ -602,6 +618,46 @@ class MainViewModel @Inject constructor(
         taskSortMode = prefs.taskSortMode,
         webDavConfig = prefs.webDavConfig
     )
+
+    override val executeUiState: StateFlow<ExecuteUiState> = uiState
+        .map { it.toExecuteUiState() }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000L),
+            initialValue = uiState.value.toExecuteUiState()
+        )
+
+    private fun MainUiState.toExecuteUiState(): ExecuteUiState {
+        val activeIndex = focusedRunwayTaskId
+            ?.let { id -> runwayQueue.indexOfFirst { it.id == id } }
+            ?.takeIf { it >= 0 }
+            ?: 0
+        val focusedTask = runwayQueue.getOrNull(activeIndex)
+        val inlineFlow = workspaceMode == WorkspaceMode.NOW &&
+            focusState.isActive &&
+            focusedTask != null &&
+            focusState.task?.id == focusedTask.id
+        return ExecuteUiState(
+            executeTheme = executeTheme,
+            currentDate = currentDate,
+            runwayQueue = runwayQueue,
+            focusedTaskId = focusedTask?.id,
+            focusedTaskIndex = activeIndex,
+            focusedTask = focusedTask,
+            scheduledTodayMinutes = scheduledTodayMinutes,
+            dailyCapacityMinutes = dailyCapacityMinutes,
+            todayCompletedCount = todayCompletedCount,
+            triageCount = triageQueue.size,
+            folderNameById = folderNameById,
+            focusState = focusState,
+            isInlineFlowActive = inlineFlow,
+            quickInputText = quickInputText,
+            parsedQuickInput = parsedQuickInput,
+            folderSuggestions = folderSuggestions,
+            continuousEntryEnabled = continuousEntryEnabled,
+            undoBanner = undoBanner
+        )
+    }
 
     private fun applyTaskSort(tasks: List<TaskItem>, sortMode: TaskSortMode): List<TaskItem> {
         if (sortMode == TaskSortMode.MANUAL) return tasks
@@ -683,7 +739,7 @@ class MainViewModel @Inject constructor(
         savedStateHandle[KEY_MEDIUM_TREE_EXPANDED] = !mediumTreeExpandedFlow.value
     }
 
-    fun openSettings() {
+    override fun openSettings() {
         backupStatusFlow.value = null
         webDavStatusFlow.value = null
         savedStateHandle[KEY_SETTINGS_OPEN] = true
@@ -722,15 +778,19 @@ class MainViewModel @Inject constructor(
         viewModelScope.launch { widgetRefresher.refreshAll() }
     }
 
-    fun setWorkspaceMode(mode: WorkspaceMode) {
+    override fun setWorkspaceMode(mode: WorkspaceMode) {
         userPreferencesRepository.setWorkspaceMode(mode)
+    }
+
+    override fun setExecuteTheme(theme: ExecuteTheme) {
+        userPreferencesRepository.setExecuteTheme(theme)
     }
 
     fun setDailyCapacityMinutes(minutes: Int) {
         userPreferencesRepository.setDailyCapacityMinutes(minutes)
     }
 
-    fun openTriage() {
+    override fun openTriage() {
         triageOpenFlow.value = true
     }
 
@@ -738,9 +798,34 @@ class MainViewModel @Inject constructor(
         triageOpenFlow.value = false
     }
 
-    fun skipTaskInRunway(task: TaskItem) {
+    override fun selectFocusedRunwayTask(taskId: String) {
+        focusedRunwayTaskIdFlow.value = taskId
+    }
+
+    override fun focusNextRunwayTask() {
+        val queue = uiState.value.runwayQueue
+        if (queue.size <= 1) return
+        val currentId = uiState.value.focusedRunwayTaskId ?: queue.first().id
+        val idx = queue.indexOfFirst { it.id == currentId }.coerceAtLeast(0)
+        focusedRunwayTaskIdFlow.value = queue[(idx + 1) % queue.size].id
+    }
+
+    override fun focusPreviousRunwayTask() {
+        val queue = uiState.value.runwayQueue
+        if (queue.size <= 1) return
+        val currentId = uiState.value.focusedRunwayTaskId ?: queue.first().id
+        val idx = queue.indexOfFirst { it.id == currentId }.coerceAtLeast(0)
+        focusedRunwayTaskIdFlow.value = queue[(idx - 1 + queue.size) % queue.size].id
+    }
+
+    override fun skipTaskInRunway(task: TaskItem) {
         if (pinnedRunwayTaskIdFlow.value == task.id) {
             pinnedRunwayTaskIdFlow.value = null
+        }
+        if (focusedRunwayTaskIdFlow.value == task.id) {
+            val queue = uiState.value.runwayQueue
+            val nextCandidate = queue.firstOrNull { it.id != task.id }?.id
+            focusedRunwayTaskIdFlow.value = nextCandidate
         }
         skippedRunwayIdsFlow.value = skippedRunwayIdsFlow.value.filterNot { it == task.id } + task.id
     }
@@ -761,12 +846,12 @@ class MainViewModel @Inject constructor(
         }
     }
 
-    fun openTaskDetailFromNow(task: TaskItem) {
+    override fun openTaskDetailFromNow(task: TaskItem) {
         selectTask(task.id)
         userPreferencesRepository.setWorkspaceMode(WorkspaceMode.VAULT)
     }
 
-    fun updateTaskFirstStep(task: TaskItem, firstStep: String?) {
+    override fun updateTaskFirstStep(task: TaskItem, firstStep: String?) {
         val clean = firstStep?.trim()?.ifBlank { null }
         viewModelScope.launch {
             taskRepository.updateTask(task.id) { current ->
@@ -782,7 +867,7 @@ class MainViewModel @Inject constructor(
      * Marks the lightweight First Tiny Step done and smoothly launches Forward Momentum (Stopwatch)
      * flow mode so the user rides dopamine straight into execution without countdown stress.
      */
-    fun completeFirstStepAndStartFlow(task: TaskItem) {
+    override fun completeFirstStepAndStartFlow(task: TaskItem) {
         viewModelScope.launch {
             val updated = taskRepository.updateTask(task.id) { it.copy(firstStepCompleted = true) } ?: return@launch
             focusController.openFocus(
@@ -793,7 +878,7 @@ class MainViewModel @Inject constructor(
         }
     }
 
-    fun updateTaskEffort(task: TaskItem, estimatedMinutes: Int?) {
+    override fun updateTaskEffort(task: TaskItem, estimatedMinutes: Int?) {
         viewModelScope.launch {
             taskRepository.updateTask(task.id) { it.copy(estimatedMinutes = estimatedMinutes) }
         }
@@ -917,7 +1002,7 @@ class MainViewModel @Inject constructor(
         savedStateHandle[KEY_QUICK_INPUT] = text
     }
 
-    fun editQuickInputText(edit: (String) -> String) {
+    override fun editQuickInputText(edit: (String) -> String) {
         updateQuickInputText(edit(quickInputTextFlow.value))
     }
 
@@ -928,11 +1013,11 @@ class MainViewModel @Inject constructor(
         quickInputFocusRequestTickFlow.value = System.currentTimeMillis()
     }
 
-    fun toggleContinuousEntry() {
+    override fun toggleContinuousEntry() {
         savedStateHandle[KEY_CONTINUOUS_ENTRY] = !continuousEntryFlow.value
     }
 
-    fun submitQuickInput() {
+    override fun submitQuickInput() {
         val raw = quickInputTextFlow.value.trim()
         if (raw.isEmpty()) return
         savedStateHandle[KEY_QUICK_INPUT] = ""
@@ -942,7 +1027,7 @@ class MainViewModel @Inject constructor(
         }
     }
 
-    fun submitVoiceInput(spokenText: String) {
+    override fun submitVoiceInput(spokenText: String) {
         val trimmed = spokenText.trim()
         if (trimmed.isEmpty()) return
         viewModelScope.launch {
@@ -1047,7 +1132,7 @@ class MainViewModel @Inject constructor(
         }
     }
 
-    fun toggleTaskCompletion(task: TaskItem) {
+    override fun toggleTaskCompletion(task: TaskItem) {
         viewModelScope.launch {
             val newCompleted = !task.isCompleted
             val spawned = if (newCompleted) {
@@ -1064,6 +1149,9 @@ class MainViewModel @Inject constructor(
             focusController.syncFocusedTask(task.copy(isCompleted = newCompleted))
             if (newCompleted && pinnedRunwayTaskIdFlow.value == task.id) {
                 pinnedRunwayTaskIdFlow.value = null
+            }
+            if (newCompleted && focusedRunwayTaskIdFlow.value == task.id) {
+                focusedRunwayTaskIdFlow.value = null
             }
             undoBannerFlow.value = UndoBannerState(
                 taskId = task.id,
@@ -1231,6 +1319,9 @@ class MainViewModel @Inject constructor(
             if (deletedIds.any { it == pinnedRunwayTaskIdFlow.value }) {
                 pinnedRunwayTaskIdFlow.value = null
             }
+            if (deletedIds.any { it == focusedRunwayTaskIdFlow.value }) {
+                focusedRunwayTaskIdFlow.value = null
+            }
             undoBannerFlow.value = UndoBannerState(
                 taskId = task.id,
                 taskTitle = task.title,
@@ -1260,7 +1351,7 @@ class MainViewModel @Inject constructor(
         }
     }
 
-    fun performUndo(banner: UndoBannerState) {
+    override fun performUndo(banner: UndoBannerState) {
         if (!undoBannerFlow.compareAndSet(banner, null)) return
         viewModelScope.launch {
             when (banner.undoType) {
@@ -1291,29 +1382,29 @@ class MainViewModel @Inject constructor(
         }
     }
 
-    fun dismissUndoBanner(bannerId: Long) {
+    override fun dismissUndoBanner(bannerId: Long) {
         if (undoBannerFlow.value?.id == bannerId) {
             undoBannerFlow.value = null
         }
     }
 
     // Focus System intents
-    fun openFocusForTask(task: TaskItem?, initialMode: FocusMode = FocusMode.TWO_MIN_STARTER) {
+    override fun openFocusForTask(task: TaskItem?, initialMode: FocusMode) {
         val target = task
             ?: uiState.value.selectedTask
             ?: uiState.value.tasks.firstOrNull { !it.isCompleted }
         focusController.openFocus(task = target, initialMode = initialMode, autoStart = true)
     }
 
-    fun selectFocusMode(mode: FocusMode) = focusController.selectMode(mode)
-    fun startOrResumeFocus() = focusController.startOrResume()
-    fun pauseFocus() = focusController.pause()
-    fun resetFocus() = focusController.reset()
-    fun continueFocusToPomodoro() = focusController.continueToPomodoro()
-    fun stopStopwatchFocus() = focusController.stopAndRecordStopwatchIfElapsed()
-    fun exitFocus() = focusController.exitFocus()
+    override fun selectFocusMode(mode: FocusMode) = focusController.selectMode(mode)
+    override fun startOrResumeFocus() = focusController.startOrResume()
+    override fun pauseFocus() = focusController.pause()
+    override fun resetFocus() = focusController.reset()
+    override fun continueFocusToPomodoro() = focusController.continueToPomodoro()
+    override fun stopStopwatchFocus() = focusController.stopAndRecordStopwatchIfElapsed()
+    override fun exitFocus() = focusController.exitFocus()
 
-    fun completeFocusedTask(task: TaskItem) {
+    override fun completeFocusedTask(task: TaskItem) {
         toggleTaskCompletion(task)
         focusController.exitFocus()
     }

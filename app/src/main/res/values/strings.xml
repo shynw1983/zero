@@ -340,4 +340,14 @@
     <string name="now_exit_flow">Minimize</string>
     <string name="now_rhythm_done">%1$d done today</string>
     <string name="now_swipe_hint">Flick card for next · Hold Done to charge</string>
+
+    <!-- Execution Theme Engine: MONOLITH & RUNWAY -->
+    <string name="cd_switch_execute_theme">Switch execution theme</string>
+    <string name="execute_theme_picker_title">Execution Theme</string>
+    <string name="execute_theme_monolith_title">MONOLITH</string>
+    <string name="execute_theme_monolith_desc">Pure obsidian void with breathing aura and full-gesture focus</string>
+    <string name="execute_theme_runway_title">RUNWAY</string>
+    <string name="execute_theme_runway_desc">Proportional energy timeline with precision tnum ruler and NOW reticle</string>
+    <string name="monolith_gesture_hint">Hold center for 2m · Swipe ←/→ switch · Tap title for options</string>
+    <string name="runway_limit_label">%1$s Limit</string>
 </resources>

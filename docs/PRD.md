@@ -72,3 +72,32 @@ Must preserve input state across fold/unfold configuration changes.
 - **Compact (< 600.dp, Slab Phones)**: Single pane. Left modal navigation drawer for Folder Tree. Bottom persistent quick-input capsule.
 - **Medium (600.dp - 840.dp, Unfolded Foldables)**: 2-Pane Split (`ListDetailPaneScaffold`). Left pane: Collapsible Folder Tree + Task List. Right pane: Task Detail / Markdown Notes / Focus Timer. Support cross-pane drag-and-drop.
 - **Expanded (> 840.dp, Tablets)**: 3-Pane Desktop-class Layout. Left: Persistent Folder Tree (`240.dp`–`280.dp`). Center: Task List / Calendar. Right: Task Detail & Subtasks. Full hardware keyboard shortcut support (`Cmd/Ctrl + N` new task, `Esc` close).
+
+## 5. Execution Theme Engine (`実行 / NOW` 执行主题引擎)
+To create unmistakable experiential contrast between ZERO's **VAULT** organization studio and **Execute (`実行 / NOW`)** focus stage, the Execute home screen is architected as an extensible multi-theme engine rather than a single fixed card layout.
+
+### 5.1 Decoupled Architecture & State Sharing
+- **Theme Enum**: `enum class ExecuteTheme { MONOLITH, RUNWAY }` persisted in `SharedPreferences` (`KEY_EXECUTE_THEME = "execute_theme"`), designed to accommodate additional execution themes cleanly.
+- **Single Shared State Contract**: Every Execute theme consumes the exact same `ExecuteViewModel` interface and `ExecuteUiState` (`executeTheme`, `runwayQueue`, `focusedTask`, `focusedTaskIndex`, `scheduledTodayMinutes`, `dailyCapacityMinutes`, `focusState` / 2-minute starter countdown, `quickInputText` & NLP tokens, `undoBanner`). Switching themes MUST preserve 100% of active focus timers, queue selection, and draft input without loss.
+- **Instant Minimalist Theme Picker**: A compact top-right theme switcher icon opens a minimalist `ModalBottomSheet` with swatch previews and concise descriptions; selecting a theme triggers an immediate smooth `Crossfade` transition.
+
+### 5.2 Theme 1: `MONOLITH` (极致留白 · 呼吸感单任务场)
+- **Visuals**: Pure `#09090B` matte obsidian canvas. Zero card borders, zero inline property chips, zero form inputs, and zero bottom action buttons in the center stage. Only the active task's large high-contrast title floats center-screen over a slow-breathing `#FF4D00` Signal Orange radial aura whose radius/luminance scales subtly with effort weight (`5m` / `25m` / `1h`).
+- **Full-Gesture Interactions**:
+  - **Long-Press Center (`~320ms`)**: Radial aura expands with progressive linear-motor haptic ticks and directly starts the **"Just 2 Mins" (2分钟起步)** countdown, rendered in `tnum` monospace digits beneath the title.
+  - **Horizontal Swipe Left / Right**: Smooth GPU glide switches cleanly to the previous or next task on the runway.
+  - **Tap Task Title**: Opens a minimalist `ModalBottomSheet` to adjust effort weight (`5m` / `25m` / `1h`), edit/complete **"First Tiny Step (最初の一歩)"**, Hold-to-Complete, or defer (`後回し`).
+- **Bottom Chrome**: Retains the quick-input capsule and bottom `NOW / VAULT` switcher softly dimmed to minimize visual noise.
+
+### 5.3 Theme 2: `RUNWAY` (实体跑道 · 能量时间轴)
+- **Visuals**: Replaces uniform cards with a vertical physical execution runway:
+  - **Left Precision Time Ruler (`tnum`)**: Cumulative timeline ticks (`0m`, `30m`, `1h`, `2h`...).
+  - **Right Proportional Geometric Blocks**: Each task's vertical block height scales proportionally with its effort tier (`5m` slender bar, `25m` medium block, `1h` tall monolith block) with crisp `0.5.dp` hairline borders.
+  - **Center Fixed NOW Reticle**: A high-precision `#FF4D00` targeting frame locked vertically at the center of the runway.
+  - **Energy Limit Warning Rail (`4h 限界`)**: Across the cumulative slot where allocated duration meets `dailyCapacityMinutes` (default `240m` / `4h`), draw a full-width Signal Orange/Red boundary line; overflow tasks below it are visually dimmed.
+- **Snap-Fling & Active Reticle Actions**:
+  - Uses `rememberSnapFlingBehavior` (`SnapPosition.Center`) so vertical flings snap each task block cleanly into the central **NOW Reticle** with mechanical tick haptics.
+  - **ONLY** the task snapped inside the **NOW Reticle** expands inline quick actions (`2分だけ` / `後回し` / `長押し完了`); all non-focused blocks display only title and tabular duration.
+
+### 5.4 Multi-Form-Factor Constraints
+- Both `MONOLITH` and `RUNWAY` enforce a centered content width cap (`maxWidth = 600.dp`) across slab phones, unfolded foldables, and tablets so typography, aura geometry, and time-ruler alignment remain balanced without horizontal over-stretching.

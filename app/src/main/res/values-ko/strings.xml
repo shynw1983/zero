@@ -340,4 +340,14 @@
     <string name="now_exit_flow">접기</string>
     <string name="now_rhythm_done">오늘 %1$d개 완료</string>
     <string name="now_swipe_hint">카드를 좌우로 밀어 넘기기 · 길게 눌러 완료</string>
+
+    <!-- 실행 테마 엔진: MONOLITH & RUNWAY -->
+    <string name="cd_switch_execute_theme">실행 테마 전환</string>
+    <string name="execute_theme_picker_title">실행 테마 선택</string>
+    <string name="execute_theme_monolith_title">MONOLITH · 모노리스</string>
+    <string name="execute_theme_monolith_desc">극한의 여백과 호흡 오라 · 길게 눌러 2분 시작 및 스와이프 전환</string>
+    <string name="execute_theme_runway_title">RUNWAY · 물리 타임라인</string>
+    <string name="execute_theme_runway_desc">정밀 시간 눈금자 · 비례 블록 · 중앙 NOW 조준선 및 한계선</string>
+    <string name="monolith_gesture_hint">중앙 길게 눌러 2분 시작 · 좌우 스와이프 전환 · 제목 탭으로 옵션</string>
+    <string name="runway_limit_label">%1$s 한계</string>
 </resources>

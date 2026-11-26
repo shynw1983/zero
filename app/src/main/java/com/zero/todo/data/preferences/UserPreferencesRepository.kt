@@ -5,6 +5,7 @@ import com.zero.todo.core.designsystem.ZeroAccent
 import com.zero.todo.data.backup.WebDavConfig
 import com.zero.todo.domain.model.AntiMisclickMode
 import com.zero.todo.domain.model.AppLanguage
+import com.zero.todo.domain.model.ExecuteTheme
 import com.zero.todo.domain.model.TaskSortMode
 import com.zero.todo.domain.model.TaskSwipeAction
 import com.zero.todo.domain.model.TaskSwipeActions
@@ -27,6 +28,7 @@ data class UserPreferences(
     val appLanguage: AppLanguage = AppLanguage.SYSTEM,
     val taskSortMode: TaskSortMode = TaskSortMode.MANUAL,
     val workspaceMode: WorkspaceMode = WorkspaceMode.NOW,
+    val executeTheme: ExecuteTheme = ExecuteTheme.MONOLITH,
     val dailyCapacityMinutes: Int = 240,
     val webDavConfig: WebDavConfig = WebDavConfig()
 )
@@ -42,6 +44,7 @@ interface UserPreferencesRepository {
     fun setAppLanguage(language: AppLanguage)
     fun setTaskSortMode(sortMode: TaskSortMode)
     fun setWorkspaceMode(mode: WorkspaceMode)
+    fun setExecuteTheme(theme: ExecuteTheme)
     fun setDailyCapacityMinutes(minutes: Int)
     fun setWebDavConfig(config: WebDavConfig)
 }
@@ -100,6 +103,11 @@ class SharedPrefsUserPreferencesRepository @Inject constructor(
         _preferences.update { it.copy(workspaceMode = mode) }
     }
 
+    override fun setExecuteTheme(theme: ExecuteTheme) {
+        prefs.edit().putString(KEY_EXECUTE_THEME, theme.name).apply()
+        _preferences.update { it.copy(executeTheme = theme) }
+    }
+
     override fun setDailyCapacityMinutes(minutes: Int) {
         val clamped = minutes.coerceIn(60, 720)
         prefs.edit().putInt(KEY_DAILY_CAPACITY_MINUTES, clamped).apply()
@@ -133,6 +141,9 @@ class SharedPrefsUserPreferencesRepository @Inject constructor(
         val workspaceMode = WorkspaceMode.fromStorage(
             prefs.getString(KEY_WORKSPACE_MODE, WorkspaceMode.NOW.name)
         )
+        val executeTheme = ExecuteTheme.fromStorage(
+            prefs.getString(KEY_EXECUTE_THEME, ExecuteTheme.MONOLITH.name)
+        )
         val dailyCapacityMinutes = prefs.getInt(KEY_DAILY_CAPACITY_MINUTES, 240).coerceIn(60, 720)
         val webDavConfig = WebDavConfig(
             serverUrl = prefs.getString(KEY_WEBDAV_URL, "").orEmpty(),
@@ -154,6 +165,7 @@ class SharedPrefsUserPreferencesRepository @Inject constructor(
             appLanguage = appLanguage,
             taskSortMode = sortMode,
             workspaceMode = workspaceMode,
+            executeTheme = executeTheme,
             dailyCapacityMinutes = dailyCapacityMinutes,
             webDavConfig = webDavConfig
         )
@@ -170,6 +182,7 @@ class SharedPrefsUserPreferencesRepository @Inject constructor(
         const val KEY_APP_LANGUAGE = "app_language"
         private const val KEY_TASK_SORT_MODE = "task_sort_mode"
         private const val KEY_WORKSPACE_MODE = "workspace_mode"
+        private const val KEY_EXECUTE_THEME = "execute_theme"
         private const val KEY_DAILY_CAPACITY_MINUTES = "daily_capacity_minutes"
         private const val KEY_WEBDAV_URL = "webdav_url"
         private const val KEY_WEBDAV_USER = "webdav_user"
@@ -214,6 +227,10 @@ class InMemoryUserPreferencesRepository(
 
     override fun setWorkspaceMode(mode: WorkspaceMode) {
         _preferences.update { it.copy(workspaceMode = mode) }
+    }
+
+    override fun setExecuteTheme(theme: ExecuteTheme) {
+        _preferences.update { it.copy(executeTheme = theme) }
     }
 
     override fun setDailyCapacityMinutes(minutes: Int) {

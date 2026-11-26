@@ -23,6 +23,7 @@ import com.zero.todo.data.repository.TagRepositoryImpl
 import com.zero.todo.data.repository.TaskRepositoryImpl
 import com.zero.todo.domain.model.AntiMisclickMode
 import com.zero.todo.domain.model.AppLanguage
+import com.zero.todo.domain.model.ExecuteTheme
 import com.zero.todo.domain.model.FocusMode
 import com.zero.todo.domain.model.TaskPriority
 import com.zero.todo.domain.model.TaskSortMode
@@ -601,5 +602,55 @@ class MainViewModelStateTest {
             vm.uiState.first { it.appLanguage == AppLanguage.SYSTEM }
         }
         collectJob.cancel()
+    }
+
+    @Test
+    fun `Execution Theme Engine persists theme and preserves focus and draft state when switching MONOLITH and RUNWAY`() = runBlocking {
+        val todayMillis = ZeroDateFormatter.startOfDayMillis(LocalDate.now())
+        val first = taskRepository.createTask("First deep task", priority = TaskPriority.URGENT, dueDate = todayMillis)
+        val second = taskRepository.createTask("Second quick task", priority = TaskPriority.HIGH, dueDate = todayMillis)
+
+        val vm = newViewModel()
+        val uiJob = launch(Dispatchers.Default) { vm.uiState.collect {} }
+        val execJob = launch(Dispatchers.Default) { vm.executeUiState.collect {} }
+
+        val initialExec = withTimeout(5_000L) {
+            vm.executeUiState.first {
+                it.executeTheme == ExecuteTheme.MONOLITH && it.runwayQueue.size == 2 && it.focusedTask?.id == first.id
+            }
+        }
+        assertEquals(0, initialExec.focusedTaskIndex)
+
+        // Focus next task, start 2-min starter, and keep a draft input
+        vm.focusNextRunwayTask()
+        vm.updateQuickInputText("keep this draft")
+        vm.openFocusForTask(second, FocusMode.TWO_MIN_STARTER)
+        val flowingMonolith = withTimeout(5_000L) {
+            vm.executeUiState.first {
+                it.focusedTask?.id == second.id &&
+                    it.isInlineFlowActive &&
+                    it.quickInputText == "keep this draft"
+            }
+        }
+        assertEquals(1, flowingMonolith.focusedTaskIndex)
+
+        // Switch Execution Theme -> RUNWAY: all shared states must stay completely intact
+        vm.setExecuteTheme(ExecuteTheme.RUNWAY)
+        val runwayState = withTimeout(5_000L) {
+            vm.executeUiState.first { it.executeTheme == ExecuteTheme.RUNWAY }
+        }
+        assertEquals(second.id, runwayState.focusedTask?.id)
+        assertTrue(runwayState.isInlineFlowActive)
+        assertEquals("keep this draft", runwayState.quickInputText)
+        assertEquals(ExecuteTheme.RUNWAY, preferencesRepository.preferences.value.executeTheme)
+
+        vm.focusPreviousRunwayTask()
+        withTimeout(5_000L) {
+            vm.executeUiState.first { it.focusedTask?.id == first.id }
+        }
+
+        vm.exitFocus()
+        execJob.cancel()
+        uiJob.cancel()
     }
 }

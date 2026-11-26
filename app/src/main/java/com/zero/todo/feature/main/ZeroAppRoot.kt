@@ -52,6 +52,7 @@ fun ZeroAppRoot(
     viewModel: MainViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val executeUiState by viewModel.executeUiState.collectAsStateWithLifecycle()
     val taskParentPicker by viewModel.taskParentPicker.collectAsStateWithLifecycle()
     val navController = rememberNavController()
     val baseContext = LocalContext.current
@@ -123,11 +124,14 @@ fun ZeroAppRoot(
     val callbacks = remember(viewModel, baseContext) {
         ZeroShellCallbacks(
             onSetWorkspaceMode = viewModel::setWorkspaceMode,
+            onSetExecuteTheme = viewModel::setExecuteTheme,
+            onSelectFocusedRunwayTask = viewModel::selectFocusedRunwayTask,
+            onFocusPreviousRunwayTask = viewModel::focusPreviousRunwayTask,
+            onFocusNextRunwayTask = viewModel::focusNextRunwayTask,
             onSetDailyCapacityMinutes = viewModel::setDailyCapacityMinutes,
             onOpenTriage = viewModel::openTriage,
             onCloseTriage = viewModel::closeTriage,
             onSkipRunwayTask = viewModel::skipTaskInRunway,
-            onShuffleRunway = viewModel::shuffleRunway,
             onOpenTaskDetailFromNow = viewModel::openTaskDetailFromNow,
             onUpdateTaskFirstStep = viewModel::updateTaskFirstStep,
             onCompleteFirstStepAndStartFlow = viewModel::completeFirstStepAndStartFlow,
@@ -251,6 +255,7 @@ fun ZeroAppRoot(
                         ZeroAdaptiveShell(
                             uiState = uiState,
                             callbacks = callbacks,
+                            executeUiState = executeUiState,
                             taskParentPicker = taskParentPicker
                         )
                     }

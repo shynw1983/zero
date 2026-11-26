@@ -88,6 +88,7 @@ import com.zero.todo.core.nlp.QuickInputParser
 import com.zero.todo.data.backup.WebDavConfig
 import com.zero.todo.domain.model.AntiMisclickMode
 import com.zero.todo.domain.model.AppLanguage
+import com.zero.todo.domain.model.ExecuteTheme
 import com.zero.todo.domain.model.FocusMode
 import com.zero.todo.domain.model.Folder
 import com.zero.todo.domain.model.FolderNode
@@ -113,7 +114,9 @@ import com.zero.todo.feature.folder.RenameTagDialog
 import com.zero.todo.feature.folder.SmartViewCounts
 import com.zero.todo.feature.folder.TagActionMenuDialog
 import com.zero.todo.feature.matrix.MatrixPane
-import com.zero.todo.feature.now.NowRunwayScreen
+import com.zero.todo.feature.execute.ExecuteHostScreen
+import com.zero.todo.feature.execute.ExecuteUiState
+import com.zero.todo.feature.execute.MonolithBlack
 import com.zero.todo.feature.settings.BackupUiStatus
 import com.zero.todo.feature.settings.SettingsOverlay
 import com.zero.todo.feature.taskdetail.TaskDetailPane
@@ -127,11 +130,14 @@ import java.time.LocalDate
 
 data class ZeroShellCallbacks(
     val onSetWorkspaceMode: (WorkspaceMode) -> Unit = {},
+    val onSetExecuteTheme: (ExecuteTheme) -> Unit = {},
+    val onSelectFocusedRunwayTask: (String) -> Unit = {},
+    val onFocusPreviousRunwayTask: () -> Unit = {},
+    val onFocusNextRunwayTask: () -> Unit = {},
     val onSetDailyCapacityMinutes: (Int) -> Unit = {},
     val onOpenTriage: () -> Unit = {},
     val onCloseTriage: () -> Unit = {},
     val onSkipRunwayTask: (TaskItem) -> Unit = {},
-    val onShuffleRunway: () -> Unit = {},
     val onOpenTaskDetailFromNow: (TaskItem) -> Unit = {},
     val onUpdateTaskFirstStep: (TaskItem, String?) -> Unit = { _, _ -> },
     val onCompleteFirstStepAndStartFlow: (TaskItem) -> Unit = {},
@@ -219,6 +225,7 @@ data class ZeroShellCallbacks(
 fun ZeroAdaptiveShell(
     uiState: MainUiState,
     callbacks: ZeroShellCallbacks,
+    executeUiState: ExecuteUiState = ExecuteUiState(),
     taskParentPicker: TaskParentPickerState? = null,
     windowWidthSizeClass: WindowWidthSizeClass = currentWindowAdaptiveInfo().windowSizeClass.windowWidthSizeClass,
     modifier: Modifier = Modifier
@@ -364,18 +371,22 @@ fun ZeroAdaptiveShell(
         }
 
     val isNowStage = uiState.workspaceMode == WorkspaceMode.NOW
-    val topRunwayTaskId = uiState.runwayQueue.firstOrNull()?.id
+    val activeRunwayTaskId = uiState.focusedRunwayTaskId ?: uiState.runwayQueue.firstOrNull()?.id
     val showInlineNowFlow = isNowStage &&
         uiState.focusState.isActive &&
-        uiState.focusState.task?.id == topRunwayTaskId &&
-        topRunwayTaskId != null
+        uiState.focusState.task?.id == activeRunwayTaskId &&
+        activeRunwayTaskId != null
     val shellBackgroundColor by animateColorAsState(
-        targetValue = if (isNowStage) Color(0xFF060608) else colors.background,
+        targetValue = if (isNowStage) MonolithBlack else colors.background,
         animationSpec = ZeroMotion.ColorSpring,
         label = "shell_stage_bg"
     )
     val modeBarAlpha by animateFloatAsState(
-        targetValue = if (showInlineNowFlow) 0.28f else 1f,
+        targetValue = when {
+            showInlineNowFlow -> 0.28f
+            isNowStage && uiState.executeTheme == ExecuteTheme.MONOLITH -> 0.62f
+            else -> 1f
+        },
         animationSpec = ZeroMotion.FloatSpring,
         label = "mode_bar_flow_dim"
     )
@@ -410,25 +421,15 @@ fun ZeroAdaptiveShell(
                             accent = uiState.activeAccent,
                             hapticsEnabled = uiState.hapticsEnabled
                         ) {
-                            NowRunwayScreen(
-                                currentDate = uiState.currentDate,
-                                runwayQueue = uiState.runwayQueue,
-                                scheduledTodayMinutes = uiState.scheduledTodayMinutes,
-                                dailyCapacityMinutes = uiState.dailyCapacityMinutes,
-                                todayCompletedCount = uiState.todayCompletedCount,
-                                triageCount = uiState.triageQueue.size,
-                                folderNameById = uiState.folderNameById,
-                                quickInputText = uiState.quickInputText,
-                                parsedQuickInput = uiState.parsedQuickInput,
-                                folderSuggestions = uiState.folderSuggestions,
-                                continuousEntryEnabled = uiState.continuousEntryEnabled,
-                                undoBanner = uiState.undoBanner,
-                                focusState = uiState.focusState,
-                                isInlineFlowActive = showInlineNowFlow,
+                            ExecuteHostScreen(
+                                state = executeUiState,
                                 quickInputFocusRequester = quickInputFocusRequester,
+                                onSelectExecuteTheme = callbacks.onSetExecuteTheme,
+                                onSelectFocusedTask = callbacks.onSelectFocusedRunwayTask,
+                                onFocusPreviousTask = callbacks.onFocusPreviousRunwayTask,
+                                onFocusNextTask = callbacks.onFocusNextRunwayTask,
                                 onCompleteTask = callbacks.onToggleTaskComplete,
                                 onSkipTask = callbacks.onSkipRunwayTask,
-                                onShuffleRunway = callbacks.onShuffleRunway,
                                 onOpenTaskDetail = callbacks.onOpenTaskDetailFromNow,
                                 onStartFocus = callbacks.onStartFocus,
                                 onSelectFocusMode = callbacks.onSelectFocusMode,
@@ -717,7 +718,7 @@ private fun DualStateModeBar(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .background(if (isDarkStage) Color(0xFF060608) else colors.background)
+            .background(if (isDarkStage) MonolithBlack else colors.background)
             .hairlineDividerTop()
             .navigationBarsPadding()
             .padding(horizontal = 16.dp, vertical = 8.dp),
