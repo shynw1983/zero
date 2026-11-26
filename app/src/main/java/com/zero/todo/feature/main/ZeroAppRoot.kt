@@ -5,6 +5,7 @@ import android.app.LocaleManager
 import android.content.Context
 import android.content.ContextWrapper
 import android.content.res.Configuration
+import android.content.res.Resources
 import android.os.Build
 import android.os.LocaleList
 import androidx.compose.foundation.layout.fillMaxSize
@@ -81,24 +82,6 @@ fun ZeroAppRoot(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
-    // Sync Android 13+ per-app system locale when user switches language in Settings
-    LaunchedEffect(uiState.appLanguage) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            runCatching {
-                val localeManager = baseContext.getSystemService(LocaleManager::class.java)
-                val tag = uiState.appLanguage.languageTag
-                val targetList = if (tag == null) {
-                    LocaleList.getEmptyLocaleList()
-                } else {
-                    LocaleList.forLanguageTags(tag)
-                }
-                if (localeManager?.applicationLocales != targetList) {
-                    localeManager?.applicationLocales = targetList
-                }
-            }
-        }
-    }
-
     LaunchedEffect(widgetLaunchArgs?.id) {
         if (widgetLaunchArgs != null && widgetLaunchArgs.id > 0L) {
             viewModel.handleWidgetLaunch(
@@ -116,19 +99,28 @@ fun ZeroAppRoot(
                 val locale = Locale.forLanguageTag(tag)
                 setLocale(locale)
                 setLocales(LocaleList(locale))
+            } else {
+                val systemLocales = Resources.getSystem().configuration.locales
+                if (!systemLocales.isEmpty) {
+                    setLocale(systemLocales[0])
+                    setLocales(systemLocales)
+                }
             }
         }
     }
 
-    val localizedContext = remember(baseContext, localizedConfig, uiState.appLanguage) {
-        if (uiState.appLanguage == AppLanguage.SYSTEM) {
-            baseContext
-        } else {
-            baseContext.createConfigurationContext(localizedConfig)
+    SideEffect {
+        val locales = localizedConfig.locales
+        if (!locales.isEmpty) {
+            Locale.setDefault(locales[0])
         }
     }
 
-    val callbacks = remember(viewModel) {
+    val localizedContext = remember(baseContext, localizedConfig) {
+        baseContext.createConfigurationContext(localizedConfig)
+    }
+
+    val callbacks = remember(viewModel, baseContext) {
         ZeroShellCallbacks(
             onSetWorkspaceMode = viewModel::setWorkspaceMode,
             onSetDailyCapacityMinutes = viewModel::setDailyCapacityMinutes,
@@ -196,7 +188,26 @@ fun ZeroAppRoot(
             onSetAntiMisclickMode = viewModel::setAntiMisclickMode,
             onSetTaskSwipeAction = viewModel::setTaskSwipeAction,
             onSetHapticsEnabled = viewModel::setHapticsEnabled,
-            onSetAppLanguage = viewModel::setAppLanguage,
+            onSetAppLanguage = { lang ->
+                viewModel.setAppLanguage(lang)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    runCatching {
+                        val localeManager = baseContext.getSystemService(LocaleManager::class.java)
+                        val currentLang = localeManager?.applicationLocales
+                            ?.takeIf { !it.isEmpty }
+                            ?.get(0)
+                            ?.language
+                        val targetLang = lang.languageTag
+                        if (currentLang != targetLang) {
+                            localeManager?.applicationLocales = if (targetLang == null) {
+                                LocaleList.getEmptyLocaleList()
+                            } else {
+                                LocaleList.forLanguageTags(targetLang)
+                            }
+                        }
+                    }
+                }
+            },
             onUpdateWebDavConfig = viewModel::updateWebDavConfig,
             onTestWebDav = viewModel::testWebDavConnection,
             onPushWebDav = viewModel::pushWebDavBackup,

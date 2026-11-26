@@ -1,9 +1,12 @@
 package com.zero.todo.feature.main
 
 import android.content.Context
+import android.content.res.Configuration
+import android.os.LocaleList
 import androidx.lifecycle.SavedStateHandle
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
+import com.zero.todo.R
 import com.zero.todo.core.common.RecurrenceRule
 import com.zero.todo.core.common.ZeroDateFormatter
 import com.zero.todo.core.designsystem.AppIconSwitcher
@@ -19,6 +22,7 @@ import com.zero.todo.data.repository.FolderRepositoryImpl
 import com.zero.todo.data.repository.TagRepositoryImpl
 import com.zero.todo.data.repository.TaskRepositoryImpl
 import com.zero.todo.domain.model.AntiMisclickMode
+import com.zero.todo.domain.model.AppLanguage
 import com.zero.todo.domain.model.FocusMode
 import com.zero.todo.domain.model.TaskPriority
 import com.zero.todo.domain.model.TaskSortMode
@@ -48,6 +52,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import java.time.LocalDate
+import java.util.Locale
 
 @OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)
@@ -557,6 +562,44 @@ class MainViewModelStateTest {
             vm.uiState.first { it.tagsWithCounts.none { tc -> tc.tag.id == tag.id } }
         }
 
+        collectJob.cancel()
+    }
+
+    @Test
+    fun `appLanguage hydrates initial uiState synchronously and resolves localized resources across all 4 locales`() = runBlocking {
+        preferencesRepository.setAppLanguage(AppLanguage.ZH)
+        val vm = newViewModel()
+        // Initial frame before flow collection emits must already carry saved appLanguage
+        assertEquals(AppLanguage.ZH, vm.uiState.value.appLanguage)
+
+        val collectJob = launch(Dispatchers.Default) { vm.uiState.collect {} }
+        val baseContext = ApplicationProvider.getApplicationContext<Context>()
+
+        val expectedTitles = mapOf(
+            AppLanguage.EN to "NOW · RUNWAY",
+            AppLanguage.ZH to "NOW · 执行跑道",
+            AppLanguage.JA to "NOW · ランウェイ",
+            AppLanguage.KO to "NOW · 실행 런웨이"
+        )
+
+        expectedTitles.forEach { (lang, expected) ->
+            vm.setAppLanguage(lang)
+            withTimeout(5_000L) {
+                vm.uiState.first { it.appLanguage == lang }
+            }
+            val locale = Locale.forLanguageTag(lang.languageTag!!)
+            val config = Configuration(baseContext.resources.configuration).apply {
+                setLocale(locale)
+                setLocales(LocaleList(locale))
+            }
+            val localizedContext = baseContext.createConfigurationContext(config)
+            assertEquals(expected, localizedContext.getString(R.string.now_header_title))
+        }
+
+        vm.setAppLanguage(AppLanguage.SYSTEM)
+        withTimeout(5_000L) {
+            vm.uiState.first { it.appLanguage == AppLanguage.SYSTEM }
+        }
         collectJob.cancel()
     }
 }

@@ -37,6 +37,7 @@ class MainActivity : ComponentActivity() {
         val tag = savedLanguage.languageTag
         val wrapped = if (tag != null) {
             val locale = Locale.forLanguageTag(tag)
+            Locale.setDefault(locale)
             val config = Configuration(newBase.resources.configuration).apply {
                 setLocale(locale)
                 setLocales(LocaleList(locale))

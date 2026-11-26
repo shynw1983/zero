@@ -587,7 +587,20 @@ class MainViewModel @Inject constructor(
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000L),
-        initialValue = MainUiState()
+        initialValue = initialUiStateFromPreferences(userPreferencesRepository.preferences.value)
+    )
+
+    private fun initialUiStateFromPreferences(prefs: UserPreferences): MainUiState = MainUiState(
+        workspaceMode = prefs.workspaceMode,
+        dailyCapacityMinutes = prefs.dailyCapacityMinutes,
+        isDarkTheme = prefs.isDarkTheme,
+        activeAccent = prefs.accent,
+        antiMisclickMode = prefs.antiMisclickMode,
+        taskSwipeActions = prefs.taskSwipeActions,
+        hapticsEnabled = prefs.hapticsEnabled,
+        appLanguage = prefs.appLanguage,
+        taskSortMode = prefs.taskSortMode,
+        webDavConfig = prefs.webDavConfig
     )
 
     private fun applyTaskSort(tasks: List<TaskItem>, sortMode: TaskSortMode): List<TaskItem> {

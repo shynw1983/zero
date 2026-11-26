@@ -3,6 +3,7 @@ package com.zero.todo.feature.now
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutLinearInEasing
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
@@ -33,7 +34,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -66,6 +66,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -86,6 +87,8 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.util.VelocityTracker
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
@@ -94,7 +97,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import com.zero.todo.R
@@ -758,9 +761,40 @@ private fun StackedDarkroomDeck(
     val secondTask = visibleDeck.getOrNull(1)
     val thirdTask = visibleDeck.getOrNull(2)
     val colors = ZeroTheme.colors
+    val haptics = rememberZeroHaptics()
+    val scope = rememberCoroutineScope()
     val density = LocalDensity.current
     val dragThresholdPx = with(density) { 96.dp.toPx() }
-    var dragRatio by remember(activeTask.id) { mutableFloatStateOf(0f) }
+
+    var deckWidthPx by remember { mutableFloatStateOf(0f) }
+    var heroHeightPx by remember { mutableIntStateOf(0) }
+    val swipeOffsetX = remember(activeTask.id) { Animatable(0f) }
+    var isDismissing by remember(activeTask.id) { mutableStateOf(false) }
+
+    val currentOnSkip by rememberUpdatedState(onSkipTask)
+    val backingCardHeight = if (heroHeightPx > 0) with(density) { heroHeightPx.toDp() } else 300.dp
+
+    fun triggerFlyOut(direction: Float) {
+        if (isDismissing || totalRunwayCount <= 1 || isInlineFlowActive) return
+        val dir = if (direction >= 0f) 1f else -1f
+        val taskToSkip = activeTask
+        isDismissing = true
+        haptics.reorderTick()
+        scope.launch {
+            val targetX = dir * maxOf(deckWidthPx * 1.15f, dragThresholdPx * 4.5f)
+            swipeOffsetX.animateTo(
+                targetValue = targetX,
+                animationSpec = tween(durationMillis = 210, easing = FastOutLinearInEasing)
+            )
+            currentOnSkip(taskToSkip)
+            // Fallback reset only if queue composition keeps the same top card after timeout
+            delay(450L)
+            if (isDismissing) {
+                isDismissing = false
+                swipeOffsetX.animateTo(0f, animationSpec = ZeroMotion.FloatSpring)
+            }
+        }
+    }
 
     Column(
         modifier = modifier.fillMaxWidth(),
@@ -770,38 +804,43 @@ private fun StackedDarkroomDeck(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
+                .onSizeChanged { deckWidthPx = it.width.toFloat() }
                 .padding(bottom = if (visibleDeck.size >= 3) 26.dp else if (visibleDeck.size == 2) 14.dp else 0.dp),
             contentAlignment = Alignment.TopCenter
         ) {
-            // Card #3 — Deepest deck anchor layer
+            // Card #3 — Deepest full-height deck layer rising into Card #2's resting slot
             if (thirdTask != null && !isInlineFlowActive) {
                 DeckBackingCard(
                     task = thirdTask,
+                    folderName = thirdTask.folderId?.let(folderNameById::get),
+                    cardHeight = backingCardHeight,
                     accentColor = colors.accent,
                     surfaceColor = DarkroomBackCardThree,
                     modifier = Modifier
                         .zIndex(1f)
                         .graphicsLayer {
-                            val rise = dragRatio.coerceIn(0f, 1f)
-                            translationY = (26.dp.toPx() - 10.dp.toPx() * rise)
-                            val scale = 0.88f + 0.04f * rise
+                            val rise = (abs(swipeOffsetX.value) / dragThresholdPx).coerceIn(0f, 1f)
+                            translationY = 26.dp.toPx() - 12.dp.toPx() * rise
+                            val scale = 0.88f + 0.06f * rise
                             scaleX = scale
                             scaleY = scale
-                            alpha = 0.36f + 0.16f * rise
+                            alpha = 0.35f + 0.30f * rise
                         }
                 )
             }
 
-            // Card #2 — Rises dynamically as the hero card is flicked aside
+            // Card #2 — Full-height card rising seamlessly into Card #1's resting slot
             if (secondTask != null && !isInlineFlowActive) {
                 DeckBackingCard(
                     task = secondTask,
+                    folderName = secondTask.folderId?.let(folderNameById::get),
+                    cardHeight = backingCardHeight,
                     accentColor = colors.accent,
                     surfaceColor = DarkroomBackCardTwo,
                     modifier = Modifier
                         .zIndex(2f)
                         .graphicsLayer {
-                            val rise = dragRatio.coerceIn(0f, 1f)
+                            val rise = (abs(swipeOffsetX.value) / dragThresholdPx).coerceIn(0f, 1f)
                             translationY = 14.dp.toPx() * (1f - rise)
                             val scale = 0.94f + 0.06f * rise
                             scaleX = scale
@@ -818,11 +857,14 @@ private fun StackedDarkroomDeck(
                 canSkip = totalRunwayCount > 1,
                 focusState = focusState,
                 isInlineFlowActive = isInlineFlowActive,
+                swipeOffsetX = swipeOffsetX,
+                deckWidthPx = deckWidthPx,
                 dragThresholdPx = dragThresholdPx,
-                onDragFractionChanged = { dragRatio = it },
+                isDismissing = isDismissing,
+                onTriggerFlyOut = ::triggerFlyOut,
                 onChargeProgressChanged = onChargeProgressChanged,
                 onComplete = { onCompleteTask(activeTask) },
-                onSkip = { onSkipTask(activeTask) },
+                onSkip = { triggerFlyOut(-1f) },
                 onOpenDetail = { onOpenTaskDetail(activeTask) },
                 onStartTwoMin = { onStartFocus(activeTask, FocusMode.TWO_MIN_STARTER) },
                 onSelectFocusMode = onSelectFocusMode,
@@ -836,7 +878,9 @@ private fun StackedDarkroomDeck(
                 onUpdateFirstStep = { onUpdateFirstStep(activeTask, it) },
                 onCompleteFirstStep = { onCompleteFirstStepAndStartFlow(activeTask) },
                 onSelectEffort = { onUpdateEffort(activeTask, it) },
-                modifier = Modifier.zIndex(3f)
+                modifier = Modifier
+                    .zIndex(3f)
+                    .onSizeChanged { heroHeightPx = it.height }
             )
         }
 
@@ -855,51 +899,116 @@ private fun StackedDarkroomDeck(
 @Composable
 private fun DeckBackingCard(
     task: TaskItem,
+    folderName: String?,
+    cardHeight: Dp,
     accentColor: Color,
     surfaceColor: Color,
     modifier: Modifier = Modifier
 ) {
     val colors = ZeroTheme.colors
     val tabular = ZeroTheme.tabularTypography
+    val activeLocale = LocalConfiguration.current.locales[0]
 
-    Row(
+    Column(
         modifier = modifier
             .fillMaxWidth()
-            .height(92.dp)
+            .height(cardHeight)
             .clip(DarkroomDeckShape)
             .background(surfaceColor)
             .hairlineBorder(
                 shape = DarkroomDeckShape,
-                color = accentColor.copy(alpha = 0.16f)
+                color = accentColor.copy(alpha = 0.22f)
             )
-            .padding(horizontal = 20.dp, vertical = 16.dp),
-        verticalAlignment = Alignment.Bottom,
-        horizontalArrangement = Arrangement.SpaceBetween
+            .padding(20.dp),
+        verticalArrangement = Arrangement.SpaceBetween
     ) {
+        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                if (task.priority != TaskPriority.NONE) {
+                    val priorityColor = when (task.priority) {
+                        TaskPriority.URGENT -> colors.priorityUrgent
+                        TaskPriority.HIGH -> colors.priorityHigh
+                        TaskPriority.MEDIUM -> colors.priorityMedium
+                        TaskPriority.NONE -> colors.textMuted
+                    }
+                    Box(
+                        modifier = Modifier
+                            .clip(ZeroCapsuleShape)
+                            .background(priorityColor.copy(alpha = 0.14f))
+                            .hairlineBorder(shape = ZeroCapsuleShape, color = priorityColor.copy(alpha = 0.55f))
+                            .padding(horizontal = 8.dp, vertical = 3.dp)
+                    ) {
+                        Text(
+                            text = task.priority.name,
+                            style = tabular.priorityTag,
+                            color = priorityColor
+                        )
+                    }
+                }
+                val dueMillis = task.dueDate
+                if (dueMillis != null) {
+                    Text(
+                        text = ZeroDateFormatter.formatDueDate(
+                            dueDateMillis = dueMillis,
+                            isAllDay = task.isAllDay,
+                            locale = activeLocale
+                        ),
+                        style = tabular.dateCompact,
+                        color = if (ZeroDateFormatter.isOverdue(dueMillis, task.isAllDay)) colors.priorityUrgent else colors.textSecondary
+                    )
+                }
+                if (!folderName.isNullOrBlank()) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(3.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Folder,
+                            contentDescription = null,
+                            tint = colors.textMuted,
+                            modifier = Modifier.size(13.dp)
+                        )
+                        Text(
+                            text = folderName,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = colors.textMuted,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+            }
+
+            Text(
+                text = task.title,
+                style = MaterialTheme.typography.headlineMedium,
+                color = colors.textPrimary,
+                maxLines = 3,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+
         Row(
+            modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            modifier = Modifier.weight(1f)
+            horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Text(
                 text = stringResource(R.string.now_up_next),
                 style = tabular.dateCompact,
                 color = accentColor
             )
-            Text(
-                text = task.title,
-                style = MaterialTheme.typography.bodyMedium,
-                color = colors.textSecondary,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
-        if (task.estimatedMinutes != null) {
-            Text(
-                text = "${task.estimatedMinutes}m",
-                style = tabular.dateCompact,
-                color = colors.textMuted
-            )
+            if (task.estimatedMinutes != null) {
+                Text(
+                    text = "${task.estimatedMinutes}m",
+                    style = tabular.dateCompact,
+                    color = colors.textMuted
+                )
+            }
         }
     }
 }
@@ -911,8 +1020,11 @@ private fun HeroDarkroomCard(
     canSkip: Boolean,
     focusState: FocusUiState,
     isInlineFlowActive: Boolean,
+    swipeOffsetX: Animatable<Float, *>,
+    deckWidthPx: Float,
     dragThresholdPx: Float,
-    onDragFractionChanged: (Float) -> Unit,
+    isDismissing: Boolean,
+    onTriggerFlyOut: (Float) -> Unit,
     onChargeProgressChanged: (Float) -> Unit,
     onComplete: () -> Unit,
     onSkip: () -> Unit,
@@ -938,21 +1050,15 @@ private fun HeroDarkroomCard(
     val activeLocale = LocalConfiguration.current.locales[0]
 
     val currentComplete by rememberUpdatedState(onComplete)
-    val currentSkip by rememberUpdatedState(onSkip)
+    val currentTriggerFlyOut by rememberUpdatedState(onTriggerFlyOut)
+    val currentIsDismissing by rememberUpdatedState(isDismissing)
 
     var firstStepDraft by remember(task.id, task.firstStep) { mutableStateOf(task.firstStep.orEmpty()) }
-    val swipeOffsetX = remember(task.id) { Animatable(0f) }
     val holdProgress = remember(task.id) { Animatable(0f) }
 
     LaunchedEffect(task.id) {
-        swipeOffsetX.snapTo(0f)
         holdProgress.snapTo(0f)
-        onDragFractionChanged(0f)
         onChargeProgressChanged(0f)
-    }
-
-    LaunchedEffect(swipeOffsetX.value) {
-        onDragFractionChanged((abs(swipeOffsetX.value) / dragThresholdPx).coerceIn(0f, 1f))
     }
 
     LaunchedEffect(holdProgress.value) {
@@ -969,14 +1075,17 @@ private fun HeroDarkroomCard(
     val deckCornerPx = with(LocalDensity.current) { 22.dp.toPx() }
     val glowStrokePx = with(LocalDensity.current) { 1.5.dp.toPx() }
     val hairlineStrokePx = with(LocalDensity.current) { 0.5.dp.toPx() }
-    val maxDragPx = dragThresholdPx * 2.2f
 
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .offset { IntOffset(swipeOffsetX.value.roundToInt(), 0) }
             .graphicsLayer {
-                rotationZ = (swipeOffsetX.value / (dragThresholdPx * 0.35f)).coerceIn(-7f, 7f)
+                val x = swipeOffsetX.value
+                val widthRef = maxOf(deckWidthPx, 1f)
+                translationX = x
+                translationY = abs(x) * 0.04f
+                rotationZ = (x / widthRef * 14f).coerceIn(-12f, 12f)
+                alpha = 1f - ((abs(x) - dragThresholdPx * 0.6f) / (widthRef * 0.9f)).coerceIn(0f, 1f)
             }
             .clip(DarkroomDeckShape)
             .background(DarkroomHeroSurface)
@@ -1006,24 +1115,37 @@ private fun HeroDarkroomCard(
             }
             .pointerInput(task.id, canSkip, isInlineFlowActive) {
                 if (!canSkip || isInlineFlowActive) return@pointerInput
+                val velocityTracker = VelocityTracker()
                 detectHorizontalDragGestures(
+                    onDragStart = {
+                        velocityTracker.resetTracking()
+                    },
                     onDragEnd = {
-                        if (abs(swipeOffsetX.value) >= dragThresholdPx) {
-                            haptics.reorderTick()
-                            currentSkip()
-                        }
-                        scope.launch {
-                            swipeOffsetX.animateTo(0f, animationSpec = ZeroMotion.FloatSpring)
+                        if (currentIsDismissing) return@detectHorizontalDragGestures
+                        val velocityX = velocityTracker.calculateVelocity().x
+                        val offsetX = swipeOffsetX.value
+                        val fastFlick = abs(velocityX) >= 900f && abs(offsetX) >= dragThresholdPx * 0.35f
+                        if (abs(offsetX) >= dragThresholdPx || fastFlick) {
+                            val dir = if (abs(offsetX) > 8f) offsetX else velocityX
+                            currentTriggerFlyOut(dir)
+                        } else {
+                            scope.launch {
+                                swipeOffsetX.animateTo(0f, animationSpec = ZeroMotion.FloatSpring)
+                            }
                         }
                     },
                     onDragCancel = {
-                        scope.launch {
-                            swipeOffsetX.animateTo(0f, animationSpec = ZeroMotion.FloatSpring)
+                        if (!currentIsDismissing) {
+                            scope.launch {
+                                swipeOffsetX.animateTo(0f, animationSpec = ZeroMotion.FloatSpring)
+                            }
                         }
                     }
-                ) { _, dragAmount ->
+                ) { change, dragAmount ->
+                    if (currentIsDismissing) return@detectHorizontalDragGestures
+                    velocityTracker.addPosition(change.uptimeMillis, change.position)
                     scope.launch {
-                        swipeOffsetX.snapTo((swipeOffsetX.value + dragAmount).coerceIn(-maxDragPx, maxDragPx))
+                        swipeOffsetX.snapTo(swipeOffsetX.value + dragAmount)
                     }
                 }
             }

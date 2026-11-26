@@ -86,7 +86,7 @@ class SharedPrefsUserPreferencesRepository @Inject constructor(
     }
 
     override fun setAppLanguage(language: AppLanguage) {
-        prefs.edit().putString(KEY_APP_LANGUAGE, language.name).apply()
+        prefs.edit().putString(KEY_APP_LANGUAGE, language.name).commit()
         _preferences.update { it.copy(appLanguage = language) }
     }
 
