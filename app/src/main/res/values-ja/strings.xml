@@ -333,4 +333,11 @@
     <string name="detail_effort">負荷</string>
     <string name="settings_section_capacity">1日のエネルギー上限</string>
     <string name="settings_capacity_desc">容量ゲージの基準時間を設定し、無理な詰め込みを防ぎます</string>
+
+    <!-- v2.2.0: NOW ダークルームスポット、ブラインド抽選、今日のリズムとインラインフロー -->
+    <string name="now_shuffle_draw">おまかせ抽選</string>
+    <string name="now_inline_flow_active">フロー中</string>
+    <string name="now_exit_flow">閉じる</string>
+    <string name="now_rhythm_done">今日 %1$d 件完了</string>
+    <string name="now_swipe_hint">左右スワイプで次へ · 長押しで完了</string>
 </resources>

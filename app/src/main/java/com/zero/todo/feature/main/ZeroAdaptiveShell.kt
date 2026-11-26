@@ -3,9 +3,13 @@ package com.zero.todo.feature.main
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.expandHorizontally
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.animation.shrinkHorizontally
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
@@ -55,6 +59,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
@@ -125,6 +131,7 @@ data class ZeroShellCallbacks(
     val onOpenTriage: () -> Unit = {},
     val onCloseTriage: () -> Unit = {},
     val onSkipRunwayTask: (TaskItem) -> Unit = {},
+    val onShuffleRunway: () -> Unit = {},
     val onOpenTaskDetailFromNow: (TaskItem) -> Unit = {},
     val onUpdateTaskFirstStep: (TaskItem, String?) -> Unit = { _, _ -> },
     val onCompleteFirstStepAndStartFlow: (TaskItem) -> Unit = {},
@@ -356,17 +363,40 @@ fun ZeroAdaptiveShell(
             }
         }
 
+    val isNowStage = uiState.workspaceMode == WorkspaceMode.NOW
+    val topRunwayTaskId = uiState.runwayQueue.firstOrNull()?.id
+    val showInlineNowFlow = isNowStage &&
+        uiState.focusState.isActive &&
+        uiState.focusState.task?.id == topRunwayTaskId &&
+        topRunwayTaskId != null
+    val shellBackgroundColor by animateColorAsState(
+        targetValue = if (isNowStage) Color(0xFF060608) else colors.background,
+        animationSpec = ZeroMotion.ColorSpring,
+        label = "shell_stage_bg"
+    )
+    val modeBarAlpha by animateFloatAsState(
+        targetValue = if (showInlineNowFlow) 0.28f else 1f,
+        animationSpec = ZeroMotion.FloatSpring,
+        label = "mode_bar_flow_dim"
+    )
+
     Box(
         modifier = rootKeyboardModifier
-            .background(colors.background)
+            .background(shellBackgroundColor)
             .statusBarsPadding()
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
-            // Primary Dual-State Content: NOW (Execution Runway) vs VAULT (Organization Studio)
+            // Primary Dual-State Content: NOW (Darkroom Execution Runway) vs VAULT (Swiss-OCD Studio)
             AnimatedContent(
                 targetState = uiState.workspaceMode,
                 transitionSpec = {
-                    fadeIn(ZeroMotion.FloatSpring) togetherWith fadeOut(ZeroMotion.FloatSpring)
+                    (fadeIn(ZeroMotion.FloatSpring) + scaleIn(
+                        initialScale = 0.96f,
+                        animationSpec = ZeroMotion.FloatSpring
+                    )) togetherWith (fadeOut(ZeroMotion.FloatSpring) + scaleOut(
+                        targetScale = 1.03f,
+                        animationSpec = ZeroMotion.FloatSpring
+                    ))
                 },
                 modifier = Modifier
                     .weight(1f)
@@ -375,36 +405,54 @@ fun ZeroAdaptiveShell(
             ) { mode ->
                 when (mode) {
                     WorkspaceMode.NOW -> {
-                        NowRunwayScreen(
-                            currentDate = uiState.currentDate,
-                            runwayQueue = uiState.runwayQueue,
-                            scheduledTodayMinutes = uiState.scheduledTodayMinutes,
-                            dailyCapacityMinutes = uiState.dailyCapacityMinutes,
-                            triageCount = uiState.triageQueue.size,
-                            folderNameById = uiState.folderNameById,
-                            quickInputText = uiState.quickInputText,
-                            parsedQuickInput = uiState.parsedQuickInput,
-                            folderSuggestions = uiState.folderSuggestions,
-                            continuousEntryEnabled = uiState.continuousEntryEnabled,
-                            undoBanner = uiState.undoBanner,
-                            quickInputFocusRequester = quickInputFocusRequester,
-                            onCompleteTask = callbacks.onToggleTaskComplete,
-                            onSkipTask = callbacks.onSkipRunwayTask,
-                            onOpenTaskDetail = callbacks.onOpenTaskDetailFromNow,
-                            onStartFocus = callbacks.onStartFocus,
-                            onUpdateFirstStep = callbacks.onUpdateTaskFirstStep,
-                            onCompleteFirstStepAndStartFlow = callbacks.onCompleteFirstStepAndStartFlow,
-                            onUpdateEffort = callbacks.onUpdateTaskEffort,
-                            onOpenTriage = callbacks.onOpenTriage,
-                            onSwitchToVault = { callbacks.onSetWorkspaceMode(WorkspaceMode.VAULT) },
-                            onOpenSettings = callbacks.onOpenSettings,
-                            onQuickInputEdit = callbacks.onQuickInputEdit,
-                            onQuickInputSubmit = callbacks.onQuickInputSubmit,
-                            onToggleContinuousEntry = callbacks.onToggleContinuousEntry,
-                            onVoiceInputRecognized = callbacks.onVoiceInputRecognized,
-                            onUndo = callbacks.onUndo,
-                            onUndoTimeout = callbacks.onUndoTimeout
-                        )
+                        ZeroTheme(
+                            darkTheme = true,
+                            accent = uiState.activeAccent,
+                            hapticsEnabled = uiState.hapticsEnabled
+                        ) {
+                            NowRunwayScreen(
+                                currentDate = uiState.currentDate,
+                                runwayQueue = uiState.runwayQueue,
+                                scheduledTodayMinutes = uiState.scheduledTodayMinutes,
+                                dailyCapacityMinutes = uiState.dailyCapacityMinutes,
+                                todayCompletedCount = uiState.todayCompletedCount,
+                                triageCount = uiState.triageQueue.size,
+                                folderNameById = uiState.folderNameById,
+                                quickInputText = uiState.quickInputText,
+                                parsedQuickInput = uiState.parsedQuickInput,
+                                folderSuggestions = uiState.folderSuggestions,
+                                continuousEntryEnabled = uiState.continuousEntryEnabled,
+                                undoBanner = uiState.undoBanner,
+                                focusState = uiState.focusState,
+                                isInlineFlowActive = showInlineNowFlow,
+                                quickInputFocusRequester = quickInputFocusRequester,
+                                onCompleteTask = callbacks.onToggleTaskComplete,
+                                onSkipTask = callbacks.onSkipRunwayTask,
+                                onShuffleRunway = callbacks.onShuffleRunway,
+                                onOpenTaskDetail = callbacks.onOpenTaskDetailFromNow,
+                                onStartFocus = callbacks.onStartFocus,
+                                onSelectFocusMode = callbacks.onSelectFocusMode,
+                                onStartOrResumeFocus = callbacks.onStartOrResumeFocus,
+                                onPauseFocus = callbacks.onPauseFocus,
+                                onResetFocus = callbacks.onResetFocus,
+                                onContinueFocusToPomodoro = callbacks.onContinueFocusToPomodoro,
+                                onStopStopwatchFocus = callbacks.onStopStopwatchFocus,
+                                onCompleteFocusedTask = callbacks.onCompleteFocusedTask,
+                                onExitFocus = callbacks.onExitFocus,
+                                onUpdateFirstStep = callbacks.onUpdateTaskFirstStep,
+                                onCompleteFirstStepAndStartFlow = callbacks.onCompleteFirstStepAndStartFlow,
+                                onUpdateEffort = callbacks.onUpdateTaskEffort,
+                                onOpenTriage = callbacks.onOpenTriage,
+                                onSwitchToVault = { callbacks.onSetWorkspaceMode(WorkspaceMode.VAULT) },
+                                onOpenSettings = callbacks.onOpenSettings,
+                                onQuickInputEdit = callbacks.onQuickInputEdit,
+                                onQuickInputSubmit = callbacks.onQuickInputSubmit,
+                                onToggleContinuousEntry = callbacks.onToggleContinuousEntry,
+                                onVoiceInputRecognized = callbacks.onVoiceInputRecognized,
+                                onUndo = callbacks.onUndo,
+                                onUndoTimeout = callbacks.onUndoTimeout
+                            )
+                        }
                     }
 
                     WorkspaceMode.VAULT -> {
@@ -447,12 +495,20 @@ fun ZeroAdaptiveShell(
             }
 
             // ZERO 2.0 Tactile Dual-State Hardware Switcher Bar (NOW <-> VAULT, 48dp touch height)
-            DualStateModeBar(
-                activeMode = uiState.workspaceMode,
-                runwayCount = uiState.runwayQueue.size,
-                vaultBadgeCount = uiState.triageQueue.size,
-                onSelectMode = callbacks.onSetWorkspaceMode
-            )
+            ZeroTheme(
+                darkTheme = isNowStage || uiState.isDarkTheme,
+                accent = uiState.activeAccent,
+                hapticsEnabled = uiState.hapticsEnabled
+            ) {
+                DualStateModeBar(
+                    activeMode = uiState.workspaceMode,
+                    runwayCount = uiState.runwayQueue.size,
+                    vaultBadgeCount = uiState.triageQueue.size,
+                    isDarkStage = isNowStage,
+                    onSelectMode = callbacks.onSetWorkspaceMode,
+                    modifier = Modifier.graphicsLayer { alpha = modeBarAlpha }
+                )
+            }
         }
 
         // Full-Screen 30-Second Lightning Triage Deck Overlay
@@ -474,9 +530,9 @@ fun ZeroAdaptiveShell(
             )
         }
 
-        // Full-Screen Single-Task Focus Mode Overlay
+        // Full-Screen Single-Task Focus Mode Overlay (used from VAULT or non-hero tasks; hero NOW task morphs inline)
         AnimatedVisibility(
-            visible = uiState.focusState.isActive,
+            visible = uiState.focusState.isActive && !showInlineNowFlow,
             enter = fadeIn(animationSpec = ZeroMotion.FloatSpring) +
                 slideInVertically(animationSpec = ZeroMotion.IntOffsetSpring) { it / 10 },
             exit = fadeOut(animationSpec = ZeroMotion.FloatSpring) +
@@ -651,15 +707,17 @@ private fun DualStateModeBar(
     activeMode: WorkspaceMode,
     runwayCount: Int,
     vaultBadgeCount: Int,
-    onSelectMode: (WorkspaceMode) -> Unit
+    isDarkStage: Boolean,
+    onSelectMode: (WorkspaceMode) -> Unit,
+    modifier: Modifier = Modifier
 ) {
     val colors = ZeroTheme.colors
     val haptics = rememberZeroHaptics()
 
     Box(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
-            .background(colors.background)
+            .background(if (isDarkStage) Color(0xFF060608) else colors.background)
             .hairlineDividerTop()
             .navigationBarsPadding()
             .padding(horizontal = 16.dp, vertical = 8.dp),

@@ -333,4 +333,11 @@
     <string name="detail_effort">부하</string>
     <string name="settings_section_capacity">일일 에너지 용량 상한</string>
     <string name="settings_capacity_desc">일일 용량 눈금자의 기준 시간을 설정해 무리한 일정 배치를 방지합니다</string>
+
+    <!-- v2.2.0: NOW 다크룸 스포트라이트, 블라인드 뽑기, 오늘 리듬 및 인라인 몰입 -->
+    <string name="now_shuffle_draw">블라인드 뽑기</string>
+    <string name="now_inline_flow_active">몰입 중</string>
+    <string name="now_exit_flow">접기</string>
+    <string name="now_rhythm_done">오늘 %1$d개 완료</string>
+    <string name="now_swipe_hint">카드를 좌우로 밀어 넘기기 · 길게 눌러 완료</string>
 </resources>

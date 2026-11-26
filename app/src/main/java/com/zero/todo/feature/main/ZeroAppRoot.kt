@@ -31,6 +31,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.zero.todo.core.designsystem.ZeroTheme
 import com.zero.todo.domain.model.AppLanguage
+import com.zero.todo.domain.model.WorkspaceMode
 import java.util.Locale
 
 object ZeroRoutes {
@@ -58,12 +59,14 @@ fun ZeroAppRoot(
     val view = LocalView.current
 
     // Sync system status & navigation bar icon contrast cleanly with Dark / Light theme
+    // NOW Execution Runway always enters the matte darkroom stage for deep focus contrast.
     SideEffect {
         val window = baseContext.findActivity()?.window
         if (window != null && !view.isInEditMode) {
+            val effectiveDarkSurface = uiState.isDarkTheme || uiState.workspaceMode == WorkspaceMode.NOW
             val controller = WindowCompat.getInsetsController(window, view)
-            controller.isAppearanceLightStatusBars = !uiState.isDarkTheme
-            controller.isAppearanceLightNavigationBars = !uiState.isDarkTheme
+            controller.isAppearanceLightStatusBars = !effectiveDarkSurface
+            controller.isAppearanceLightNavigationBars = !effectiveDarkSurface
         }
     }
 
@@ -132,6 +135,7 @@ fun ZeroAppRoot(
             onOpenTriage = viewModel::openTriage,
             onCloseTriage = viewModel::closeTriage,
             onSkipRunwayTask = viewModel::skipTaskInRunway,
+            onShuffleRunway = viewModel::shuffleRunway,
             onOpenTaskDetailFromNow = viewModel::openTaskDetailFromNow,
             onUpdateTaskFirstStep = viewModel::updateTaskFirstStep,
             onCompleteFirstStepAndStartFlow = viewModel::completeFirstStepAndStartFlow,

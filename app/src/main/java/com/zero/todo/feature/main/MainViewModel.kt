@@ -70,6 +70,7 @@ data class MainUiState(
     val workspaceMode: WorkspaceMode = WorkspaceMode.NOW,
     val dailyCapacityMinutes: Int = 240,
     val scheduledTodayMinutes: Int = 0,
+    val todayCompletedCount: Int = 0,
     val runwayQueue: List<TaskItem> = emptyList(),
     val triageQueue: List<TaskItem> = emptyList(),
     val quickFolders: List<Folder> = emptyList(),
@@ -186,6 +187,7 @@ class MainViewModel @Inject constructor(
     private val quickInputFocusRequestTickFlow = MutableStateFlow(0L)
     private val triageOpenFlow = MutableStateFlow(false)
     private val skippedRunwayIdsFlow = MutableStateFlow<List<String>>(emptyList())
+    private val pinnedRunwayTaskIdFlow = MutableStateFlow<String?>(null)
 
     private val folderTreeFlow = getFolderTreeUseCase()
     private val activeFoldersFlow = folderRepository.observeActiveFolders()
@@ -324,7 +326,8 @@ class MainViewModel @Inject constructor(
         val deletedTasks: List<TaskItem>,
         val webDavStatus: WebDavUiStatus?,
         val isTriageOpen: Boolean,
-        val skippedRunwayIds: List<String>
+        val skippedRunwayIds: List<String>,
+        val pinnedRunwayTaskId: String?
     )
 
     private data class InputAndUiBundle(
@@ -384,7 +387,8 @@ class MainViewModel @Inject constructor(
         deletedTasksFlow,
         webDavStatusFlow,
         triageOpenFlow,
-        skippedRunwayIdsFlow
+        skippedRunwayIdsFlow,
+        pinnedRunwayTaskIdFlow
     ) { values ->
         val query = values[0] as String
         val isOpen = values[1] as Boolean
@@ -394,7 +398,8 @@ class MainViewModel @Inject constructor(
         val isTriageOpen = values[4] as Boolean
         @Suppress("UNCHECKED_CAST")
         val skippedIds = values[5] as List<String>
-        SearchAndTrashBundle(query, isOpen, deleted, webDavStatus, isTriageOpen, skippedIds)
+        val pinnedId = values[6] as String?
+        SearchAndTrashBundle(query, isOpen, deleted, webDavStatus, isTriageOpen, skippedIds, pinnedId)
     }
 
     private val inputAndUiBundleFlow: Flow<InputAndUiBundle> = combine(
@@ -492,9 +497,12 @@ class MainViewModel @Inject constructor(
         val parsed = QuickInputParser.parse(ui.quickInputText)
         val suggestions = buildFolderSuggestions(nav.folderTree, parsed.activeFolderQuery)
 
-        // ZERO 2.0: Compute NOW Runway Queue, Day Budget Scheduled Minutes, and Lightning Triage Queue
+        // ZERO 2.0: Compute NOW Runway Queue, Day Budget Scheduled Minutes, Today Rhythm & Triage Queue
         val todayStart = ZeroDateFormatter.startOfDayMillis(nav.currentDate)
         val tomorrowStart = ZeroDateFormatter.startOfDayMillis(nav.currentDate.plusDays(1))
+        val todayCompletedCount = allTasks.count { task ->
+            task.isCompleted && (task.completedAt?.let { it in todayStart until tomorrowStart } == true)
+        }
         val activeIncomplete = allTasks.filterNot { it.isCompleted }
         val todayAndOverdue = activeIncomplete.filter { task ->
             val due = task.dueDate
@@ -508,9 +516,11 @@ class MainViewModel @Inject constructor(
         } else {
             activeIncomplete.filter { it.folderId == null && it.parentTaskId == null }
         }
+        val pinnedId = searchTrash.pinnedRunwayTaskId
         val skippedRank = searchTrash.skippedRunwayIds.withIndex().associate { (idx, id) -> id to (idx + 1) }
         val runwayQueue = baseRunwayCandidates.sortedWith(
             compareBy<TaskItem>(
+                { if (it.id == pinnedId) 0 else 1 },
                 { skippedRank[it.id] ?: 0 },
                 { it.priority.value },
                 { it.dueDate ?: Long.MAX_VALUE },
@@ -528,6 +538,7 @@ class MainViewModel @Inject constructor(
             workspaceMode = ui.preferences.workspaceMode,
             dailyCapacityMinutes = ui.preferences.dailyCapacityMinutes,
             scheduledTodayMinutes = scheduledTodayMinutes,
+            todayCompletedCount = todayCompletedCount,
             runwayQueue = runwayQueue,
             triageQueue = triageQueue,
             quickFolders = nav.activeFolders.take(10),
@@ -709,7 +720,26 @@ class MainViewModel @Inject constructor(
     }
 
     fun skipTaskInRunway(task: TaskItem) {
+        if (pinnedRunwayTaskIdFlow.value == task.id) {
+            pinnedRunwayTaskIdFlow.value = null
+        }
         skippedRunwayIdsFlow.value = skippedRunwayIdsFlow.value.filterNot { it == task.id } + task.id
+    }
+
+    /**
+     * ADHD Blind Draw ("盲抽") — breaks choice paralysis by drawing a different runway task
+     * to the top spotlight card when multiple tasks are queued.
+     */
+    fun shuffleRunway() {
+        val queue = uiState.value.runwayQueue
+        if (queue.size <= 1) return
+        val currentTopId = queue.first().id
+        val others = queue.drop(1)
+        val picked = others.random()
+        skippedRunwayIdsFlow.value = skippedRunwayIdsFlow.value.filterNot { it == picked.id }
+        if (picked.id != currentTopId) {
+            pinnedRunwayTaskIdFlow.value = picked.id
+        }
     }
 
     fun openTaskDetailFromNow(task: TaskItem) {
@@ -1013,6 +1043,9 @@ class MainViewModel @Inject constructor(
             }
 
             focusController.syncFocusedTask(task.copy(isCompleted = newCompleted))
+            if (newCompleted && pinnedRunwayTaskIdFlow.value == task.id) {
+                pinnedRunwayTaskIdFlow.value = null
+            }
             undoBannerFlow.value = UndoBannerState(
                 taskId = task.id,
                 taskTitle = task.title,
@@ -1175,6 +1208,9 @@ class MainViewModel @Inject constructor(
             deletedIds.forEach(reminderScheduler::cancelTaskReminder)
             if (deletedIds.any { it == selectedTaskIdFlow.value }) {
                 selectTask(null)
+            }
+            if (deletedIds.any { it == pinnedRunwayTaskIdFlow.value }) {
+                pinnedRunwayTaskIdFlow.value = null
             }
             undoBannerFlow.value = UndoBannerState(
                 taskId = task.id,

@@ -333,4 +333,11 @@
     <string name="detail_effort">Effort</string>
     <string name="settings_section_capacity">Daily Energy Budget</string>
     <string name="settings_capacity_desc">Set a realistic daily capacity for your Day Capacity Ruler to avoid over-scheduling</string>
+
+    <!-- v2.2.0: NOW Darkroom Spotlight, Blind Draw, Today Rhythm & Inline Flow -->
+    <string name="now_shuffle_draw">Blind Draw</string>
+    <string name="now_inline_flow_active">IN FLOW</string>
+    <string name="now_exit_flow">Minimize</string>
+    <string name="now_rhythm_done">%1$d done today</string>
+    <string name="now_swipe_hint">Flick card for next · Hold Done to charge</string>
 </resources>

@@ -333,4 +333,11 @@
     <string name="detail_effort">体量</string>
     <string name="settings_section_capacity">每日精力容量上限</string>
     <string name="settings_capacity_desc">为「今日精力刻度尺」设定真实可执行的时间上限，避免盲目排满任务</string>
+
+    <!-- v2.2.0: NOW 暗场聚光灯、盲抽换卡、今日完成律动与内联心流 -->
+    <string name="now_shuffle_draw">盲抽换卡</string>
+    <string name="now_inline_flow_active">心流进行中</string>
+    <string name="now_exit_flow">收起</string>
+    <string name="now_rhythm_done">今日已成 %1$d</string>
+    <string name="now_swipe_hint">左右滑切下一张 · 长按完成蓄力</string>
 </resources>

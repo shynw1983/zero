@@ -490,6 +490,25 @@ class MainViewModelStateTest {
         }
         assertEquals(t2.id, afterSkip.runwayQueue.first().id)
 
+        // ADHD Blind Draw / Shuffle moves a different queued task to the top spotlight
+        vm.shuffleRunway()
+        val afterShuffle = withTimeout(5_000L) {
+            vm.uiState.first { it.runwayQueue.firstOrNull()?.id == t1.id }
+        }
+        assertEquals(t1.id, afterShuffle.runwayQueue.first().id)
+
+        // Completing a runway task increments todayCompletedCount for Today Rhythm Dots
+        vm.toggleTaskCompletion(t2)
+        val afterComplete = withTimeout(5_000L) {
+            vm.uiState.first { it.todayCompletedCount == 1 }
+        }
+        assertEquals(1, afterComplete.todayCompletedCount)
+        val completedT2 = afterComplete.allActiveTasks.first { it.id == t2.id }
+        vm.toggleTaskCompletion(completedT2)
+        withTimeout(5_000L) {
+            vm.uiState.first { it.todayCompletedCount == 0 && it.runwayQueue.size == 2 }
+        }
+
         // Setting effort updates Day Budget scheduledTodayMinutes
         vm.updateTaskEffort(t1, 60)
         vm.updateTaskEffort(t2, 25)
