@@ -107,6 +107,7 @@
     <string name="detail_subtasks">Nested Subtasks</string>
     <string name="detail_promote_subtask">Make independent</string>
     <string name="swipe_indent_task">Indent</string>
+    <string name="swipe_outdent_task">Outdent</string>
     <string name="task_choose_parent">Choose parent task</string>
     <string name="task_parent_search">Search for a task</string>
     <string name="task_parent_empty">No matching parent tasks</string>
@@ -203,9 +204,9 @@
     <string name="settings_accent_sage">Sage</string>
     <string name="settings_accent_clay">Warm Clay</string>
     <string name="settings_section_antimisclick">Anti-Misclick Mode</string>
-    <string name="settings_swipe_left">Swipe left</string>
+    <string name="settings_swipe_left">Full swipe left</string>
     <string name="settings_swipe_right">Full swipe right</string>
-    <string name="settings_swipe_indent_hint">A short drag to the right nests a task under the task directly above it.</string>
+    <string name="settings_swipe_indent_hint">Drag slightly right to nest a task under the one above it. Drag a subtask slightly left to move it up one level.</string>
     <string name="settings_section_haptics">Tactile &amp; Motion</string>
     <string name="settings_haptics_title">Linear Motor Haptics</string>
     <string name="settings_haptics_desc">Task completion, drag ticks, and gentle 2-min starter cues</string>
@@ -260,7 +261,7 @@
     <string name="dialog_move_folder_parent_hint">Move under parent folder</string>
     <string name="folder_root_level">Top Level (Root)</string>
     <string name="cd_organize_folder">Organize or reorder folder</string>
-    <string name="cd_cycle_sort">Switch sort order</string>
+    <string name="cd_task_sort">Task sort order</string>
     <string name="cd_search_tasks">Search tasks</string>
     <string name="search_placeholder">Search tasks, notes, #tags, /folders…</string>
     <string name="search_empty_hint">No matching tasks found</string>

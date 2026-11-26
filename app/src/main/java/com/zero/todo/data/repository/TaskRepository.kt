@@ -52,8 +52,10 @@ interface TaskRepository {
         taskId: String,
         parentTaskId: String?,
         beforeTaskId: String? = null,
-        rootFolderId: String? = null
+        rootFolderId: String? = null,
+        acrossFolders: Boolean = false
     ): TaskPlacementChange?
+    suspend fun outdentTask(taskId: String): TaskPlacementChange?
     suspend fun undoTaskPlacement(change: TaskPlacementChange): Boolean
 
     suspend fun moveTaskToFolder(taskId: String, targetFolderId: String?)

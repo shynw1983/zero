@@ -219,6 +219,9 @@ interface TaskDao {
     )
     suspend fun getSiblingTasks(folderId: String?, parentTaskId: String?): List<TaskEntity>
 
+    @Query("SELECT * FROM tasks WHERE isDeleted = 0 AND parentTaskId IS NULL ORDER BY sortOrder, createdAt")
+    suspend fun getRootTasksInManualOrder(): List<TaskEntity>
+
     @Query(
         """
         SELECT MAX(sortOrder) FROM tasks

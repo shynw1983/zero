@@ -107,6 +107,7 @@
     <string name="detail_subtasks">무한 하위 작업</string>
     <string name="detail_promote_subtask">독립 작업으로 전환</string>
     <string name="swipe_indent_task">들여쓰기</string>
+    <string name="swipe_outdent_task">내어쓰기</string>
     <string name="task_choose_parent">상위 작업 선택</string>
     <string name="task_parent_search">작업 검색</string>
     <string name="task_parent_empty">선택할 수 있는 상위 작업이 없습니다</string>
@@ -203,9 +204,9 @@
     <string name="settings_accent_sage">세이지 그린</string>
     <string name="settings_accent_clay">웜 클레이</string>
     <string name="settings_section_antimisclick">오터치 방지 모드</string>
-    <string name="settings_swipe_left">왼쪽으로 밀기</string>
+    <string name="settings_swipe_left">왼쪽으로 길게 밀기</string>
     <string name="settings_swipe_right">오른쪽으로 길게 밀기</string>
-    <string name="settings_swipe_indent_hint">작업을 오른쪽으로 짧게 끌면 바로 위 작업의 하위 작업이 됩니다.</string>
+    <string name="settings_swipe_indent_hint">작업을 오른쪽으로 살짝 끌면 바로 위 작업의 하위 작업이 됩니다. 하위 작업을 왼쪽으로 살짝 끌면 한 단계 위로 이동합니다.</string>
     <string name="settings_section_haptics">촉각 피드백</string>
     <string name="settings_haptics_title">리니어 모터 진동</string>
     <string name="settings_haptics_desc">완료 클릭, 드래그 틱, 2분 완료 부드러운 알림</string>
@@ -260,7 +261,7 @@
     <string name="dialog_move_folder_parent_hint">상위 폴더로 이동</string>
     <string name="folder_root_level">최상위 (루트)</string>
     <string name="cd_organize_folder">폴더 순서 및 계층 이동</string>
-    <string name="cd_cycle_sort">정렬 전환</string>
+    <string name="cd_task_sort">작업 정렬 순서</string>
     <string name="cd_search_tasks">할 일 검색</string>
     <string name="search_placeholder">할 일, 메모, #태그, /폴더 검색…</string>
     <string name="search_empty_hint">일치하는 할 일이 없습니다</string>

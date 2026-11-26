@@ -107,6 +107,7 @@
     <string name="detail_subtasks">无限子任务</string>
     <string name="detail_promote_subtask">设为独立任务</string>
     <string name="swipe_indent_task">缩进</string>
+    <string name="swipe_outdent_task">取消缩进</string>
     <string name="task_choose_parent">选择父任务</string>
     <string name="task_parent_search">搜索任务</string>
     <string name="task_parent_empty">没有符合条件的父任务</string>
@@ -203,9 +204,9 @@
     <string name="settings_accent_sage">鼠尾草绿</string>
     <string name="settings_accent_clay">暖陶土</string>
     <string name="settings_section_antimisclick">防误触模式</string>
-    <string name="settings_swipe_left">左滑</string>
+    <string name="settings_swipe_left">完整左滑</string>
     <string name="settings_swipe_right">完整右滑</string>
-    <string name="settings_swipe_indent_hint">短距离右拖可将任务缩进到紧邻的上一条任务下。</string>
+    <string name="settings_swipe_indent_hint">稍向右拖可将任务缩进到上一条任务下。将子任务稍向左拖可退回上一级。</string>
     <string name="settings_section_haptics">触觉与物理反馈</string>
     <string name="settings_haptics_title">线性马达震动反馈</string>
     <string name="settings_haptics_desc">任务完成、拖拽刻度、2 分钟起步柔和提示</string>
@@ -260,7 +261,7 @@
     <string name="dialog_move_folder_parent_hint">移动到上级文件夹</string>
     <string name="folder_root_level">顶级目录（根层级）</string>
     <string name="cd_organize_folder">整理或调整文件夹层级</string>
-    <string name="cd_cycle_sort">切换排序方式</string>
+    <string name="cd_task_sort">任务排序</string>
     <string name="cd_search_tasks">搜索任务</string>
     <string name="search_placeholder">搜索任务标题、备注、#标签、/目录…</string>
     <string name="search_empty_hint">未找到匹配的任务</string>

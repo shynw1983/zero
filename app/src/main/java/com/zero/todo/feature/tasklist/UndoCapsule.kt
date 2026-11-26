@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.MaterialTheme
@@ -28,6 +29,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.zero.todo.R
@@ -58,7 +60,7 @@ enum class UndoType {
 }
 
 /**
- * 3-Second floating bottom Undo capsule shown whenever a task is completed or deleted.
+ * Floating Undo capsule for recent task actions.
  */
 @Composable
 fun UndoCapsule(
@@ -109,7 +111,7 @@ fun UndoCapsule(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                    .padding(horizontal = 14.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
@@ -136,11 +138,13 @@ fun UndoCapsule(
 
                 Box(
                     modifier = Modifier
+                        .heightIn(min = 48.dp)
                         .clip(ZeroSmallShape)
                         .background(colors.accentSubtle)
                         .hairlineBorder(shape = ZeroSmallShape, color = colors.accent)
-                        .clickable { onUndo(activeBanner) }
-                        .padding(horizontal = 10.dp, vertical = 4.dp)
+                        .clickable(role = Role.Button) { onUndo(activeBanner) }
+                        .padding(horizontal = 14.dp),
+                    contentAlignment = Alignment.Center
                 ) {
                     Text(
                         text = stringResource(R.string.action_undo),

@@ -9,11 +9,6 @@ enum class TaskSortMode(@StringRes val labelRes: Int) {
     PRIORITY(R.string.sort_priority),
     CREATED_DESC(R.string.sort_created);
 
-    fun next(): TaskSortMode {
-        val all = entries
-        return all[(ordinal + 1) % all.size]
-    }
-
     companion object {
         fun fromStorage(raw: String?): TaskSortMode =
             entries.firstOrNull { it.name == raw } ?: MANUAL

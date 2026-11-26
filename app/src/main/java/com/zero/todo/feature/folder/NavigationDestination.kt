@@ -12,6 +12,8 @@ sealed interface NavigationDestination {
     data class FolderView(val folderId: String) : NavigationDestination
     data class TagView(val tagId: String) : NavigationDestination
 
+    val showsTaskHierarchy: Boolean get() = this == Inbox || this == All || this is FolderView
+
     fun toStorageKey(): String = when (this) {
         Inbox -> KEY_INBOX
         Today -> KEY_TODAY

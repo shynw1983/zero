@@ -198,6 +198,44 @@ class TaskAndTagRepositoryTest {
     }
 
     @Test
+    fun `outdenting a nested task moves it up one level immediately after its former parent`() = runTest {
+        val root = taskRepository.createTask("Project")
+        val parent = taskRepository.createTask("Preparation", parentTaskId = root.id)
+        val next = taskRepository.createTask("Review", parentTaskId = root.id)
+        val task = taskRepository.createTask("Draft", parentTaskId = parent.id)
+        val child = taskRepository.createTask("Notes", parentTaskId = task.id)
+
+        val change = taskRepository.outdentTask(task.id)!!
+        assertEquals(root.id, taskRepository.getTaskById(task.id)?.parentTaskId)
+        assertEquals(task.id, taskRepository.getTaskById(child.id)?.parentTaskId)
+        assertEquals(listOf(parent.id, task.id, next.id, child.id),
+            taskRepository.getDescendantSubtasksSnapshot(root.id).map { it.id })
+        assertTrue(taskRepository.undoTaskPlacement(change))
+        assertEquals(parent.id, taskRepository.getTaskById(task.id)?.parentTaskId)
+    }
+
+    @Test
+    fun `manual order across folders preserves folders and undo restores tied ranks`() = runTest {
+        val work = folderRepository.createFolder("Work")
+        val personal = folderRepository.createFolder("Personal")
+        val first = taskRepository.createTask("Work task", folderId = work.id)
+        val second = taskRepository.createTask("Personal task", folderId = personal.id)
+        val moving = taskRepository.createTask("Another work task", folderId = work.id)
+        val original = taskRepository.observeAllActiveTopLevelTasks().first()
+        assertEquals(first.sortOrder, second.sortOrder, 0.0)
+
+        val change = taskRepository.placeTaskInList(moving.id, null, beforeTaskId = original[1].id, acrossFolders = true)!!
+        val reordered = taskRepository.observeAllActiveTopLevelTasks().first()
+        assertEquals(listOf(original[0].id, moving.id, original[1].id), reordered.map { it.id })
+        assertEquals(work.id, reordered.single { it.id == moving.id }.folderId)
+        assertEquals(personal.id, reordered.single { it.id == second.id }.folderId)
+
+        assertTrue(taskRepository.undoTaskPlacement(change))
+        assertEquals(original.map { it.id to it.sortOrder },
+            taskRepository.observeAllActiveTopLevelTasks().first().map { it.id to it.sortOrder })
+    }
+
+    @Test
     fun `infinite nested subtasks and one-click promoteSubtaskToTopLevel preserve parent folder`() = runTest {
         val work = folderRepository.createFolder("Work")
         val rootTask = taskRepository.createTask("Launch ZERO v1", folderId = work.id)

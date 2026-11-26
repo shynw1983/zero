@@ -28,6 +28,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.rounded.Sort
 import androidx.compose.material.icons.automirrored.rounded.ViewSidebar
+import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.CreateNewFolder
 import androidx.compose.material.icons.rounded.Layers
@@ -35,6 +36,8 @@ import androidx.compose.material.icons.rounded.Menu
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Timer
 import androidx.compose.material.icons.rounded.Update
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -55,8 +58,8 @@ import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.LocalPinnableContainer
 import androidx.compose.ui.layout.PinnableContainer
 import androidx.compose.ui.platform.LocalDensity
@@ -75,10 +78,10 @@ import com.zero.todo.core.designsystem.hairlineDividerBottom
 import com.zero.todo.core.designsystem.rememberZeroHaptics
 import com.zero.todo.core.nlp.ParsedQuickInput
 import com.zero.todo.domain.model.AntiMisclickMode
-import com.zero.todo.domain.model.TaskSwipeActions
 import com.zero.todo.domain.model.Folder
 import com.zero.todo.domain.model.TaskItem
 import com.zero.todo.domain.model.TaskSortMode
+import com.zero.todo.domain.model.TaskSwipeActions
 import com.zero.todo.feature.folder.IncludeSubfoldersPill
 import com.zero.todo.feature.folder.NavigationDestination
 import com.zero.todo.feature.now.DayCapacityRuler
@@ -117,7 +120,7 @@ fun TaskListPane(
     onToggleIncludeSubfolders: () -> Unit,
     onToggleSearch: (Boolean) -> Unit,
     onSearchQueryChange: (String) -> Unit,
-    onCycleSortMode: () -> Unit,
+    onSetSortMode: (TaskSortMode) -> Unit,
     onRescheduleOverdueToToday: () -> Unit,
     onOpenTriage: () -> Unit,
     onSelectTag: (String) -> Unit,
@@ -126,6 +129,7 @@ fun TaskListPane(
     onToggleTaskComplete: (TaskItem) -> Unit,
     onDeleteTask: (TaskItem) -> Unit,
     onIndentTask: (TaskItem, String) -> Unit,
+    onOutdentTask: (TaskItem) -> Unit,
     onSelectTask: (TaskItem) -> Unit,
     onReorderTask: (task: TaskItem, parentTaskId: String?, beforeTaskId: String?) -> Unit,
     onQuickInputEdit: ((String) -> String) -> Unit,
@@ -146,8 +150,10 @@ fun TaskListPane(
     var dragOriginCenter by remember { mutableFloatStateOf(0f) }
     var dragDistance by remember { mutableFloatStateOf(0f) }
     var dragScrollDistance by remember { mutableFloatStateOf(0f) }
+    var dragTargets by remember { mutableStateOf<TaskDragTargets?>(null) }
     var draggedItemPin by remember { mutableStateOf<PinnableContainer.PinnedHandle?>(null) }
     var showCompletedSection by rememberSaveable { mutableStateOf(false) }
+    var showSortMenu by remember { mutableStateOf(false) }
 
     LaunchedEffect(isSearchOpen) {
         if (isSearchOpen) {
@@ -178,11 +184,8 @@ fun TaskListPane(
     val incompleteCount = activeTasks.size
     val allById = remember(allActiveTasks) { allActiveTasks.associateBy { it.id } }
     val filtering = isSearchOpen && searchQuery.isNotBlank()
-    val hierarchical = !filtering && (selectedDestination == NavigationDestination.Inbox ||
-        selectedDestination == NavigationDestination.All || selectedDestination is NavigationDestination.FolderView)
-    val reorderEnabled = !filtering && taskSortMode == TaskSortMode.MANUAL &&
-        (selectedDestination == NavigationDestination.Inbox ||
-            (selectedDestination is NavigationDestination.FolderView && !includeSubfolders))
+    val hierarchical = !filtering && selectedDestination.showsTaskHierarchy
+    val reorderEnabled = hierarchical && taskSortMode == TaskSortMode.MANUAL
 
     val overdueRows = remember(overdueTasks, allById) { buildTaskListRows(overdueTasks, allById, false) }
     val activeRows = remember(regularActiveTasks, allById, hierarchical) {
@@ -195,29 +198,17 @@ fun TaskListPane(
     fun endDrag(taskId: String) {
         if (draggingTaskId != taskId) return
         draggingTaskId = null
+        dragTargets = null
         draggedItemPin?.release()
         draggedItemPin = null
     }
 
     val draggingId = draggingTaskId
-    val remainingRows = remember(activeRows, allById, draggingId) {
-        if (draggingId == null) emptyList() else activeRows.filter {
-            it.task.id != draggingId && !isTaskDescendantOf(it.task, draggingId, allById)
-        }
-    }
-    val remainingById = remember(remainingRows) { remainingRows.associateBy { it.task.id } }
     fun currentDropSlot(): TaskDropSlot? {
-        val movingId = draggingTaskId ?: return null
-        val visible = lazyListState.layoutInfo.visibleItemsInfo.filter { (it.key as? String) in remainingById }
-        if (visible.isEmpty()) return null
         val center = dragOriginCenter + dragDistance
-        val firstBelow = visible.firstOrNull { center < it.offset + it.size / 2f }
-        val before = firstBelow?.let { remainingById[it.key as? String] } ?: visible.lastOrNull()?.let { last ->
-            remainingRows.getOrNull(remainingRows.indexOfFirst { it.task.id == last.key } + 1)
-        }
-        val dragIndex = activeRows.indexOfFirst { it.task.id == movingId }
-        val originalFollowing = activeRows.drop(dragIndex + 1).firstOrNull { it.task.id in remainingById }
-        return if (before?.task?.id != originalFollowing?.task?.id) taskDropSlot(before) else null
+        return dragTargets?.slotAt(center, lazyListState.layoutInfo.visibleItemsInfo.mapNotNull { item ->
+            (item.key as? String)?.let { TaskDropPosition(it, item.offset + item.size / 2f) }
+        })
     }
     val dropSlot = currentDropSlot()
 
@@ -240,7 +231,10 @@ fun TaskListPane(
                 center > bottom && dragDistance > 0f -> ((center - bottom) / edgePx).coerceAtMost(1f)
                 else -> 0f
             }
-            if (factor != 0f) dragScrollDistance += lazyListState.scrollBy(factor * maxScrollPerFrame)
+            if (factor != 0f) {
+                val scrolled = lazyListState.scrollBy(factor * maxScrollPerFrame)
+                if (draggingTaskId == draggingId) dragScrollDistance += scrolled
+            }
         }
     }
 
@@ -317,36 +311,50 @@ fun TaskListPane(
                         }
                     }
 
-                    // Sort Mode Cycle Pill (comfortable 36dp touch height)
-                    Row(
-                        modifier = Modifier
-                            .padding(start = 4.dp)
-                            .heightIn(min = 36.dp)
-                            .clip(ZeroSmallShape)
-                            .background(if (taskSortMode != TaskSortMode.MANUAL) colors.accentSubtle else colors.surface)
-                            .hairlineBorder(
-                                shape = ZeroSmallShape,
-                                color = if (taskSortMode != TaskSortMode.MANUAL) colors.accent else colors.hairlineBorder
+                    Box(modifier = Modifier.padding(start = 4.dp)) {
+                        val automaticSort = taskSortMode != TaskSortMode.MANUAL
+                        val sortColor = if (automaticSort) colors.accent else colors.textSecondary
+                        Row(
+                            modifier = Modifier
+                                .heightIn(min = 44.dp)
+                                .clip(ZeroSmallShape)
+                                .background(if (automaticSort) colors.accentSubtle else colors.surface)
+                                .hairlineBorder(
+                                    shape = ZeroSmallShape,
+                                    color = if (automaticSort) colors.accent else colors.hairlineBorder
+                                )
+                                .clickable { showSortMenu = true }
+                                .padding(horizontal = 8.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Rounded.Sort,
+                                contentDescription = stringResource(R.string.cd_task_sort),
+                                tint = sortColor,
+                                modifier = Modifier.size(15.dp)
                             )
-                            .clickable {
-                                haptics.reorderTick()
-                                onCycleSortMode()
+                            Text(
+                                text = stringResource(taskSortMode.labelRes),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = sortColor
+                            )
+                        }
+                        DropdownMenu(expanded = showSortMenu, onDismissRequest = { showSortMenu = false }) {
+                            TaskSortMode.entries.forEach { mode ->
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(mode.labelRes)) },
+                                    trailingIcon = {
+                                        if (mode == taskSortMode) Icon(Icons.Rounded.Check, contentDescription = null)
+                                    },
+                                    onClick = {
+                                        showSortMenu = false
+                                        haptics.reorderTick()
+                                        onSetSortMode(mode)
+                                    }
+                                )
                             }
-                            .padding(horizontal = 8.dp, vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Rounded.Sort,
-                            contentDescription = stringResource(R.string.cd_cycle_sort),
-                            tint = if (taskSortMode != TaskSortMode.MANUAL) colors.accent else colors.textSecondary,
-                            modifier = Modifier.size(15.dp)
-                        )
-                        Text(
-                            text = stringResource(taskSortMode.labelRes),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = if (taskSortMode != TaskSortMode.MANUAL) colors.accent else colors.textSecondary
-                        )
+                        }
                     }
 
                     // Global Search Toggle (generous 38dp target)
@@ -638,6 +646,7 @@ fun TaskListPane(
                                 onDeleteTask = onDeleteTask,
                                 indentParentId = row.indentParentId,
                                 onIndent = onIndentTask,
+                                onOutdent = onOutdentTask,
                                 onSelectTask = onSelectTask,
                                 onTagClick = onSelectTag,
                                 modifier = Modifier.animateItem(placementSpec = ZeroMotion.IntOffsetSpring)
@@ -682,12 +691,12 @@ fun TaskListPane(
                             task.folderId != selectedDestination.folderId
                         val showBeforeMarker = dropSlot?.beforeTaskId == task.id
                         val showAfterMarker = dropSlot != null && dropSlot.beforeTaskId == null &&
-                            remainingRows.lastOrNull()?.task?.id == task.id
+                            dragTargets?.lastId == task.id
 
                         AntiMisclickTaskCard(
                             task = task,
                             isSelected = task.id == selectedTaskId,
-                            isListScrolling = lazyListState.isScrollInProgress || draggingId != null,
+                            isListScrolling = !isDragging && (lazyListState.isScrollInProgress || draggingId != null),
                             isDragging = isDragging,
                             dragOffsetY = if (isDragging) dragDistance + dragScrollDistance else 0f,
                             folderBadgeName = if (showFolderBadge) task.folderId?.let { folderNameById[it] } else null,
@@ -697,6 +706,7 @@ fun TaskListPane(
                             onDeleteTask = onDeleteTask,
                             indentParentId = row.indentParentId,
                             onIndent = onIndentTask,
+                            onOutdent = onOutdentTask,
                             onSelectTask = onSelectTask,
                             onTagClick = onSelectTag,
                             reorderEnabled = reorderEnabled,
@@ -707,6 +717,7 @@ fun TaskListPane(
                                     dragOriginCenter = measured.offset + measured.size / 2f
                                     dragDistance = 0f
                                     dragScrollDistance = 0f
+                                    dragTargets = TaskDragTargets(activeRows, task.id, allById)
                                     draggingTaskId = task.id
                                 }
                             },
@@ -805,6 +816,7 @@ fun TaskListPane(
                                     onDeleteTask = onDeleteTask,
                                     indentParentId = row.indentParentId,
                                     onIndent = onIndentTask,
+                                    onOutdent = onOutdentTask,
                                     onSelectTask = onSelectTask,
                                     onTagClick = onSelectTag,
                                     modifier = Modifier.animateItem(placementSpec = ZeroMotion.IntOffsetSpring)

@@ -633,11 +633,6 @@ class MainViewModel @Inject constructor(
         savedStateHandle[KEY_SEARCH_QUERY] = query
     }
 
-    fun cycleTaskSortMode() {
-        val current = userPreferencesRepository.preferences.value.taskSortMode
-        userPreferencesRepository.setTaskSortMode(current.next())
-    }
-
     fun setTaskSortMode(mode: TaskSortMode) {
         userPreferencesRepository.setTaskSortMode(mode)
     }
@@ -1035,17 +1030,23 @@ class MainViewModel @Inject constructor(
         }
     }
 
+    fun outdentTask(task: TaskItem) {
+        viewModelScope.launch {
+            val change = taskRepository.outdentTask(task.id) ?: return@launch
+            showTaskPlacementUndo(task, change)
+        }
+    }
+
     fun reorderTask(task: TaskItem, parentTaskId: String?, beforeTaskId: String?) {
         if (userPreferencesRepository.preferences.value.taskSortMode != TaskSortMode.MANUAL) return
         if (searchOpenFlow.value && searchQueryFlow.value.isNotBlank()) return
         val dest = NavigationDestination.fromStorageKey(destinationKeyFlow.value)
-        val targetFolderId = when (dest) {
-            NavigationDestination.Inbox -> null
-            is NavigationDestination.FolderView -> if (!includeSubfoldersFlow.value) dest.folderId else return
-            else -> return
-        }
+        if (!dest.showsTaskHierarchy) return
+        val acrossFolders = dest == NavigationDestination.All ||
+            (dest is NavigationDestination.FolderView && includeSubfoldersFlow.value)
+        val targetFolderId = (dest as? NavigationDestination.FolderView)?.folderId
         viewModelScope.launch {
-            val change = taskRepository.placeTaskInList(task.id, parentTaskId, beforeTaskId, targetFolderId)
+            val change = taskRepository.placeTaskInList(task.id, parentTaskId, beforeTaskId, targetFolderId, acrossFolders)
                 ?: return@launch
             showTaskPlacementUndo(task, change)
         }
@@ -1205,7 +1206,7 @@ class MainViewModel @Inject constructor(
     }
 
     fun performUndo(banner: UndoBannerState) {
-        undoBannerFlow.value = null
+        if (!undoBannerFlow.compareAndSet(banner, null)) return
         viewModelScope.launch {
             when (banner.undoType) {
                 UndoType.REVERT_COMPLETE -> {

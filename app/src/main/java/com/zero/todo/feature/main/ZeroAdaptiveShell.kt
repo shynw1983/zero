@@ -88,6 +88,7 @@ import com.zero.todo.domain.model.FolderNode
 import com.zero.todo.domain.model.TagItem
 import com.zero.todo.domain.model.TaskItem
 import com.zero.todo.domain.model.TaskPriority
+import com.zero.todo.domain.model.TaskSortMode
 import com.zero.todo.domain.model.TaskSwipeAction
 import com.zero.todo.domain.model.TaskSwipeDirection
 import com.zero.todo.domain.model.WorkspaceMode
@@ -141,7 +142,7 @@ data class ZeroShellCallbacks(
     val onToggleMediumTreeExpanded: () -> Unit = {},
     val onToggleSearch: (Boolean) -> Unit = {},
     val onSearchQueryChange: (String) -> Unit = {},
-    val onCycleSortMode: () -> Unit = {},
+    val onSetTaskSortMode: (TaskSortMode) -> Unit = {},
     val onRescheduleOverdueToToday: () -> Unit = {},
     val onPrefillQuickInputPriority: (TaskPriority) -> Unit = {},
     val onToggleFolderExpanded: (folderId: String, isExpanded: Boolean) -> Unit = { _, _ -> },
@@ -154,6 +155,7 @@ data class ZeroShellCallbacks(
     val onMoveTaskToFolder: (taskId: String, targetFolderId: String?) -> Unit = { _, _ -> },
     val onReorderTask: (task: TaskItem, parentTaskId: String?, beforeTaskId: String?) -> Unit = { _, _, _ -> },
     val onIndentTask: (TaskItem, String) -> Unit = { _, _ -> },
+    val onOutdentTask: (TaskItem) -> Unit = {},
     val onUpdateTaskTitleAndDescription: (task: TaskItem, title: String, description: String) -> Unit = { _, _, _ -> },
     val onUpdateTaskPriority: (task: TaskItem, priority: TaskPriority) -> Unit = { _, _ -> },
     val onUpdateTaskDueDate: (task: TaskItem, dueDateMillis: Long?, isAllDay: Boolean) -> Unit = { _, _, _ -> },
@@ -876,7 +878,7 @@ private fun CenterWorkspacePane(
                 onToggleIncludeSubfolders = callbacks.onToggleIncludeSubfolders,
                 onToggleSearch = callbacks.onToggleSearch,
                 onSearchQueryChange = callbacks.onSearchQueryChange,
-                onCycleSortMode = callbacks.onCycleSortMode,
+                onSetSortMode = callbacks.onSetTaskSortMode,
                 onRescheduleOverdueToToday = callbacks.onRescheduleOverdueToToday,
                 onOpenTriage = callbacks.onOpenTriage,
                 onSelectTag = { tagId -> callbacks.onSelectDestination(NavigationDestination.TagView(tagId)) },
@@ -885,6 +887,7 @@ private fun CenterWorkspacePane(
                 onToggleTaskComplete = callbacks.onToggleTaskComplete,
                 onDeleteTask = callbacks.onDeleteTask,
                 onIndentTask = callbacks.onIndentTask,
+                onOutdentTask = callbacks.onOutdentTask,
                 onSelectTask = { task -> callbacks.onSelectTask(task.id) },
                 onReorderTask = callbacks.onReorderTask,
                 onQuickInputEdit = callbacks.onQuickInputEdit,

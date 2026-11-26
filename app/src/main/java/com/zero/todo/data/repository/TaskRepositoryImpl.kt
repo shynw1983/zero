@@ -247,14 +247,17 @@ class TaskRepositoryImpl @Inject constructor(
         taskId: String,
         parentTaskId: String?,
         beforeTaskId: String?,
-        rootFolderId: String?
+        rootFolderId: String?,
+        acrossFolders: Boolean
     ): TaskPlacementChange? = database.withTransaction {
         val task = taskDao.getTaskById(taskId) ?: return@withTransaction null
-        val folder = if (parentTaskId == null) rootFolderId else task.folderId
+        val keepFolder = parentTaskId != null || (acrossFolders && (task.parentTaskId == null || rootFolderId == null))
+        val folder = if (keepFolder) task.folderId else rootFolderId
         if (folder != null && folderDao.getFolderById(folder) == null) return@withTransaction null
         if (!canAssignParent(taskId, parentTaskId)) return@withTransaction null
 
-        val siblings = taskDao.getSiblingTasks(folder, parentTaskId)
+        val siblings = if (parentTaskId == null && acrossFolders) taskDao.getRootTasksInManualOrder()
+        else taskDao.getSiblingTasks(folder, parentTaskId)
         if (beforeTaskId != null && (beforeTaskId == taskId || siblings.none { it.id == beforeTaskId })) {
             return@withTransaction null
         }
@@ -262,8 +265,26 @@ class TaskRepositoryImpl @Inject constructor(
         if (currentIndex >= 0 && siblings.getOrNull(currentIndex + 1)?.id == beforeTaskId) return@withTransaction null
 
         val update = FractionalIndex.computeMoveBetween(siblings.map { it.id to it.sortOrder }, taskId, null, beforeTaskId)
+        val rebalancedSiblings = if (update is FractionalIndex.OrderUpdate.Rebalanced) {
+            siblings.mapNotNull { sibling ->
+                val newOrder = update.sortOrders[sibling.id]
+                if (sibling.id == taskId || newOrder == null || newOrder == sibling.sortOrder) return@mapNotNull null
+                val previous = sibling.placement()
+                sibling.id to (previous to previous.copy(sortOrder = newOrder))
+            }.toMap()
+        } else emptyMap()
         val newOrder = applyTaskOrderUpdate(taskId, folder, parentTaskId, update)
-        TaskPlacementChange(taskId, task.placement(), TaskPlacement(folder, parentTaskId, newOrder))
+        TaskPlacementChange(taskId, task.placement(), TaskPlacement(folder, parentTaskId, newOrder), rebalancedSiblings)
+    }
+
+    override suspend fun outdentTask(taskId: String): TaskPlacementChange? = database.withTransaction {
+        val task = taskDao.getTaskById(taskId) ?: return@withTransaction null
+        val currentParentId = task.parentTaskId ?: return@withTransaction null
+        val parent = taskDao.getTaskById(currentParentId) ?: return@withTransaction null
+        val siblings = taskDao.getSiblingTasks(parent.folderId, parent.parentTaskId)
+        val index = siblings.indexOfFirst { it.id == parent.id }
+        if (index < 0) return@withTransaction null
+        placeTaskInList(task.id, parent.parentTaskId, siblings.getOrNull(index + 1)?.id, parent.folderId)
     }
 
     override suspend fun undoTaskPlacement(change: TaskPlacementChange): Boolean = database.withTransaction {
@@ -272,7 +293,14 @@ class TaskRepositoryImpl @Inject constructor(
         val previous = change.before
         if (previous.folderId != null && folderDao.getFolderById(previous.folderId) == null) return@withTransaction false
         if (!canAssignParent(task.id, previous.parentTaskId)) return@withTransaction false
-        taskDao.updateTaskPlacement(task.id, previous.folderId, previous.parentTaskId, previous.sortOrder, System.currentTimeMillis())
+        for ((siblingId, placements) in change.rebalancedSiblings) {
+            if (taskDao.getTaskById(siblingId)?.placement() != placements.second) return@withTransaction false
+        }
+        val now = System.currentTimeMillis()
+        taskDao.updateTaskPlacement(task.id, previous.folderId, previous.parentTaskId, previous.sortOrder, now)
+        for ((siblingId, placements) in change.rebalancedSiblings) {
+            taskDao.updateSortOrder(siblingId, placements.first.sortOrder, now)
+        }
         true
     }
 

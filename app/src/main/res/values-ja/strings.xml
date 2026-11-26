@@ -107,6 +107,7 @@
     <string name="detail_subtasks">階層サブタスク</string>
     <string name="detail_promote_subtask">独立したタスクにする</string>
     <string name="swipe_indent_task">インデント</string>
+    <string name="swipe_outdent_task">インデント解除</string>
     <string name="task_choose_parent">親タスクを選択</string>
     <string name="task_parent_search">タスクを検索</string>
     <string name="task_parent_empty">選択できる親タスクが見つかりません</string>
@@ -203,9 +204,9 @@
     <string name="settings_accent_sage">セージグリーン</string>
     <string name="settings_accent_clay">ウォームクレイ</string>
     <string name="settings_section_antimisclick">誤タップ防止モード</string>
-    <string name="settings_swipe_left">左スワイプ</string>
+    <string name="settings_swipe_left">長い左スワイプ</string>
     <string name="settings_swipe_right">長い右スワイプ</string>
-    <string name="settings_swipe_indent_hint">タスクを短く右にドラッグすると、直前のタスクのサブタスクになります。</string>
+    <string name="settings_swipe_indent_hint">タスクを少し右にドラッグすると直前のタスクの下に移動します。サブタスクを少し左にドラッグすると階層が一つ上がります。</string>
     <string name="settings_section_haptics">触覚フィードバック</string>
     <string name="settings_haptics_title">リニアモーター振動</string>
     <string name="settings_haptics_desc">完了スナップ・並べ替え刻み・2分終了時のソフト通知</string>
@@ -260,7 +261,7 @@
     <string name="dialog_move_folder_parent_hint">親フォルダへ移動</string>
     <string name="folder_root_level">最上位（ルート）</string>
     <string name="cd_organize_folder">フォルダの並び替え・階層移動</string>
-    <string name="cd_cycle_sort">並び順を切替</string>
+    <string name="cd_task_sort">タスクの並べ替え</string>
     <string name="cd_search_tasks">タスクを検索</string>
     <string name="search_placeholder">タスク・メモ・#タグ・/フォルダを検索…</string>
     <string name="search_empty_hint">一致するタスクがありません</string>

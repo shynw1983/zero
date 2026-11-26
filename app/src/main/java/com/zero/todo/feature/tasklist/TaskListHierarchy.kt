@@ -48,6 +48,29 @@ internal fun taskDropSlot(before: TaskListRow?): TaskDropSlot = TaskDropSlot(
     depth = before?.depth ?: 0
 )
 
+internal data class TaskDropPosition(val taskId: String, val centerY: Float)
+
+internal class TaskDragTargets(
+    rows: List<TaskListRow>,
+    movingId: String,
+    allTasksById: Map<String, TaskItem>
+) {
+    private val allowed = rows.filter { it.task.id != movingId && !isTaskDescendantOf(it.task, movingId, allTasksById) }
+    private val indexes = allowed.mapIndexed { index, row -> row.task.id to index }.toMap()
+    private val originalFollowing = rows.drop(rows.indexOfFirst { it.task.id == movingId } + 1)
+        .firstOrNull { it.task.id in indexes }?.task?.id
+    val lastId: String? get() = allowed.lastOrNull()?.task?.id
+
+    fun slotAt(centerY: Float, positions: List<TaskDropPosition>): TaskDropSlot? {
+        val visible = positions.filter { it.taskId in indexes }.sortedBy { it.centerY }
+        val last = visible.lastOrNull() ?: return null
+        val next = visible.firstOrNull { centerY < it.centerY }
+        val index = if (next != null) indexes.getValue(next.taskId) else indexes.getValue(last.taskId) + 1
+        val before = allowed.getOrNull(index)
+        return if (before?.task?.id == originalFollowing) null else taskDropSlot(before)
+    }
+}
+
 internal fun isTaskDescendantOf(task: TaskItem, ancestorId: String, allTasksById: Map<String, TaskItem>): Boolean {
     val visited = hashSetOf<String>()
     var parent = task.parentTaskId
@@ -61,11 +84,12 @@ internal fun isTaskDescendantOf(task: TaskItem, ancestorId: String, allTasksById
 internal const val FULL_TASK_SWIPE_FRACTION = 0.30f
 private const val TASK_INDENT_FRACTION = 0.16f
 
-internal enum class TaskCardSwipeStage { BELOW_THRESHOLD, INDENT, FULL }
+internal enum class TaskCardSwipeStage { BELOW_THRESHOLD, INDENT, OUTDENT, FULL }
 
-internal fun taskCardSwipeStage(offset: Float, width: Float, canIndent: Boolean): TaskCardSwipeStage = when {
+internal fun taskCardSwipeStage(offset: Float, width: Float, canIndent: Boolean, canOutdent: Boolean = false): TaskCardSwipeStage = when {
     width <= 0f -> TaskCardSwipeStage.BELOW_THRESHOLD
     kotlin.math.abs(offset) >= width * FULL_TASK_SWIPE_FRACTION -> TaskCardSwipeStage.FULL
     canIndent && offset >= width * TASK_INDENT_FRACTION -> TaskCardSwipeStage.INDENT
+    canOutdent && offset <= -width * TASK_INDENT_FRACTION -> TaskCardSwipeStage.OUTDENT
     else -> TaskCardSwipeStage.BELOW_THRESHOLD
 }

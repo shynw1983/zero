@@ -24,6 +24,7 @@ import com.zero.todo.domain.model.TaskSortMode
 import com.zero.todo.domain.model.WorkspaceMode
 import com.zero.todo.domain.usecase.GetFolderTreeUseCase
 import com.zero.todo.feature.folder.NavigationDestination
+import com.zero.todo.feature.tasklist.UndoType
 import com.zero.todo.widget.NoOpWidgetRefresher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -365,6 +366,33 @@ class MainViewModelStateTest {
             }
         }
         collectJob.cancel()
+    }
+
+    @Test
+    fun `indenting a task offers undo and restores its previous position`() = runBlocking {
+        val parent = taskRepository.createTask("Plan trip")
+        val task = taskRepository.createTask("Book ticket")
+        val vm = newViewModel()
+
+        vm.indentTask(task, parent.id)
+        val banner = withTimeout(5_000L) {
+            vm.uiState.first { state ->
+                state.undoBanner?.taskId == task.id && state.allActiveTasks.any {
+                    it.id == task.id && it.parentTaskId == parent.id
+                }
+            }.undoBanner!!
+        }
+        assertEquals(UndoType.RESTORE_TASK_PLACEMENT, banner.undoType)
+
+        vm.performUndo(banner)
+        val restored = withTimeout(5_000L) {
+            vm.uiState.first { state ->
+                state.undoBanner == null && state.allActiveTasks.any {
+                    it.id == task.id && it.parentTaskId == null && it.sortOrder == task.sortOrder
+                }
+            }.allActiveTasks.first { it.id == task.id }
+        }
+        assertEquals(task.sortOrder, restored.sortOrder, 0.0)
     }
 
     @Test
