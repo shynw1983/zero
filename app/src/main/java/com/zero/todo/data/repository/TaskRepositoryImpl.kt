@@ -10,6 +10,8 @@ import com.zero.todo.data.local.dao.TaskDao
 import com.zero.todo.data.local.entity.TaskEntity
 import com.zero.todo.data.local.entity.TaskTagCrossRef
 import com.zero.todo.domain.model.TaskItem
+import com.zero.todo.domain.model.TaskPlacement
+import com.zero.todo.domain.model.TaskPlacementChange
 import com.zero.todo.domain.model.TaskPriority
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -218,7 +220,7 @@ class TaskRepositoryImpl @Inject constructor(
         afterTaskId: String?
     ) {
         database.withTransaction {
-            requireNotNull(taskDao.getTaskById(taskId)) { "Task not found: $taskId" }
+            val task = requireNotNull(taskDao.getTaskById(taskId)) { "Task not found: $taskId" }
             if (targetFolderId != null) {
                 requireNotNull(folderDao.getFolderById(targetFolderId)) {
                     "Target folder does not exist or is deleted: $targetFolderId"
@@ -235,37 +237,56 @@ class TaskRepositoryImpl @Inject constructor(
             applyTaskOrderUpdate(
                 taskId = taskId,
                 targetFolderId = targetFolderId,
+                targetParentTaskId = task.parentTaskId,
                 update = update
             )
         }
     }
 
-    override suspend fun moveTaskToIndex(
+    override suspend fun placeTaskInList(
         taskId: String,
-        targetFolderId: String?,
-        targetParentTaskId: String?,
-        targetIndex: Int
-    ) {
-        database.withTransaction {
-            requireNotNull(taskDao.getTaskById(taskId)) { "Task not found: $taskId" }
-            if (targetFolderId != null) {
-                requireNotNull(folderDao.getFolderById(targetFolderId)) {
-                    "Target folder does not exist or is deleted: $targetFolderId"
-                }
-            }
-            val siblings = taskDao.getSiblingTasks(targetFolderId, targetParentTaskId)
-                .map { it.id to it.sortOrder }
-            val update = FractionalIndex.computeMoveByIndex(
-                orderedSiblings = siblings,
-                movingId = taskId,
-                targetIndex = targetIndex
-            )
-            applyTaskOrderUpdate(
-                taskId = taskId,
-                targetFolderId = targetFolderId,
-                update = update
-            )
+        parentTaskId: String?,
+        beforeTaskId: String?,
+        rootFolderId: String?
+    ): TaskPlacementChange? = database.withTransaction {
+        val task = taskDao.getTaskById(taskId) ?: return@withTransaction null
+        val folder = if (parentTaskId == null) rootFolderId else task.folderId
+        if (folder != null && folderDao.getFolderById(folder) == null) return@withTransaction null
+        if (!canAssignParent(taskId, parentTaskId)) return@withTransaction null
+
+        val siblings = taskDao.getSiblingTasks(folder, parentTaskId)
+        if (beforeTaskId != null && (beforeTaskId == taskId || siblings.none { it.id == beforeTaskId })) {
+            return@withTransaction null
         }
+        val currentIndex = siblings.indexOfFirst { it.id == taskId }
+        if (currentIndex >= 0 && siblings.getOrNull(currentIndex + 1)?.id == beforeTaskId) return@withTransaction null
+
+        val update = FractionalIndex.computeMoveBetween(siblings.map { it.id to it.sortOrder }, taskId, null, beforeTaskId)
+        val newOrder = applyTaskOrderUpdate(taskId, folder, parentTaskId, update)
+        TaskPlacementChange(taskId, task.placement(), TaskPlacement(folder, parentTaskId, newOrder))
+    }
+
+    override suspend fun undoTaskPlacement(change: TaskPlacementChange): Boolean = database.withTransaction {
+        val task = taskDao.getTaskById(change.taskId) ?: return@withTransaction false
+        if (task.placement() != change.after) return@withTransaction false
+        val previous = change.before
+        if (previous.folderId != null && folderDao.getFolderById(previous.folderId) == null) return@withTransaction false
+        if (!canAssignParent(task.id, previous.parentTaskId)) return@withTransaction false
+        taskDao.updateTaskPlacement(task.id, previous.folderId, previous.parentTaskId, previous.sortOrder, System.currentTimeMillis())
+        true
+    }
+
+    private fun TaskEntity.placement() = TaskPlacement(folderId, parentTaskId, sortOrder)
+
+    private suspend fun canAssignParent(taskId: String, parentTaskId: String?): Boolean {
+        val visited = hashSetOf(taskId)
+        var ancestorId = parentTaskId
+        while (ancestorId != null) {
+            if (!visited.add(ancestorId)) return false
+            val ancestor = taskDao.getTaskById(ancestorId) ?: return false
+            ancestorId = ancestor.parentTaskId
+        }
+        return true
     }
 
     override suspend fun moveTaskToFolder(taskId: String, targetFolderId: String?) {
@@ -293,16 +314,10 @@ class TaskRepositoryImpl @Inject constructor(
     override suspend fun moveTaskUnderParent(taskId: String, parentTaskId: String): Boolean =
         database.withTransaction {
             val task = taskDao.getTaskById(taskId) ?: return@withTransaction false
-            var ancestor = taskDao.getTaskById(parentTaskId) ?: return@withTransaction false
-            val visited = hashSetOf(taskId)
-            while (true) {
-                if (!visited.add(ancestor.id)) return@withTransaction false
-                val nextId = ancestor.parentTaskId ?: break
-                ancestor = taskDao.getTaskById(nextId) ?: return@withTransaction false
-            }
+            if (!canAssignParent(taskId, parentTaskId)) return@withTransaction false
             if (task.parentTaskId != parentTaskId) {
-                taskDao.moveTaskUnderParent(
-                    taskId, parentTaskId, nextSortOrder(task.folderId, parentTaskId), System.currentTimeMillis()
+                taskDao.updateTaskPlacement(
+                    taskId, task.folderId, parentTaskId, nextSortOrder(task.folderId, parentTaskId), System.currentTimeMillis()
                 )
             }
             true
@@ -399,24 +414,28 @@ class TaskRepositoryImpl @Inject constructor(
     private suspend fun applyTaskOrderUpdate(
         taskId: String,
         targetFolderId: String?,
+        targetParentTaskId: String?,
         update: FractionalIndex.OrderUpdate
-    ) {
+    ): Double {
         val now = System.currentTimeMillis()
-        when (update) {
+        return when (update) {
             is FractionalIndex.OrderUpdate.Single -> {
-                taskDao.moveTaskToFolder(
+                taskDao.updateTaskPlacement(
                     taskId = taskId,
                     folderId = targetFolderId,
+                    parentTaskId = targetParentTaskId,
                     sortOrder = update.sortOrder,
                     updatedAt = now
                 )
+                update.sortOrder
             }
             is FractionalIndex.OrderUpdate.Rebalanced -> {
                 for ((id, newSortOrder) in update.sortOrders) {
                     if (id == taskId) {
-                        taskDao.moveTaskToFolder(
+                        taskDao.updateTaskPlacement(
                             taskId = id,
                             folderId = targetFolderId,
+                            parentTaskId = targetParentTaskId,
                             sortOrder = newSortOrder,
                             updatedAt = now
                         )
@@ -428,6 +447,7 @@ class TaskRepositoryImpl @Inject constructor(
                         )
                     }
                 }
+                update.sortOrders.getValue(taskId)
             }
         }
     }

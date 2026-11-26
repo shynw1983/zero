@@ -11,7 +11,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.awaitHorizontalTouchSlopOrCancellation
-import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.gestures.horizontalDrag
 import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.layout.Arrangement
@@ -85,7 +85,6 @@ import kotlin.math.roundToInt
 import kotlin.math.sign
 
 private const val HOLD_TO_COMPLETE_DURATION_MS = 300
-private const val SWIPE_THRESHOLD_FRACTION = 0.30f
 private const val SWIPE_POST_THRESHOLD_DAMPING = 0.35f
 
 /**
@@ -110,12 +109,15 @@ fun AntiMisclickTaskCard(
     swipeActions: TaskSwipeActions,
     onToggleComplete: (TaskItem) -> Unit,
     onDeleteTask: (TaskItem) -> Unit,
-    onChooseTaskParent: (TaskItem) -> Unit,
+    indentParentId: String? = null,
+    onIndent: (TaskItem, String) -> Unit = { _, _ -> },
     onSelectTask: (TaskItem) -> Unit,
     onTagClick: ((tagId: String) -> Unit)? = null,
-    onReorderDragStart: () -> Unit,
-    onReorderDragDelta: (Float) -> Unit,
-    onReorderDragEnd: () -> Unit,
+    reorderEnabled: Boolean = false,
+    onReorderDragStart: () -> Unit = {},
+    onReorderDragDelta: (Float) -> Unit = {},
+    onReorderDragEnd: () -> Unit = {},
+    onReorderDragCancel: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val colors = ZeroTheme.colors
@@ -129,7 +131,11 @@ fun AntiMisclickTaskCard(
     val currentHaptics by rememberUpdatedState(haptics)
     val toggleCompleteCallback by rememberUpdatedState(onToggleComplete)
     val deleteTaskCallback by rememberUpdatedState(onDeleteTask)
-    val chooseParentCallback by rememberUpdatedState(onChooseTaskParent)
+    val indentCallback by rememberUpdatedState(onIndent)
+    val reorderStart by rememberUpdatedState(onReorderDragStart)
+    val reorderDelta by rememberUpdatedState(onReorderDragDelta)
+    val reorderEnd by rememberUpdatedState(onReorderDragEnd)
+    val reorderCancel by rememberUpdatedState(onReorderDragCancel)
 
     var cardWidthPx by remember { mutableFloatStateOf(0f) }
     var swipeOffsetX by remember(task.id) { mutableFloatStateOf(0f) }
@@ -144,14 +150,20 @@ fun AntiMisclickTaskCard(
     }
 
     val swipeAction = swipeActions.actionForOffset(swipeOffsetX)
+    val canIndent = indentParentId != null
+    val stage = taskCardSwipeStage(swipeOffsetX, cardWidthPx, canIndent)
+    val showIndent = canIndent && swipeOffsetX > 0f && stage != TaskCardSwipeStage.FULL
     val swipeRatio = if (cardWidthPx > 0f) {
-        (abs(swipeOffsetX) / (cardWidthPx * SWIPE_THRESHOLD_FRACTION)).coerceIn(0f, 1f)
+        (abs(swipeOffsetX) / (cardWidthPx * FULL_TASK_SWIPE_FRACTION)).coerceIn(0f, 1f)
     } else {
         0f
     }
-    val swipeArmedVisual = swipeRatio >= 1f
-    val swipeModifier = if (antiMisclickMode.allowSwipe && swipeActions.hasEnabledAction && !isDragging) {
-        Modifier.pointerInput(task.id, swipeActions) {
+    val swipeArmedVisual = stage != TaskCardSwipeStage.BELOW_THRESHOLD
+    val swipeModifier = if (antiMisclickMode.allowSwipe && (swipeActions.hasEnabledAction || canIndent) && !isDragging) {
+        Modifier.pointerInput(task.id, swipeActions, indentParentId) {
+            fun canStart(offset: Float) = swipeActions.actionForOffset(offset) != TaskSwipeAction.NONE ||
+                (canIndent && offset > 0f)
+
             var settleJob: Job? = null
             try {
                 awaitEachGesture {
@@ -161,7 +173,7 @@ fun AntiMisclickTaskCard(
 
                     var overSlop = 0f
                     val firstDrag = awaitHorizontalTouchSlopOrCancellation(down.id) { change, distance ->
-                        if (!scrollingLocked && !holdTriggered && swipeActions.actionForOffset(distance) != TaskSwipeAction.NONE) {
+                        if (!scrollingLocked && !holdTriggered && canStart(distance)) {
                             change.consume()
                             overSlop = distance
                         }
@@ -174,16 +186,19 @@ fun AntiMisclickTaskCard(
 
                     fun dragBy(distance: Float) {
                         rawDrag += distance
-                        val threshold = cardWidthPx * SWIPE_THRESHOLD_FRACTION
-                        val wasArmed = threshold > 0f && abs(swipeOffsetX) >= threshold
+                        val threshold = cardWidthPx * FULL_TASK_SWIPE_FRACTION
+                        val previousStage = taskCardSwipeStage(swipeOffsetX, cardWidthPx, canIndent)
                         val absRaw = abs(rawDrag)
                         swipeOffsetX = when {
-                            swipeActions.actionForOffset(rawDrag) == TaskSwipeAction.NONE -> 0f
+                            !canStart(rawDrag) -> 0f
                             absRaw <= threshold -> rawDrag
                             else -> sign(rawDrag) * (threshold + (absRaw - threshold) * SWIPE_POST_THRESHOLD_DAMPING)
                                 .coerceAtMost(cardWidthPx * 0.48f)
                         }
-                        if (!wasArmed && threshold > 0f && abs(swipeOffsetX) >= threshold) currentHaptics.reorderTick()
+                        val nextStage = taskCardSwipeStage(swipeOffsetX, cardWidthPx, canIndent)
+                        if (nextStage != previousStage && nextStage != TaskCardSwipeStage.BELOW_THRESHOLD &&
+                            (nextStage == TaskCardSwipeStage.INDENT || swipeActions.actionForOffset(rawDrag) != TaskSwipeAction.NONE)
+                        ) currentHaptics.reorderTick()
                     }
 
                     dragBy(overSlop)
@@ -194,24 +209,21 @@ fun AntiMisclickTaskCard(
                         if (!swipeInterrupted) dragBy(distance)
                     }
 
-                    val threshold = cardWidthPx * SWIPE_THRESHOLD_FRACTION
-                    if (released && !swipeInterrupted && !scrollingLocked && !holdTriggered &&
-                        threshold > 0f && abs(swipeOffsetX) >= threshold
-                    ) {
-                        when (swipeActions.actionForOffset(swipeOffsetX)) {
-                            TaskSwipeAction.COMPLETE -> {
-                                currentHaptics.taskComplete()
-                                toggleCompleteCallback(currentTask)
+                    if (released && !swipeInterrupted && !scrollingLocked && !holdTriggered) {
+                        when (taskCardSwipeStage(swipeOffsetX, cardWidthPx, canIndent)) {
+                            TaskCardSwipeStage.INDENT -> indentParentId?.let { indentCallback(currentTask, it) }
+                            TaskCardSwipeStage.FULL -> when (swipeActions.actionForOffset(swipeOffsetX)) {
+                                TaskSwipeAction.COMPLETE -> {
+                                    currentHaptics.taskComplete()
+                                    toggleCompleteCallback(currentTask)
+                                }
+                                TaskSwipeAction.DELETE -> {
+                                    currentHaptics.heavyClick()
+                                    deleteTaskCallback(currentTask)
+                                }
+                                TaskSwipeAction.NONE -> Unit
                             }
-                            TaskSwipeAction.DELETE -> {
-                                currentHaptics.heavyClick()
-                                deleteTaskCallback(currentTask)
-                            }
-                            TaskSwipeAction.MAKE_SUBTASK -> {
-                                currentHaptics.reorderTick()
-                                chooseParentCallback(currentTask)
-                            }
-                            TaskSwipeAction.NONE -> Unit
+                            TaskCardSwipeStage.BELOW_THRESHOLD -> Unit
                         }
                     }
 
@@ -237,8 +249,8 @@ fun AntiMisclickTaskCard(
             .onSizeChanged { cardWidthPx = it.width.toFloat() }
             .clip(ZeroCardShape)
     ) {
-        if (swipeAction != TaskSwipeAction.NONE && abs(swipeOffsetX) > 1f) {
-            val deleting = swipeAction == TaskSwipeAction.DELETE
+        if ((showIndent || swipeAction != TaskSwipeAction.NONE) && abs(swipeOffsetX) > 1f) {
+            val deleting = !showIndent && swipeAction == TaskSwipeAction.DELETE
             val actionColor = if (deleting) colors.priorityUrgent else colors.accent
             val actionBackground = if (deleting) actionColor.copy(alpha = 0.14f) else colors.accentSubtle
             val contentColor = if (swipeArmedVisual || deleting) actionColor else colors.textSecondary
@@ -261,7 +273,7 @@ fun AntiMisclickTaskCard(
                     Icon(
                         imageVector = when {
                             deleting -> Icons.Rounded.DeleteOutline
-                            swipeAction == TaskSwipeAction.MAKE_SUBTASK -> Icons.Rounded.SubdirectoryArrowRight
+                            showIndent -> Icons.Rounded.SubdirectoryArrowRight
                             task.isCompleted -> Icons.AutoMirrored.Rounded.Undo
                             else -> Icons.Rounded.Check
                         },
@@ -273,7 +285,7 @@ fun AntiMisclickTaskCard(
                         text = when {
                             !swipeArmedVisual -> stringResource(R.string.swipe_progress, (swipeRatio * 100).roundToInt())
                             deleting -> stringResource(R.string.swipe_release_delete)
-                            swipeAction == TaskSwipeAction.MAKE_SUBTASK -> stringResource(R.string.task_choose_parent)
+                            showIndent -> stringResource(R.string.swipe_indent_task)
                             task.isCompleted -> stringResource(R.string.swipe_release_restore)
                             else -> stringResource(R.string.swipe_release_complete)
                         },
@@ -462,33 +474,38 @@ fun AntiMisclickTaskCard(
                 }
             }
 
-            // ZONE 3: Right 40.dp Dedicated Drag Handle for Reordering
-            Box(
-                modifier = Modifier
-                    .width(ZeroDimens.DragHandleWidth)
-                    .height(56.dp)
-                    .pointerInput(task.id) {
-                        detectDragGestures(
-                            onDragStart = {
-                                haptics.reorderTick()
-                                onReorderDragStart()
-                            },
-                            onDragEnd = { onReorderDragEnd() },
-                            onDragCancel = { onReorderDragEnd() },
-                            onDrag = { change, dragAmount ->
-                                change.consume()
-                                onReorderDragDelta(dragAmount.y)
+            if (reorderEnabled) {
+                Box(
+                    modifier = Modifier
+                        .width(48.dp)
+                        .height(56.dp)
+                        .pointerInput(task.id) {
+                            try {
+                                detectVerticalDragGestures(
+                                    onDragStart = {
+                                        currentHaptics.reorderTick()
+                                        reorderStart()
+                                    },
+                                    onDragEnd = { reorderEnd() },
+                                    onDragCancel = { reorderCancel() },
+                                    onVerticalDrag = { change, amount ->
+                                        change.consume()
+                                        reorderDelta(amount)
+                                    }
+                                )
+                            } finally {
+                                reorderCancel()
                             }
-                        )
-                    },
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Rounded.DragHandle,
-                    contentDescription = stringResource(R.string.cd_drag_reorder),
-                    tint = if (isDragging) colors.accent else colors.textMuted,
-                    modifier = Modifier.size(18.dp)
-                )
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.DragHandle,
+                        contentDescription = stringResource(R.string.cd_drag_reorder),
+                        tint = if (isDragging) colors.accent else colors.textMuted,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
             }
         }
     }

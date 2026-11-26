@@ -36,6 +36,7 @@ import com.zero.todo.core.designsystem.ZeroMotion
 import com.zero.todo.core.designsystem.ZeroSmallShape
 import com.zero.todo.core.designsystem.ZeroTheme
 import com.zero.todo.core.designsystem.hairlineBorder
+import com.zero.todo.domain.model.TaskPlacementChange
 import kotlinx.coroutines.delay
 import java.util.Locale
 
@@ -45,13 +46,15 @@ data class UndoBannerState(
     val taskTitle: String,
     val undoType: UndoType,
     val spawnedTaskId: String? = null,
+    val placementChange: TaskPlacementChange? = null,
     val durationMillis: Long = 3_000L
 )
 
 enum class UndoType {
     REVERT_COMPLETE,
     REVERT_UNCOMPLETE,
-    RESTORE_DELETED_TASK
+    RESTORE_DELETED_TASK,
+    RESTORE_TASK_PLACEMENT
 }
 
 /**
@@ -93,6 +96,7 @@ fun UndoCapsule(
             UndoType.REVERT_COMPLETE -> stringResource(R.string.undo_completed, activeBanner.taskTitle)
             UndoType.REVERT_UNCOMPLETE -> stringResource(R.string.undo_restored, activeBanner.taskTitle)
             UndoType.RESTORE_DELETED_TASK -> stringResource(R.string.undo_deleted, activeBanner.taskTitle)
+            UndoType.RESTORE_TASK_PLACEMENT -> stringResource(R.string.undo_task_moved, activeBanner.taskTitle)
         }
 
         Column(

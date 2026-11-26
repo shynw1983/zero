@@ -296,8 +296,11 @@ interface TaskDao {
         updatedAt: Long
     )
 
-    @Query("UPDATE tasks SET parentTaskId = :parentTaskId, sortOrder = :sortOrder, updatedAt = :updatedAt WHERE id = :taskId AND isDeleted = 0")
-    suspend fun moveTaskUnderParent(taskId: String, parentTaskId: String, sortOrder: Double, updatedAt: Long)
+    @Query("""
+        UPDATE tasks SET folderId = :folderId, parentTaskId = :parentTaskId, sortOrder = :sortOrder, updatedAt = :updatedAt
+        WHERE id = :taskId AND isDeleted = 0
+    """)
+    suspend fun updateTaskPlacement(taskId: String, folderId: String?, parentTaskId: String?, sortOrder: Double, updatedAt: Long)
 
     @Query("UPDATE tasks SET folderId = NULL, updatedAt = :updatedAt WHERE folderId IN (:folderIds) AND isDeleted = 0")
     suspend fun detachTasksFromFolders(folderIds: List<String>, updatedAt: Long)

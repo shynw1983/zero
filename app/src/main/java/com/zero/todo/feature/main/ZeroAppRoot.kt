@@ -161,6 +161,7 @@ fun ZeroAppRoot(
             onToggleTaskComplete = viewModel::toggleTaskCompletion,
             onMoveTaskToFolder = viewModel::moveTaskToFolder,
             onReorderTask = viewModel::reorderTask,
+            onIndentTask = viewModel::indentTask,
             onUpdateTaskTitleAndDescription = viewModel::updateTaskTitleAndDescription,
             onUpdateTaskPriority = viewModel::updateTaskPriority,
             onUpdateTaskDueDate = viewModel::updateTaskDueDate,

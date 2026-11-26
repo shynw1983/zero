@@ -391,6 +391,11 @@ fun SettingsOverlay(
                             }
                         }
                         if (antiMisclickMode.allowSwipe) {
+                            Text(
+                                text = stringResource(R.string.settings_swipe_indent_hint),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = colors.textSecondary
+                            )
                             TaskSwipeDirection.entries.forEach { direction ->
                                 SwipeActionSelector(
                                     label = stringResource(direction.labelRes),

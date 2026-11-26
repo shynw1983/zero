@@ -64,6 +64,7 @@
     <string name="undo_completed">「%1$s」 완료됨</string>
     <string name="undo_restored">「%1$s」 복원됨</string>
     <string name="undo_deleted">「%1$s」 삭제됨</string>
+    <string name="undo_task_moved">「%1$s」 이동됨</string>
     <string name="quick_input_placeholder">빠른 기록… 예: 내일 15:00 /업무 !1 #태그</string>
     <string name="quick_input_route">경로</string>
     <string name="quick_input_voice_prompt">할 일을 말하세요 (예: 내일 15:00 /업무 보고서 제출 !1 #긴급)</string>
@@ -105,7 +106,7 @@
     <string name="cd_remove_tag">태그 제거</string>
     <string name="detail_subtasks">무한 하위 작업</string>
     <string name="detail_promote_subtask">독립 작업으로 전환</string>
-    <string name="task_make_subtask">하위 작업으로 전환</string>
+    <string name="swipe_indent_task">들여쓰기</string>
     <string name="task_choose_parent">상위 작업 선택</string>
     <string name="task_parent_search">작업 검색</string>
     <string name="task_parent_empty">선택할 수 있는 상위 작업이 없습니다</string>
@@ -203,7 +204,8 @@
     <string name="settings_accent_clay">웜 클레이</string>
     <string name="settings_section_antimisclick">오터치 방지 모드</string>
     <string name="settings_swipe_left">왼쪽으로 밀기</string>
-    <string name="settings_swipe_right">오른쪽으로 밀기</string>
+    <string name="settings_swipe_right">오른쪽으로 길게 밀기</string>
+    <string name="settings_swipe_indent_hint">작업을 오른쪽으로 짧게 끌면 바로 위 작업의 하위 작업이 됩니다.</string>
     <string name="settings_section_haptics">촉각 피드백</string>
     <string name="settings_haptics_title">리니어 모터 진동</string>
     <string name="settings_haptics_desc">완료 클릭, 드래그 틱, 2분 완료 부드러운 알림</string>

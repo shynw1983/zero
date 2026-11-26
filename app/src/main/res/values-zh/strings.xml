@@ -64,6 +64,7 @@
     <string name="undo_completed">已完成「%1$s」</string>
     <string name="undo_restored">已恢复「%1$s」</string>
     <string name="undo_deleted">已删除「%1$s」</string>
+    <string name="undo_task_moved">已移动「%1$s」</string>
     <string name="quick_input_placeholder">快速捕捉… 支持 明天 15:00 /目录 !1 #标签</string>
     <string name="quick_input_route">路由</string>
     <string name="quick_input_voice_prompt">说出任务，例如：明天下午3点 /工作 提交方案 !1 #紧急</string>
@@ -105,7 +106,7 @@
     <string name="cd_remove_tag">移除标签</string>
     <string name="detail_subtasks">无限子任务</string>
     <string name="detail_promote_subtask">设为独立任务</string>
-    <string name="task_make_subtask">设为子任务</string>
+    <string name="swipe_indent_task">缩进</string>
     <string name="task_choose_parent">选择父任务</string>
     <string name="task_parent_search">搜索任务</string>
     <string name="task_parent_empty">没有符合条件的父任务</string>
@@ -203,7 +204,8 @@
     <string name="settings_accent_clay">暖陶土</string>
     <string name="settings_section_antimisclick">防误触模式</string>
     <string name="settings_swipe_left">左滑</string>
-    <string name="settings_swipe_right">右滑</string>
+    <string name="settings_swipe_right">完整右滑</string>
+    <string name="settings_swipe_indent_hint">短距离右拖可将任务缩进到紧邻的上一条任务下。</string>
     <string name="settings_section_haptics">触觉与物理反馈</string>
     <string name="settings_haptics_title">线性马达震动反馈</string>
     <string name="settings_haptics_desc">任务完成、拖拽刻度、2 分钟起步柔和提示</string>

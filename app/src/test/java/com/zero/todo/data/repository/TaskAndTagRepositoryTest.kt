@@ -179,6 +179,25 @@ class TaskAndTagRepositoryTest {
     }
 
     @Test
+    fun `dragging a task before the first child inserts it there and undo restores its original position`() = runTest {
+        val first = taskRepository.createTask("Task 1")
+        val second = taskRepository.createTask("Task 2")
+        val third = taskRepository.createTask("Task 3", description = "Keep these notes", priority = TaskPriority.HIGH)
+        assertNotNull(taskRepository.placeTaskInList(second.id, first.id))
+
+        val move = taskRepository.placeTaskInList(third.id, first.id, beforeTaskId = second.id)!!
+        val children = taskRepository.getDescendantSubtasksSnapshot(first.id)
+        assertEquals(listOf(third.id, second.id), children.map { it.id })
+        assertEquals("Keep these notes", children.first().description)
+        assertEquals(TaskPriority.HIGH, children.first().priority)
+        assertNull(taskRepository.placeTaskInList(first.id, third.id))
+        assertTrue(taskRepository.undoTaskPlacement(move))
+        assertNull(taskRepository.getTaskById(third.id)?.parentTaskId)
+        assertEquals(third.sortOrder, taskRepository.getTaskById(third.id)?.sortOrder)
+        assertEquals(listOf(second.id), taskRepository.getDescendantSubtasksSnapshot(first.id).map { it.id })
+    }
+
+    @Test
     fun `infinite nested subtasks and one-click promoteSubtaskToTopLevel preserve parent folder`() = runTest {
         val work = folderRepository.createFolder("Work")
         val rootTask = taskRepository.createTask("Launch ZERO v1", folderId = work.id)

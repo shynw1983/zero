@@ -64,6 +64,7 @@
     <string name="undo_completed">「%1$s」を完了しました</string>
     <string name="undo_restored">「%1$s」を復元しました</string>
     <string name="undo_deleted">「%1$s」を削除しました</string>
+    <string name="undo_task_moved">「%1$s」を移動しました</string>
     <string name="quick_input_placeholder">高速入力… 例: 明日 15:00 /仕事 !1 #タグ</string>
     <string name="quick_input_route">保存先</string>
     <string name="quick_input_voice_prompt">タスクを話してください（例: 明日 15:00 /仕事 企画書提出 !1 #重要）</string>
@@ -105,7 +106,7 @@
     <string name="cd_remove_tag">タグを削除</string>
     <string name="detail_subtasks">階層サブタスク</string>
     <string name="detail_promote_subtask">独立したタスクにする</string>
-    <string name="task_make_subtask">サブタスクにする</string>
+    <string name="swipe_indent_task">インデント</string>
     <string name="task_choose_parent">親タスクを選択</string>
     <string name="task_parent_search">タスクを検索</string>
     <string name="task_parent_empty">選択できる親タスクが見つかりません</string>
@@ -203,7 +204,8 @@
     <string name="settings_accent_clay">ウォームクレイ</string>
     <string name="settings_section_antimisclick">誤タップ防止モード</string>
     <string name="settings_swipe_left">左スワイプ</string>
-    <string name="settings_swipe_right">右スワイプ</string>
+    <string name="settings_swipe_right">長い右スワイプ</string>
+    <string name="settings_swipe_indent_hint">タスクを短く右にドラッグすると、直前のタスクのサブタスクになります。</string>
     <string name="settings_section_haptics">触覚フィードバック</string>
     <string name="settings_haptics_title">リニアモーター振動</string>
     <string name="settings_haptics_desc">完了スナップ・並べ替え刻み・2分終了時のソフト通知</string>

@@ -26,6 +26,7 @@ import com.zero.todo.domain.model.FocusMode
 import com.zero.todo.domain.model.Folder
 import com.zero.todo.domain.model.FolderNode
 import com.zero.todo.domain.model.TaskItem
+import com.zero.todo.domain.model.TaskPlacementChange
 import com.zero.todo.domain.model.TaskPriority
 import com.zero.todo.domain.model.TaskSortMode
 import com.zero.todo.domain.model.TaskSwipeAction
@@ -1027,8 +1028,16 @@ class MainViewModel @Inject constructor(
         }
     }
 
-    fun reorderTask(taskId: String, targetIndex: Int) {
+    fun indentTask(task: TaskItem, parentTaskId: String) {
+        viewModelScope.launch {
+            val change = taskRepository.placeTaskInList(task.id, parentTaskId) ?: return@launch
+            showTaskPlacementUndo(task, change)
+        }
+    }
+
+    fun reorderTask(task: TaskItem, parentTaskId: String?, beforeTaskId: String?) {
         if (userPreferencesRepository.preferences.value.taskSortMode != TaskSortMode.MANUAL) return
+        if (searchOpenFlow.value && searchQueryFlow.value.isNotBlank()) return
         val dest = NavigationDestination.fromStorageKey(destinationKeyFlow.value)
         val targetFolderId = when (dest) {
             NavigationDestination.Inbox -> null
@@ -1036,13 +1045,20 @@ class MainViewModel @Inject constructor(
             else -> return
         }
         viewModelScope.launch {
-            taskRepository.moveTaskToIndex(
-                taskId = taskId,
-                targetFolderId = targetFolderId,
-                targetParentTaskId = null,
-                targetIndex = targetIndex
-            )
+            val change = taskRepository.placeTaskInList(task.id, parentTaskId, beforeTaskId, targetFolderId)
+                ?: return@launch
+            showTaskPlacementUndo(task, change)
         }
+    }
+
+    private suspend fun showTaskPlacementUndo(task: TaskItem, change: TaskPlacementChange) {
+        undoBannerFlow.value = UndoBannerState(
+            taskId = task.id,
+            taskTitle = task.title,
+            undoType = UndoType.RESTORE_TASK_PLACEMENT,
+            placementChange = change
+        )
+        widgetRefresher.refreshAll()
     }
 
     fun updateTaskTitleAndDescription(task: TaskItem, title: String, description: String) {
@@ -1210,6 +1226,9 @@ class MainViewModel @Inject constructor(
                 }
                 UndoType.RESTORE_DELETED_TASK -> {
                     restoreTaskAndReminders(banner.taskId)
+                }
+                UndoType.RESTORE_TASK_PLACEMENT -> {
+                    banner.placementChange?.let { taskRepository.undoTaskPlacement(it) }
                 }
             }
             widgetRefresher.refreshAll()

@@ -64,6 +64,7 @@
     <string name="undo_completed">Completed \"%1$s\"</string>
     <string name="undo_restored">Restored \"%1$s\"</string>
     <string name="undo_deleted">Deleted \"%1$s\"</string>
+    <string name="undo_task_moved">Moved \"%1$s\"</string>
     <string name="quick_input_placeholder">Capture… e.g. tomorrow 15:00 /Work !1 #tag</string>
     <string name="quick_input_route">Route</string>
     <string name="quick_input_voice_prompt">Speak a task, e.g. Tomorrow 3pm /Work Submit report !1 #urgent</string>
@@ -105,7 +106,7 @@
     <string name="cd_remove_tag">Remove tag</string>
     <string name="detail_subtasks">Nested Subtasks</string>
     <string name="detail_promote_subtask">Make independent</string>
-    <string name="task_make_subtask">Make subtask</string>
+    <string name="swipe_indent_task">Indent</string>
     <string name="task_choose_parent">Choose parent task</string>
     <string name="task_parent_search">Search for a task</string>
     <string name="task_parent_empty">No matching parent tasks</string>
@@ -203,7 +204,8 @@
     <string name="settings_accent_clay">Warm Clay</string>
     <string name="settings_section_antimisclick">Anti-Misclick Mode</string>
     <string name="settings_swipe_left">Swipe left</string>
-    <string name="settings_swipe_right">Swipe right</string>
+    <string name="settings_swipe_right">Full swipe right</string>
+    <string name="settings_swipe_indent_hint">A short drag to the right nests a task under the task directly above it.</string>
     <string name="settings_section_haptics">Tactile &amp; Motion</string>
     <string name="settings_haptics_title">Linear Motor Haptics</string>
     <string name="settings_haptics_desc">Task completion, drag ticks, and gentle 2-min starter cues</string>

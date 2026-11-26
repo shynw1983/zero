@@ -11,12 +11,14 @@ enum class TaskSwipeDirection(@StringRes val labelRes: Int) {
 enum class TaskSwipeAction(@StringRes val labelRes: Int) {
     COMPLETE(R.string.task_swipe_complete),
     DELETE(R.string.action_delete),
-    MAKE_SUBTASK(R.string.task_make_subtask),
     NONE(R.string.task_swipe_none);
 
     companion object {
         fun fromStorage(raw: String?): TaskSwipeAction =
-            entries.firstOrNull { it.name == raw } ?: COMPLETE
+            when (raw) {
+                "MAKE_SUBTASK" -> NONE
+                else -> entries.firstOrNull { it.name == raw } ?: COMPLETE
+            }
     }
 }
 

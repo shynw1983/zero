@@ -114,7 +114,6 @@ fun CalendarPane(
     onSelectViewMode: (CalendarViewMode) -> Unit,
     onToggleTaskComplete: (TaskItem) -> Unit,
     onDeleteTask: (TaskItem) -> Unit,
-    onChooseTaskParent: (TaskItem) -> Unit,
     onSelectTask: (TaskItem) -> Unit,
     onSelectTag: (String) -> Unit,
     onQuickInputEdit: ((String) -> String) -> Unit,
@@ -290,7 +289,6 @@ fun CalendarPane(
                         taskSwipeActions = taskSwipeActions,
                         onToggleTaskComplete = onToggleTaskComplete,
                         onDeleteTask = onDeleteTask,
-                        onChooseTaskParent = onChooseTaskParent,
                         onSelectTask = onSelectTask,
                         onSelectTag = onSelectTag,
                         modifier = Modifier.weight(1f)
@@ -310,7 +308,6 @@ fun CalendarPane(
                         onSelectTask = onSelectTask,
                         onToggleTaskComplete = onToggleTaskComplete,
                         onDeleteTask = onDeleteTask,
-                        onChooseTaskParent = onChooseTaskParent,
                         onSelectTag = onSelectTag,
                         modifier = Modifier.weight(1f)
                     )
@@ -520,7 +517,6 @@ private fun SelectedDayAgenda(
     taskSwipeActions: TaskSwipeActions,
     onToggleTaskComplete: (TaskItem) -> Unit,
     onDeleteTask: (TaskItem) -> Unit,
-    onChooseTaskParent: (TaskItem) -> Unit,
     onSelectTask: (TaskItem) -> Unit,
     onSelectTag: (String) -> Unit,
     modifier: Modifier = Modifier
@@ -581,12 +577,8 @@ private fun SelectedDayAgenda(
                     swipeActions = taskSwipeActions,
                     onToggleComplete = onToggleTaskComplete,
                     onDeleteTask = onDeleteTask,
-                    onChooseTaskParent = onChooseTaskParent,
                     onSelectTask = onSelectTask,
                     onTagClick = onSelectTag,
-                    onReorderDragStart = {},
-                    onReorderDragDelta = {},
-                    onReorderDragEnd = {},
                     modifier = Modifier.animateItem(placementSpec = ZeroMotion.IntOffsetSpring)
                 )
             }
@@ -626,7 +618,6 @@ private fun DayTimelineSection(
     onSelectTask: (TaskItem) -> Unit,
     onToggleTaskComplete: (TaskItem) -> Unit,
     onDeleteTask: (TaskItem) -> Unit,
-    onChooseTaskParent: (TaskItem) -> Unit,
     onSelectTag: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -706,12 +697,8 @@ private fun DayTimelineSection(
                             swipeActions = taskSwipeActions,
                             onToggleComplete = onToggleTaskComplete,
                             onDeleteTask = onDeleteTask,
-                            onChooseTaskParent = onChooseTaskParent,
                             onSelectTask = onSelectTask,
                             onTagClick = onSelectTag,
-                            onReorderDragStart = {},
-                            onReorderDragDelta = {},
-                            onReorderDragEnd = {}
                         )
                     }
                 }

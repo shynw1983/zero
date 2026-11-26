@@ -1,6 +1,7 @@
 package com.zero.todo.data.repository
 
 import com.zero.todo.domain.model.TaskItem
+import com.zero.todo.domain.model.TaskPlacementChange
 import com.zero.todo.domain.model.TaskPriority
 import kotlinx.coroutines.flow.Flow
 import java.time.LocalDate
@@ -47,12 +48,13 @@ interface TaskRepository {
         afterTaskId: String? = null
     )
 
-    suspend fun moveTaskToIndex(
+    suspend fun placeTaskInList(
         taskId: String,
-        targetFolderId: String?,
-        targetParentTaskId: String? = null,
-        targetIndex: Int
-    )
+        parentTaskId: String?,
+        beforeTaskId: String? = null,
+        rootFolderId: String? = null
+    ): TaskPlacementChange?
+    suspend fun undoTaskPlacement(change: TaskPlacementChange): Boolean
 
     suspend fun moveTaskToFolder(taskId: String, targetFolderId: String?)
     suspend fun moveTaskUnderParent(taskId: String, parentTaskId: String): Boolean
