@@ -1,8 +1,13 @@
 package com.zero.todo.feature.execute
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -147,16 +152,20 @@ fun ExecuteHostScreen(
     )
 
     if (state.executeTheme == ExecuteTheme.ATLAS) {
-        val glassBg = if (isAtlasMapDark) Color(0xD90F1420) else Color(0xEBFFFFFF)
-        val glassSheen = Color.White.copy(alpha = if (isAtlasMapDark) 0.11f else 0.45f)
-        val glassBorder = if (isAtlasMapDark) Color.White.copy(alpha = 0.18f) else Color.Black.copy(alpha = 0.09f)
-        val glassPrimary = if (isAtlasMapDark) Color(0xFFF4F4F5) else Color(0xFF111827)
-        val glassSecondary = if (isAtlasMapDark) Color(0xFFC0C6D4) else Color(0xFF52525B)
-        val topStrong = if (isAtlasMapDark) Color(0xD6090D15) else Color(0xCCF2F4F8)
-        val topMid = if (isAtlasMapDark) Color(0x66090D15) else Color(0x5CEAEDF3)
-        val bottomStrong = if (isAtlasMapDark) Color(0xE0090D15) else Color(0xD4F2F4F8)
-        val bottomMid = if (isAtlasMapDark) Color(0x70090D15) else Color(0x66EAEDF3)
+        var showAtlasQuickInput by remember { mutableStateOf(false) }
+        val showCaptureDock = showAtlasQuickInput ||
+            state.quickInputText.isNotBlank() ||
+            state.undoBanner != null
         val activeAccent = colors.accent
+        val atlasAccent = ZeroAccent.entries.firstOrNull {
+            it.colorFor(isAtlasMapDark) == activeAccent
+        } ?: ZeroAccent.SlateBlue
+
+        LaunchedEffect(showAtlasQuickInput) {
+            if (showAtlasQuickInput) {
+                runCatching { quickInputFocusRequester.requestFocus() }
+            }
+        }
 
         Box(
             modifier = modifier
@@ -164,106 +173,74 @@ fun ExecuteHostScreen(
                 .background(if (isAtlasMapDark) Color(0xFF0F141E) else Color(0xFFEAEDF3))
                 .imePadding()
         ) {
-            // Layer 0: Full-Screen 100% 3D Google Map Viewport
+            // Layer 0 & 1: Architectural Full-Screen 3D Google Map + Minimal Editorial HUD
             AtlasThemeView(
                 state = state,
                 isMapDark = isAtlasMapDark,
                 onToggleMapDark = onToggleAtlasMapDark,
-                topContentPadding = 64.dp,
-                bottomContentPadding = 74.dp + atlasBottomModeBarHeight,
+                bottomModeBarHeight = atlasBottomModeBarHeight,
+                isQuickInputExpanded = showCaptureDock,
+                onToggleQuickInput = { showAtlasQuickInput = !showAtlasQuickInput },
+                onOpenTriage = onOpenTriage,
+                onOpenThemePicker = { showThemePicker = true },
+                onOpenSettings = onOpenSettings,
                 onCompleteTask = onCompleteTask,
                 onOpenTaskDetail = onOpenTaskDetail,
                 onSwitchToVault = onSwitchToVault,
                 modifier = Modifier.fillMaxSize()
             )
 
-            // Layer 1: Top Atmospheric Vignette + Floating Frosted Glass Header
-            Box(
-                modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .fillMaxWidth()
-                    .background(
-                        Brush.verticalGradient(
-                            0.0f to topStrong,
-                            0.62f to topMid,
-                            1.0f to Color.Transparent
-                        )
-                    )
-                    .statusBarsPadding()
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                NowHeaderBar(
-                    state = state,
-                    titleRes = R.string.atlas_header_title,
-                    primaryColor = glassPrimary,
-                    secondaryColor = glassSecondary,
-                    buttonBg = if (isAtlasMapDark) Color(0x1CFFFFFF) else Color(0x12000000),
-                    settingsBorderColor = glassBorder,
-                    buttonSize = 38.dp,
-                    onOpenTriage = onOpenTriage,
-                    onOpenThemePicker = { showThemePicker = true },
-                    onOpenSettings = onOpenSettings,
-                    modifier = Modifier
-                        .widthIn(max = ExecuteMaxContentWidth)
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(glassBg)
-                        .background(Brush.verticalGradient(listOf(glassSheen, Color.Transparent)))
-                        .hairlineBorder(shape = RoundedCornerShape(16.dp), color = glassBorder)
-                        .padding(horizontal = 12.dp, vertical = 5.dp)
-                )
-            }
-
-            // Layer 2: Bottom Atmospheric Vignette + Floating Frosted Glass Quick Capture Dock
+            // Layer 2: Collapsible Floating Quick Capture & Undo Dock (hidden by default for maximum map canvas)
             ZeroTheme(
                 darkTheme = isAtlasMapDark,
-                accent = ZeroAccent.entries.firstOrNull { it.colorFor(isAtlasMapDark) == activeAccent } ?: ZeroAccent.SlateBlue,
-                accentOverride = SignalOrange
+                accent = atlasAccent,
+                accentOverride = null
             ) {
-                Box(
+                AnimatedVisibility(
+                    visible = showCaptureDock,
+                    enter = fadeIn(tween(180)) + slideInVertically(tween(200)) { it / 3 },
+                    exit = fadeOut(tween(150)) + slideOutVertically(tween(160)) { it / 3 },
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .fillMaxWidth()
-                        .background(
-                            Brush.verticalGradient(
-                                0.0f to Color.Transparent,
-                                0.35f to bottomMid,
-                                1.0f to bottomStrong
-                            )
-                        )
                         .navigationBarsPadding()
-                        .padding(bottom = atlasBottomModeBarHeight)
-                        .padding(horizontal = 14.dp, vertical = 6.dp),
-                    contentAlignment = Alignment.Center
+                        .padding(bottom = atlasBottomModeBarHeight + 8.dp)
+                        .padding(horizontal = 14.dp)
                 ) {
-                    Column(
-                        modifier = Modifier
-                            .widthIn(max = ExecuteMaxContentWidth)
-                            .fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        UndoCapsule(
-                            banner = state.undoBanner,
-                            onUndo = onUndo,
-                            onTimeout = onUndoTimeout
-                        )
-                        QuickInputCapsule(
-                            text = state.quickInputText,
-                            parsed = state.parsedQuickInput,
-                            folderSuggestions = state.folderSuggestions,
-                            continuousEntryEnabled = state.continuousEntryEnabled,
-                            focusRequester = quickInputFocusRequester,
-                            onEditText = onQuickInputEdit,
-                            onSubmit = onQuickInputSubmit,
-                            onToggleContinuousEntry = onToggleContinuousEntry,
-                            onVoiceInputRecognized = onVoiceInputRecognized,
-                            aiConfigured = state.aiConfigured,
-                            onOpenAiCapture = onOpenAiCapture,
-                            currentDate = state.currentDate,
-                            frostedGlass = true,
-                            frostedDark = isAtlasMapDark
-                        )
+                    Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                        Column(
+                            modifier = Modifier
+                                .widthIn(max = 520.dp)
+                                .fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            UndoCapsule(
+                                banner = state.undoBanner,
+                                onUndo = onUndo,
+                                onTimeout = onUndoTimeout
+                            )
+                            QuickInputCapsule(
+                                text = state.quickInputText,
+                                parsed = state.parsedQuickInput,
+                                folderSuggestions = state.folderSuggestions,
+                                continuousEntryEnabled = state.continuousEntryEnabled,
+                                focusRequester = quickInputFocusRequester,
+                                onEditText = onQuickInputEdit,
+                                onSubmit = {
+                                    onQuickInputSubmit()
+                                    if (!state.continuousEntryEnabled) {
+                                        showAtlasQuickInput = false
+                                    }
+                                },
+                                onToggleContinuousEntry = onToggleContinuousEntry,
+                                onVoiceInputRecognized = onVoiceInputRecognized,
+                                aiConfigured = state.aiConfigured,
+                                onOpenAiCapture = onOpenAiCapture,
+                                currentDate = state.currentDate,
+                                frostedGlass = true,
+                                frostedDark = isAtlasMapDark
+                            )
+                        }
                     }
                 }
             }
@@ -548,7 +525,7 @@ private fun ExecuteThemePickerSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = Color(0xFF141417),
+        containerColor = colors.surfaceElevated,
         contentColor = colors.textPrimary,
         dragHandle = {
             Box(
@@ -557,7 +534,7 @@ private fun ExecuteThemePickerSheet(
                     .width(36.dp)
                     .height(4.dp)
                     .clip(ZeroCapsuleShape)
-                    .background(Color.White.copy(alpha = 0.2f))
+                    .background(colors.textMuted.copy(alpha = 0.25f))
             )
         }
     ) {
@@ -577,14 +554,15 @@ private fun ExecuteThemePickerSheet(
 
             ExecuteTheme.entries.forEach { theme ->
                 val selected = theme == activeTheme
+                val activeHighlight = if (theme == ExecuteTheme.ATLAS) colors.accent else SignalOrange
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(16.dp))
-                        .background(if (selected) Color(0xFF1C1C22) else Color(0xFF0E0E12))
+                        .background(if (selected) colors.surface else colors.background)
                         .hairlineBorder(
                             shape = RoundedCornerShape(16.dp),
-                            color = if (selected) SignalOrange else Color(0xFF27272A)
+                            color = if (selected) activeHighlight else colors.hairlineBorder
                         )
                         .clickable {
                             haptics.confirm()
@@ -594,7 +572,7 @@ private fun ExecuteThemePickerSheet(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
-                    ExecuteThemeSwatch(theme = theme)
+                    ExecuteThemeSwatch(theme = theme, atlasAccent = colors.accent)
 
                     Column(
                         modifier = Modifier.weight(1f),
@@ -617,7 +595,7 @@ private fun ExecuteThemePickerSheet(
                             modifier = Modifier
                                 .size(26.dp)
                                 .clip(CircleShape)
-                                .background(SignalOrange),
+                                .background(activeHighlight),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
@@ -639,7 +617,10 @@ private fun ExecuteThemePickerSheet(
 }
 
 @Composable
-private fun ExecuteThemeSwatch(theme: ExecuteTheme) {
+private fun ExecuteThemeSwatch(
+    theme: ExecuteTheme,
+    atlasAccent: Color = SignalOrange
+) {
     val shape = RoundedCornerShape(10.dp)
     Canvas(
         modifier = Modifier
@@ -727,13 +708,13 @@ private fun ExecuteThemeSwatch(theme: ExecuteTheme) {
                     strokeWidth = stroke
                 )
                 drawCircle(
-                    color = SignalOrange.copy(alpha = 0.25f),
+                    color = atlasAccent.copy(alpha = 0.25f),
                     radius = size.minDimension * 0.24f,
                     center = Offset(size.width * 0.55f, size.height * 0.48f),
                     style = Stroke(width = 1.1.dp.toPx())
                 )
                 drawCircle(
-                    color = SignalOrange,
+                    color = atlasAccent,
                     radius = size.minDimension * 0.10f,
                     center = Offset(size.width * 0.55f, size.height * 0.48f)
                 )

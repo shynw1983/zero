@@ -6,10 +6,9 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.Canvas
-import android.graphics.LinearGradient
 import android.graphics.Paint
+import android.graphics.Path
 import android.graphics.RectF
-import android.graphics.Shader
 import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
@@ -22,14 +21,17 @@ import android.os.Bundle
 import android.os.Looper
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.Canvas
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -54,14 +56,18 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
+import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.DarkMode
 import androidx.compose.material.icons.rounded.Explore
+import androidx.compose.material.icons.rounded.Layers
 import androidx.compose.material.icons.rounded.LightMode
-import androidx.compose.material.icons.rounded.LocationOn
 import androidx.compose.material.icons.rounded.MyLocation
 import androidx.compose.material.icons.rounded.Navigation
+import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material.icons.rounded.Route
+import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -82,16 +88,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -115,7 +119,6 @@ import com.google.android.gms.maps.MapsInitializer
 import com.google.android.gms.maps.model.BitmapDescriptor
 import com.google.android.gms.maps.model.BitmapDescriptorFactory
 import com.google.android.gms.maps.model.CameraPosition
-import com.google.android.gms.maps.model.Circle
 import com.google.android.gms.maps.model.CircleOptions
 import com.google.android.gms.maps.model.Dash
 import com.google.android.gms.maps.model.Gap
@@ -140,7 +143,6 @@ import com.zero.todo.domain.model.TaskPriority
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.abs
-import kotlin.math.roundToInt
 
 private const val PLAYER_MARKER_TAG = "__zero_player__"
 
@@ -149,8 +151,12 @@ fun AtlasThemeView(
     state: ExecuteUiState,
     isMapDark: Boolean = state.isDarkTheme,
     onToggleMapDark: () -> Unit = {},
-    topContentPadding: Dp = 64.dp,
-    bottomContentPadding: Dp = 140.dp,
+    bottomModeBarHeight: Dp = 64.dp,
+    isQuickInputExpanded: Boolean = false,
+    onToggleQuickInput: () -> Unit = {},
+    onOpenTriage: () -> Unit = {},
+    onOpenThemePicker: () -> Unit = {},
+    onOpenSettings: () -> Unit = {},
     onCompleteTask: (TaskItem) -> Unit,
     onOpenTaskDetail: (TaskItem) -> Unit,
     onSwitchToVault: () -> Unit,
@@ -175,7 +181,6 @@ fun AtlasThemeView(
     var compassBearing by remember { mutableFloatStateOf(0f) }
 
     var is3DMode by remember { mutableStateOf(true) }
-    var isCompassFollow by remember { mutableStateOf(false) }
     var showQuestRoute by remember { mutableStateOf(true) }
     var selectedPlaceId by remember { mutableStateOf<String?>(null) }
     var focusedTaskIdxInPlace by remember(selectedPlaceId) { mutableIntStateOf(0) }
@@ -183,12 +188,8 @@ fun AtlasThemeView(
 
     var googleMapRef by remember { mutableStateOf<GoogleMap?>(null) }
     var hasInitialCameraCentered by remember { mutableStateOf(false) }
-
-    // Live map overlay refs updated in place so compass/radar pulse animations never flicker markers
     var playerMarkerRef by remember { mutableStateOf<Marker?>(null) }
     var headingConeRef by remember { mutableStateOf<Polygon?>(null) }
-    var playerPulseCircleRef by remember { mutableStateOf<Circle?>(null) }
-    var targetPulseCircleRef by remember { mutableStateOf<Circle?>(null) }
 
     val locationPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions()
@@ -264,7 +265,7 @@ fun AtlasThemeView(
         }
     }
 
-    // Live Compass Azimuth Sensor (throttled to >= 3 deg delta for smooth battery-safe rotation)
+    // Smooth azimuth compass for subtle directional wedge
     DisposableEffect(Unit) {
         val sensorManager = context.getSystemService(SensorManager::class.java)
         val rotationSensor = sensorManager?.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR)
@@ -280,7 +281,7 @@ fun AtlasThemeView(
                 SensorManager.getOrientation(rotMatrix, orientation)
                 val deg = ((Math.toDegrees(orientation[0].toDouble()).toFloat() + 360f) % 360f)
                 val diff = abs(deg - compassBearing).let { if (it > 180f) 360f - it else it }
-                if (diff >= 3f) {
+                if (diff >= 5f) {
                     compassBearing = deg
                 }
             }
@@ -383,52 +384,35 @@ fun AtlasThemeView(
         }
     }
 
-    // Apply architectural Light/Dark map style
     LaunchedEffect(googleMapRef, isMapDark) {
         val gMap = googleMapRef ?: return@LaunchedEffect
         val json = if (isMapDark) AtlasMapStyles.OBSIDIAN_DARK_STYLE_JSON else AtlasMapStyles.COOL_PAPER_LIGHT_STYLE_JSON
         runCatching { gMap.setMapStyle(MapStyleOptions(json)) }
     }
 
-    // Pad Google Maps focus & Google watermark cleanly between floating top compass & bottom HUD
-    val statusTopPx = WindowInsets.statusBars.getTop(density)
-    val navBottomPx = WindowInsets.navigationBars.getBottom(density)
-    val mapTopPadPx = with(density) { (topContentPadding + 42.dp).roundToPx() } + statusTopPx
-    val mapBottomPadPx = with(density) { (bottomContentPadding + 14.dp).roundToPx() } + navBottomPx
-    LaunchedEffect(googleMapRef, mapTopPadPx, mapBottomPadPx) {
-        googleMapRef?.setPadding(0, mapTopPadPx, 0, mapBottomPadPx)
-    }
-
-    fun targetBearing(): Float = when {
-        isCompassFollow -> compassBearing
-        is3DMode -> 22f
-        else -> 0f
-    }
-
     fun animateCameraTo(lat: Double, lng: Double, zoom: Float? = null) {
         val gMap = googleMapRef ?: return
-        val targetZoom = zoom ?: if (is3DMode) 17.2f else 15.2f
+        val targetZoom = zoom ?: if (is3DMode) 17.1f else 15.2f
         val cam = CameraPosition.Builder()
             .target(LatLng(lat, lng))
             .zoom(targetZoom)
-            .tilt(if (is3DMode) 62f else 0f)
-            .bearing(targetBearing())
+            .tilt(if (is3DMode) 60f else 0f)
+            .bearing(if (is3DMode) 20f else 0f)
             .build()
-        gMap.animateCamera(CameraUpdateFactory.newCameraPosition(cam), 450, null)
+        gMap.animateCamera(CameraUpdateFactory.newCameraPosition(cam), 420, null)
     }
 
-    // Cinematic initial camera framing
     LaunchedEffect(googleMapRef, userLat, userLng, snapshot.markers.firstOrNull()?.place?.id) {
         val gMap = googleMapRef ?: return@LaunchedEffect
         if (hasInitialCameraCentered) return@LaunchedEffect
         val lat = userLat ?: snapshot.markers.firstOrNull()?.place?.latitude ?: 35.6812
         val lng = userLng ?: snapshot.markers.firstOrNull()?.place?.longitude ?: 139.7671
-        val zoom = if (userLat != null || snapshot.markers.isNotEmpty()) 17.2f else 12.8f
+        val zoom = if (userLat != null || snapshot.markers.isNotEmpty()) 17.1f else 12.8f
         val cam = CameraPosition.Builder()
             .target(LatLng(lat, lng))
             .zoom(zoom)
-            .tilt(if (is3DMode) 62f else 0f)
-            .bearing(if (is3DMode) 22f else 0f)
+            .tilt(if (is3DMode) 60f else 0f)
+            .bearing(if (is3DMode) 20f else 0f)
             .build()
         gMap.moveCamera(CameraUpdateFactory.newCameraPosition(cam))
         if (userLat != null || snapshot.markers.isNotEmpty()) {
@@ -436,38 +420,21 @@ fun AtlasThemeView(
         }
     }
 
-    // Smooth camera tilt transition when toggling 3D <-> 2D
     LaunchedEffect(googleMapRef, is3DMode) {
         val gMap = googleMapRef ?: return@LaunchedEffect
         val cur = gMap.cameraPosition
         val updated = CameraPosition.Builder(cur)
-            .tilt(if (is3DMode) 62f else 0f)
-            .bearing(if (is3DMode && !isCompassFollow && cur.bearing == 0f) 22f else if (!is3DMode && !isCompassFollow) 0f else cur.bearing)
-            .zoom(if (is3DMode) cur.zoom.coerceAtLeast(16.8f) else cur.zoom.coerceAtMost(15.6f))
+            .tilt(if (is3DMode) 60f else 0f)
+            .bearing(if (is3DMode && cur.bearing == 0f) 20f else if (!is3DMode) 0f else cur.bearing)
+            .zoom(if (is3DMode) cur.zoom.coerceAtLeast(16.7f) else cur.zoom.coerceAtMost(15.6f))
             .build()
-        gMap.animateCamera(CameraUpdateFactory.newCameraPosition(updated), 380, null)
-    }
-
-    // Smooth compass-follow camera lock
-    LaunchedEffect(googleMapRef, isCompassFollow, compassBearing, userLat, userLng) {
-        val gMap = googleMapRef ?: return@LaunchedEffect
-        if (!isCompassFollow) return@LaunchedEffect
-        val cur = gMap.cameraPosition
-        val target = if (userLat != null && userLng != null) LatLng(userLat!!, userLng!!) else cur.target
-        val cam = CameraPosition.Builder(cur)
-            .target(target)
-            .bearing(compassBearing)
-            .tilt(if (is3DMode) 62f else 0f)
-            .build()
-        gMap.animateCamera(CameraUpdateFactory.newCameraPosition(cam), 240, null)
+        gMap.animateCamera(CameraUpdateFactory.newCameraPosition(updated), 360, null)
     }
 
     val accentArgb = colors.accent.toArgb()
     val urgentArgb = colors.priorityUrgent.toArgb()
-    val surfaceArgb = if (isMapDark) 0xFF111622.toInt() else 0xFFFFFFFF.toInt()
-    val textArgb = if (isMapDark) 0xFFF4F4F5.toInt() else 0xFF111827.toInt()
 
-    // Effect 1: Static Quest Layer (Route beams, Geofence rings, 3D Light-Pillar Beacons)
+    // Effect 1: Whisper-clean route, geofence circles & floating architectural pill pins
     LaunchedEffect(
         googleMapRef,
         snapshot,
@@ -480,84 +447,47 @@ fun AtlasThemeView(
         gMap.clear()
         playerMarkerRef = null
         headingConeRef = null
-        playerPulseCircleRef = null
-        targetPulseCircleRef = null
 
-        // 1. Dual-Layer Luminous Quest Route Beam
         if (showQuestRoute && snapshot.routeWaypoints.size >= 2) {
-            val pts = snapshot.routeWaypoints.map { LatLng(it.first, it.second) }
             gMap.addPolyline(
                 PolylineOptions()
-                    .addAll(pts)
-                    .width(18f)
-                    .color(ColorUtils.setAlphaComponent(accentArgb, if (isMapDark) 72 else 52))
+                    .addAll(snapshot.routeWaypoints.map { LatLng(it.first, it.second) })
+                    .width(4.5f)
+                    .color(ColorUtils.setAlphaComponent(accentArgb, if (isMapDark) 170 else 155))
+                    .pattern(listOf(Dash(14f), Gap(12f)))
                     .startCap(RoundCap())
                     .endCap(RoundCap())
                     .jointType(JointType.ROUND)
                     .zIndex(2f)
             )
-            gMap.addPolyline(
-                PolylineOptions()
-                    .addAll(pts)
-                    .width(5.5f)
-                    .color(ColorUtils.setAlphaComponent(accentArgb, 240))
-                    .pattern(listOf(Dash(22f), Gap(14f)))
-                    .startCap(RoundCap())
-                    .endCap(RoundCap())
-                    .jointType(JointType.ROUND)
-                    .zIndex(2.5f)
-            )
         }
 
-        // 2. Concentric Geofence Reticles + 3D Vertical Light-Pillar Quest Beacons
         snapshot.markers.forEach { qMarker ->
             val isSelected = qMarker.place.id == selectedMarker?.place?.id
             val center = LatLng(qMarker.place.latitude, qMarker.place.longitude)
             val baseColor = if (qMarker.highestPriority == TaskPriority.URGENT) urgentArgb else accentArgb
 
-            val circleStrokeAlpha = when {
-                qMarker.isInsideGeofence -> 235
-                isSelected -> 195
-                qMarker.isNearestBranchForTag -> 115
-                else -> 60
+            val strokeAlpha = when {
+                qMarker.isInsideGeofence -> 150
+                isSelected -> 115
+                else -> 50
             }
-            val circleFillAlpha = when {
-                qMarker.isInsideGeofence -> 46
-                isSelected -> 26
-                else -> 12
+            val fillAlpha = when {
+                qMarker.isInsideGeofence -> 24
+                isSelected -> 12
+                else -> 5
             }
             gMap.addCircle(
                 CircleOptions()
                     .center(center)
                     .radius(qMarker.place.radiusMeters.toDouble())
-                    .strokeWidth(if (isSelected || qMarker.isInsideGeofence) 4f else 2f)
-                    .strokeColor(ColorUtils.setAlphaComponent(baseColor, circleStrokeAlpha))
-                    .fillColor(ColorUtils.setAlphaComponent(baseColor, circleFillAlpha))
+                    .strokeWidth(2f)
+                    .strokeColor(ColorUtils.setAlphaComponent(baseColor, strokeAlpha))
+                    .fillColor(ColorUtils.setAlphaComponent(baseColor, fillAlpha))
                     .zIndex(1f)
             )
 
-            if (isSelected) {
-                gMap.addCircle(
-                    CircleOptions()
-                        .center(center)
-                        .radius((qMarker.place.radiusMeters * 0.48).coerceAtLeast(18.0))
-                        .strokeWidth(2f)
-                        .strokeColor(ColorUtils.setAlphaComponent(baseColor, 95))
-                        .fillColor(0)
-                        .zIndex(1.2f)
-                )
-                targetPulseCircleRef = gMap.addCircle(
-                    CircleOptions()
-                        .center(center)
-                        .radius((qMarker.place.radiusMeters * 0.25).coerceAtLeast(14.0))
-                        .strokeWidth(3f)
-                        .strokeColor(ColorUtils.setAlphaComponent(baseColor, 140))
-                        .fillColor(ColorUtils.setAlphaComponent(baseColor, 20))
-                        .zIndex(1.5f)
-                )
-            }
-
-            val badgeIcon = createQuestBeaconIcon(
+            val pinIcon = createQuestPinIcon(
                 density = context.resources.displayMetrics.density,
                 count = qMarker.tasks.size,
                 label = qMarker.place.label,
@@ -565,25 +495,22 @@ fun AtlasThemeView(
                 isNearest = qMarker.isNearestBranchForTag,
                 isInside = qMarker.isInsideGeofence,
                 isMapDark = isMapDark,
-                accentColor = baseColor,
-                fillColor = surfaceArgb,
-                textColor = textArgb
+                accentColor = baseColor
             )
-            val markerAlpha = if (isSelected || qMarker.isNearestBranchForTag || qMarker.isInsideGeofence) 1f else 0.78f
             gMap.addMarker(
                 MarkerOptions()
                     .position(center)
-                    .icon(badgeIcon)
-                    .anchor(0.5f, 0.92f)
-                    .alpha(markerAlpha)
-                    .zIndex(if (isSelected) 5.5f else 3.5f)
+                    .icon(pinIcon)
+                    .anchor(0.5f, 1.0f)
+                    .alpha(if (isSelected || qMarker.isNearestBranchForTag || qMarker.isInsideGeofence) 1f else 0.82f)
+                    .zIndex(if (isSelected) 5f else 3f)
             )?.apply {
                 tag = qMarker.place.id
             }
         }
     }
 
-    // Effect 2: Flicker-free Live Player Marker, Radar Pulse Base & Heading FOV Cone
+    // Effect 2: In-place Player Dot & subtle directional sector (no flicker)
     LaunchedEffect(
         googleMapRef,
         userLat,
@@ -599,36 +526,27 @@ fun AtlasThemeView(
         val pLat = userLat ?: return@LaunchedEffect
         val pLng = userLng ?: return@LaunchedEffect
         val playerLatLng = LatLng(pLat, pLng)
-        val coneVertices = AtlasQuestBuilder.computeHeadingCone(pLat, pLng, compassBearing)
-            .map { LatLng(it.first, it.second) }
+        val coneVertices = AtlasQuestBuilder.computeHeadingCone(
+            lat = pLat,
+            lng = pLng,
+            bearingDegrees = compassBearing,
+            rangeMeters = 55.0,
+            halfAngleDeg = 24.0
+        ).map { LatLng(it.first, it.second) }
 
+        val sectorAlpha = if (isMapDark) 32 else 24
         val existingCone = headingConeRef
         if (existingCone == null) {
             headingConeRef = gMap.addPolygon(
                 PolygonOptions()
                     .addAll(coneVertices)
                     .strokeWidth(0f)
-                    .fillColor(ColorUtils.setAlphaComponent(accentArgb, if (isMapDark) 68 else 56))
+                    .fillColor(ColorUtils.setAlphaComponent(accentArgb, sectorAlpha))
                     .zIndex(4f)
             )
         } else {
             existingCone.points = coneVertices
-            existingCone.fillColor = ColorUtils.setAlphaComponent(accentArgb, if (isMapDark) 68 else 56)
-        }
-
-        val existingPulse = playerPulseCircleRef
-        if (existingPulse == null) {
-            playerPulseCircleRef = gMap.addCircle(
-                CircleOptions()
-                    .center(playerLatLng)
-                    .radius(24.0)
-                    .strokeWidth(3f)
-                    .strokeColor(ColorUtils.setAlphaComponent(accentArgb, 120))
-                    .fillColor(ColorUtils.setAlphaComponent(accentArgb, 24))
-                    .zIndex(3.8f)
-            )
-        } else {
-            existingPulse.center = playerLatLng
+            existingCone.fillColor = ColorUtils.setAlphaComponent(accentArgb, sectorAlpha)
         }
 
         val playerIcon = createPlayerDotIcon(
@@ -652,59 +570,25 @@ fun AtlasThemeView(
         }
     }
 
-    // Effect 3: Lightweight Live Radar Pulse Ring Loop (no marker churn)
-    LaunchedEffect(
-        googleMapRef,
-        playerPulseCircleRef,
-        targetPulseCircleRef,
-        selectedMarker?.place?.id,
-        userLat,
-        userLng,
-        accentArgb
-    ) {
-        if (playerPulseCircleRef == null && targetPulseCircleRef == null) return@LaunchedEffect
-        val targetBaseColor = if (selectedMarker?.highestPriority == TaskPriority.URGENT) urgentArgb else accentArgb
-        val targetMaxRadius = (selectedMarker?.place?.radiusMeters ?: 120).toDouble()
-        while (true) {
-            val phase = ((System.currentTimeMillis() % 2400L) / 2400f)
-            playerPulseCircleRef?.let { pCircle ->
-                pCircle.radius = 12.0 + phase * 62.0
-                val strokeAlpha = ((1f - phase) * 145).toInt().coerceIn(0, 255)
-                val fillAlpha = ((1f - phase) * 28).toInt().coerceIn(0, 255)
-                pCircle.strokeColor = ColorUtils.setAlphaComponent(accentArgb, strokeAlpha)
-                pCircle.fillColor = ColorUtils.setAlphaComponent(accentArgb, fillAlpha)
-            }
-            targetPulseCircleRef?.let { tCircle ->
-                val tPhase = (phase + 0.45f) % 1f
-                tCircle.radius = (targetMaxRadius * (0.18 + tPhase * 0.82)).coerceAtLeast(14.0)
-                val strokeAlpha = ((1f - tPhase) * 155).toInt().coerceIn(0, 255)
-                val fillAlpha = ((1f - tPhase) * 24).toInt().coerceIn(0, 255)
-                tCircle.strokeColor = ColorUtils.setAlphaComponent(targetBaseColor, strokeAlpha)
-                tCircle.fillColor = ColorUtils.setAlphaComponent(targetBaseColor, fillAlpha)
-            }
-            delay(40L)
+    val surfaceBg = if (isMapDark) Color(0xEB12151D) else Color(0xF5FFFFFF)
+    val surfaceBorder = if (isMapDark) Color.White.copy(alpha = 0.11f) else Color.Black.copy(alpha = 0.08f)
+    val primaryText = if (isMapDark) Color(0xFFF3F4F6) else Color(0xFF111827)
+    val secondaryText = if (isMapDark) Color(0xFF9CA3AF) else Color(0xFF6B7280)
+
+    BoxWithConstraints(modifier = modifier.fillMaxSize()) {
+        val isWideScreen = maxWidth >= 600.dp
+
+        val statusTopPx = WindowInsets.statusBars.getTop(density)
+        val navBottomPx = WindowInsets.navigationBars.getBottom(density)
+        val mapTopPadPx = with(density) { 58.dp.roundToPx() } + statusTopPx
+        val mapBottomPadPx = with(density) {
+            (bottomModeBarHeight + if (isWideScreen) 10.dp else 108.dp).roundToPx()
+        } + navBottomPx
+        LaunchedEffect(googleMapRef, mapTopPadPx, mapBottomPadPx) {
+            googleMapRef?.setPadding(0, mapTopPadPx, 0, mapBottomPadPx)
         }
-    }
 
-    val hudBg = if (isMapDark) Color(0xDE101522) else Color(0xEEFFFFFF)
-    val hudSheen = if (isMapDark) Color.White.copy(alpha = 0.11f) else Color.White.copy(alpha = 0.45f)
-    val hudBorder = if (isMapDark) Color.White.copy(alpha = 0.18f) else Color.Black.copy(alpha = 0.09f)
-    val hudPrimaryText = if (isMapDark) Color(0xFFF4F4F5) else Color(0xFF111827)
-    val hudSecondaryText = if (isMapDark) Color(0xFFC0C6D4) else Color(0xFF52525B)
-
-    val waypointBearing = remember(userLat, userLng, selectedMarker?.place?.id) {
-        val pLat = userLat
-        val pLng = userLng
-        val tgt = selectedMarker?.place
-        if (pLat != null && pLng != null && tgt != null) {
-            AtlasQuestBuilder.computeBearingDegrees(pLat, pLng, tgt.latitude, tgt.longitude)
-        } else {
-            null
-        }
-    }
-
-    Box(modifier = modifier.fillMaxSize()) {
-        // 1. Full-Screen Live 3D Google Map Surface
+        // 1. Live 3D Architectural Google Map Surface
         AndroidView(
             factory = {
                 mapView.getMapAsync { gMap ->
@@ -717,11 +601,6 @@ fun AtlasThemeView(
                         isTiltGesturesEnabled = true
                         isRotateGesturesEnabled = true
                         isZoomControlsEnabled = false
-                    }
-                    gMap.setOnCameraMoveStartedListener { reason ->
-                        if (reason == GoogleMap.OnCameraMoveStartedListener.REASON_GESTURE) {
-                            isCompassFollow = false
-                        }
                     }
                     gMap.setOnMarkerClickListener { clicked ->
                         val id = clicked.tag as? String
@@ -741,142 +620,224 @@ fun AtlasThemeView(
             modifier = Modifier.fillMaxSize()
         )
 
-        // 2. Top Tactical Compass Ribbon + Telemetry Chips
-        Column(
+        // 2. Minimal Floating Top Bar (Left: ATLAS status pill, Right: + / Theme / Settings capsule)
+        Row(
             modifier = Modifier
                 .align(Alignment.TopCenter)
-                .statusBarsPadding()
-                .widthIn(max = ExecuteMaxContentWidth)
                 .fillMaxWidth()
-                .padding(horizontal = 12.dp)
-                .padding(top = topContentPadding + 4.dp),
-            verticalArrangement = Arrangement.spacedBy(7.dp)
+                .statusBarsPadding()
+                .padding(horizontal = 14.dp, vertical = 10.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            AtlasCompassTape(
-                compassBearing = compassBearing,
-                targetBearing = waypointBearing,
-                bg = hudBg,
-                sheen = hudSheen,
-                border = hudBorder,
-                primaryText = hudPrimaryText,
-                secondaryText = hudSecondaryText,
-                accentColor = colors.accent
-            )
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .height(38.dp)
+                            .shadow(8.dp, ZeroCapsuleShape, clip = false)
+                            .clip(ZeroCapsuleShape)
+                            .background(surfaceBg)
+                            .hairlineBorder(shape = ZeroCapsuleShape, color = surfaceBorder)
+                            .padding(horizontal = 13.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(7.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(6.dp)
+                                .clip(CircleShape)
+                                .background(colors.accent)
+                        )
+                        Text(
+                            text = "ATLAS",
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.SemiBold,
+                            color = primaryText
+                        )
+                        Text(
+                            text = "·",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = secondaryText
+                        )
+                        Text(
+                            text = stringResource(R.string.atlas_places_count, snapshot.markers.size),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = secondaryText
+                        )
+                        selectedMarker?.distanceMeters?.let { dist ->
+                            Text(
+                                text = AtlasQuestBuilder.formatDistance(dist),
+                                style = tabular.dateCompact,
+                                color = colors.accent
+                            )
+                        }
+                    }
+
+                    if (snapshot.anywhereTasks.isNotEmpty()) {
+                        Row(
+                            modifier = Modifier
+                                .height(38.dp)
+                                .shadow(8.dp, ZeroCapsuleShape, clip = false)
+                                .clip(ZeroCapsuleShape)
+                                .background(surfaceBg)
+                                .hairlineBorder(shape = ZeroCapsuleShape, color = surfaceBorder)
+                                .clickable {
+                                    haptics.reorderTick()
+                                    showAnywhereSheet = true
+                                }
+                                .padding(horizontal = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(5.dp)
+                        ) {
+                            Text(
+                                text = stringResource(R.string.atlas_anywhere_chip, snapshot.anywhereTasks.size),
+                                style = MaterialTheme.typography.labelMedium,
+                                color = primaryText
+                            )
+                        }
+                    }
+                }
+
+                if (!hasLocationPermission) {
+                    Row(
+                        modifier = Modifier
+                            .shadow(6.dp, ZeroCapsuleShape, clip = false)
+                            .clip(ZeroCapsuleShape)
+                            .background(surfaceBg)
+                            .hairlineBorder(shape = ZeroCapsuleShape, color = colors.priorityMedium.copy(alpha = 0.55f))
+                            .clickable {
+                                locationPermissionLauncher.launch(
+                                    arrayOf(
+                                        Manifest.permission.ACCESS_FINE_LOCATION,
+                                        Manifest.permission.ACCESS_COARSE_LOCATION
+                                    )
+                                )
+                            }
+                            .padding(horizontal = 11.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.MyLocation,
+                            contentDescription = null,
+                            tint = colors.priorityMedium,
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Text(
+                            text = stringResource(R.string.atlas_gps_need_perm),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = primaryText
+                        )
+                        Text(
+                            text = stringResource(R.string.atlas_grant_gps),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = colors.accent
+                        )
+                    }
+                }
+            }
 
             Row(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(
-                    modifier = Modifier
-                        .clip(ZeroCapsuleShape)
-                        .background(hudBg)
-                        .background(Brush.verticalGradient(listOf(hudSheen, Color.Transparent)))
-                        .hairlineBorder(shape = ZeroCapsuleShape, color = hudBorder)
-                        .padding(horizontal = 10.dp, vertical = 5.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(5.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.LocationOn,
-                        contentDescription = null,
-                        tint = colors.accent,
-                        modifier = Modifier.size(14.dp)
-                    )
-                    Text(
-                        text = stringResource(R.string.atlas_places_count, snapshot.markers.size),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = hudPrimaryText
-                    )
-                    selectedMarker?.distanceMeters?.let { dist ->
+                if (state.triageCount > 0) {
+                    Row(
+                        modifier = Modifier
+                            .height(38.dp)
+                            .shadow(8.dp, ZeroCapsuleShape, clip = false)
+                            .clip(ZeroCapsuleShape)
+                            .background(surfaceBg)
+                            .hairlineBorder(shape = ZeroCapsuleShape, color = surfaceBorder)
+                            .clickable {
+                                haptics.confirm()
+                                onOpenTriage()
+                            }
+                            .padding(horizontal = 11.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Layers,
+                            contentDescription = null,
+                            tint = colors.accent,
+                            modifier = Modifier.size(14.dp)
+                        )
                         Text(
-                            text = "· ${AtlasQuestBuilder.formatDistance(dist)}",
+                            text = state.triageCount.toString(),
                             style = tabular.dateCompact,
                             color = colors.accent
                         )
                     }
                 }
 
-                if (snapshot.anywhereTasks.isNotEmpty()) {
-                    Row(
-                        modifier = Modifier
-                            .clip(ZeroCapsuleShape)
-                            .background(hudBg)
-                            .background(Brush.verticalGradient(listOf(hudSheen, Color.Transparent)))
-                            .hairlineBorder(shape = ZeroCapsuleShape, color = hudBorder)
-                            .clickable {
-                                haptics.reorderTick()
-                                showAnywhereSheet = true
-                            }
-                            .padding(horizontal = 10.dp, vertical = 5.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(5.dp)
+                Row(
+                    modifier = Modifier
+                        .height(38.dp)
+                        .shadow(8.dp, ZeroCapsuleShape, clip = false)
+                        .clip(ZeroCapsuleShape)
+                        .background(surfaceBg)
+                        .hairlineBorder(shape = ZeroCapsuleShape, color = surfaceBorder)
+                        .padding(horizontal = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
+                    TopIconAction(
+                        onClick = {
+                            haptics.reorderTick()
+                            onToggleQuickInput()
+                        }
                     ) {
                         Icon(
-                            imageVector = Icons.Rounded.Explore,
-                            contentDescription = null,
-                            tint = hudSecondaryText,
-                            modifier = Modifier.size(13.dp)
+                            imageVector = if (isQuickInputExpanded) Icons.Rounded.Close else Icons.Rounded.Add,
+                            contentDescription = stringResource(R.string.shortcut_quick_input),
+                            tint = if (isQuickInputExpanded) colors.accent else primaryText,
+                            modifier = Modifier.size(18.dp)
                         )
-                        Text(
-                            text = stringResource(R.string.atlas_anywhere_chip, snapshot.anywhereTasks.size),
-                            style = MaterialTheme.typography.labelMedium,
-                            color = hudPrimaryText
+                    }
+                    TopIconAction(
+                        onClick = {
+                            haptics.reorderTick()
+                            onOpenThemePicker()
+                        }
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Palette,
+                            contentDescription = stringResource(R.string.cd_switch_execute_theme),
+                            tint = colors.accent,
+                            modifier = Modifier.size(17.dp)
+                        )
+                    }
+                    TopIconAction(
+                        onClick = {
+                            haptics.reorderTick()
+                            onOpenSettings()
+                        }
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Settings,
+                            contentDescription = stringResource(R.string.cd_open_settings),
+                            tint = secondaryText,
+                            modifier = Modifier.size(17.dp)
                         )
                     }
                 }
             }
-
-            if (!hasLocationPermission) {
-                Row(
-                    modifier = Modifier
-                        .clip(ZeroSmallShape)
-                        .background(hudBg)
-                        .background(Brush.verticalGradient(listOf(hudSheen, Color.Transparent)))
-                        .hairlineBorder(shape = ZeroSmallShape, color = colors.priorityMedium.copy(alpha = 0.65f))
-                        .clickable {
-                            locationPermissionLauncher.launch(
-                                arrayOf(
-                                    Manifest.permission.ACCESS_FINE_LOCATION,
-                                    Manifest.permission.ACCESS_COARSE_LOCATION
-                                )
-                            )
-                        }
-                        .padding(horizontal = 11.dp, vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.MyLocation,
-                        contentDescription = null,
-                        tint = colors.priorityMedium,
-                        modifier = Modifier.size(14.dp)
-                    )
-                    Text(
-                        text = stringResource(R.string.atlas_gps_need_perm),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = hudPrimaryText
-                    )
-                    Text(
-                        text = stringResource(R.string.atlas_grant_gps),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = colors.accent
-                    )
-                }
-            }
         }
 
-        // 3. Right-Edge Unified Vertical Frosted-Glass Control Pill
+        // 3. Right-Edge Minimalist Map Control Pill
         AtlasControlDock(
             isMapDark = isMapDark,
             is3DMode = is3DMode,
-            isCompassFollow = isCompassFollow,
             showQuestRoute = showQuestRoute,
-            bg = hudBg,
-            sheen = hudSheen,
-            border = hudBorder,
-            primaryText = hudPrimaryText,
-            secondaryText = hudSecondaryText,
+            bg = surfaceBg,
+            border = surfaceBorder,
+            primaryText = primaryText,
+            secondaryText = secondaryText,
             accentColor = colors.accent,
             onToggleMapDark = {
                 haptics.reorderTick()
@@ -885,10 +846,6 @@ fun AtlasThemeView(
             onToggle3D = {
                 haptics.reorderTick()
                 is3DMode = !is3DMode
-            },
-            onToggleCompassFollow = {
-                haptics.reorderTick()
-                isCompassFollow = !isCompassFollow
             },
             onToggleRoute = {
                 haptics.reorderTick()
@@ -922,61 +879,77 @@ fun AtlasThemeView(
             modifier = Modifier
                 .align(Alignment.TopEnd)
                 .statusBarsPadding()
-                .padding(end = 12.dp, top = topContentPadding + 42.dp)
+                .padding(end = 14.dp, top = 62.dp)
         )
 
-        // 4. Bottom Slim Tactical Quest HUD Card
-        Box(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .navigationBarsPadding()
-                .widthIn(max = ExecuteMaxContentWidth)
+        // 4. Slim Responsive Quest Mission Card (Bottom-Start 312.dp on wide screens; compact centered on phones)
+        val showMissionCard = isWideScreen || !isQuickInputExpanded
+        val cardAlignment = if (isWideScreen) Alignment.BottomStart else Alignment.BottomCenter
+        val cardWidthMod = if (isWideScreen) {
+            Modifier.width(312.dp)
+        } else {
+            Modifier
+                .widthIn(max = 380.dp)
                 .fillMaxWidth()
-                .padding(start = 14.dp, end = 14.dp, bottom = bottomContentPadding + 6.dp)
+        }
+        val cardPadding = if (isWideScreen) {
+            Modifier.padding(start = 14.dp, bottom = bottomModeBarHeight + 10.dp)
+        } else {
+            Modifier.padding(horizontal = 14.dp, vertical = 0.dp).padding(bottom = bottomModeBarHeight + 6.dp)
+        }
+
+        AnimatedVisibility(
+            visible = showMissionCard,
+            enter = fadeIn(tween(180)),
+            exit = fadeOut(tween(140)),
+            modifier = Modifier
+                .align(cardAlignment)
+                .navigationBarsPadding()
+                .then(cardPadding)
         ) {
-            if (selectedMarker != null) {
-                val safeTaskIdx = focusedTaskIdxInPlace.coerceIn(0, selectedMarker.tasks.lastIndex)
-                val focusedTask = selectedMarker.tasks[safeTaskIdx]
-                AtlasQuestHudCard(
-                    marker = selectedMarker,
-                    taskIndex = safeTaskIdx,
-                    focusedTask = focusedTask,
-                    hudBg = hudBg,
-                    hudSheen = hudSheen,
-                    hudBorder = hudBorder,
-                    primaryText = hudPrimaryText,
-                    secondaryText = hudSecondaryText,
-                    accentColor = colors.accent,
-                    onPrevTask = {
-                        haptics.reorderTick()
-                        focusedTaskIdxInPlace = (safeTaskIdx - 1 + selectedMarker.tasks.size) % selectedMarker.tasks.size
-                    },
-                    onNextTask = {
-                        haptics.reorderTick()
-                        focusedTaskIdxInPlace = (safeTaskIdx + 1) % selectedMarker.tasks.size
-                    },
-                    onNavigate = {
-                        haptics.confirm()
-                        launchMapsNavigation(
-                            context = context,
-                            lat = selectedMarker.place.latitude,
-                            lng = selectedMarker.place.longitude,
-                            label = selectedMarker.place.label
-                        )
-                    },
-                    onOpenTaskDetail = { onOpenTaskDetail(focusedTask) },
-                    onCompleteTask = { onCompleteTask(focusedTask) }
-                )
-            } else {
-                AtlasEmptyQuestCard(
-                    hudBg = hudBg,
-                    hudSheen = hudSheen,
-                    hudBorder = hudBorder,
-                    primaryText = hudPrimaryText,
-                    secondaryText = hudSecondaryText,
-                    accentColor = colors.accent,
-                    onOpenVault = onSwitchToVault
-                )
+            Box(modifier = cardWidthMod) {
+                if (selectedMarker != null) {
+                    val safeTaskIdx = focusedTaskIdxInPlace.coerceIn(0, selectedMarker.tasks.lastIndex)
+                    val focusedTask = selectedMarker.tasks[safeTaskIdx]
+                    AtlasQuestHudCard(
+                        marker = selectedMarker,
+                        taskIndex = safeTaskIdx,
+                        focusedTask = focusedTask,
+                        surfaceBg = surfaceBg,
+                        surfaceBorder = surfaceBorder,
+                        primaryText = primaryText,
+                        secondaryText = secondaryText,
+                        accentColor = colors.accent,
+                        onPrevTask = {
+                            haptics.reorderTick()
+                            focusedTaskIdxInPlace = (safeTaskIdx - 1 + selectedMarker.tasks.size) % selectedMarker.tasks.size
+                        },
+                        onNextTask = {
+                            haptics.reorderTick()
+                            focusedTaskIdxInPlace = (safeTaskIdx + 1) % selectedMarker.tasks.size
+                        },
+                        onNavigate = {
+                            haptics.confirm()
+                            launchMapsNavigation(
+                                context = context,
+                                lat = selectedMarker.place.latitude,
+                                lng = selectedMarker.place.longitude,
+                                label = selectedMarker.place.label
+                            )
+                        },
+                        onOpenTaskDetail = { onOpenTaskDetail(focusedTask) },
+                        onCompleteTask = { onCompleteTask(focusedTask) }
+                    )
+                } else {
+                    AtlasEmptyQuestCard(
+                        surfaceBg = surfaceBg,
+                        surfaceBorder = surfaceBorder,
+                        primaryText = primaryText,
+                        secondaryText = secondaryText,
+                        accentColor = colors.accent,
+                        onOpenVault = onSwitchToVault
+                    )
+                }
             }
         }
     }
@@ -998,127 +971,18 @@ fun AtlasThemeView(
 }
 
 @Composable
-private fun AtlasCompassTape(
-    compassBearing: Float,
-    targetBearing: Float?,
-    bg: Color,
-    sheen: Color,
-    border: Color,
-    primaryText: Color,
-    secondaryText: Color,
-    accentColor: Color,
-    modifier: Modifier = Modifier
+private fun TopIconAction(
+    onClick: () -> Unit,
+    content: @Composable () -> Unit
 ) {
-    val tabular = ZeroTheme.tabularTypography
-    val animatedBearing by animateFloatAsState(
-        targetValue = compassBearing,
-        animationSpec = tween(durationMillis = 120),
-        label = "atlas_compass_bearing"
-    )
-    val headingDeg = ((animatedBearing.roundToInt() % 360) + 360) % 360
-    val cardinal = AtlasQuestBuilder.cardinalDirection(animatedBearing)
-    val shape = RoundedCornerShape(12.dp)
-
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .height(28.dp)
-            .clip(shape)
-            .background(bg)
-            .background(Brush.verticalGradient(listOf(sheen, Color.Transparent)))
-            .hairlineBorder(shape = shape, color = border)
-            .padding(horizontal = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    Box(
+        modifier = Modifier
+            .size(32.dp)
+            .clip(CircleShape)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
     ) {
-        Canvas(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxHeight()
-        ) {
-            val w = size.width
-            val h = size.height
-            if (w <= 0f || h <= 0f) return@Canvas
-            val halfFov = 70f
-            val pxPerDeg = w / (halfFov * 2f)
-            val centerX = w / 2f
-
-            val labelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                textAlign = Paint.Align.CENTER
-                textSize = 9.5.dp.toPx()
-                isFakeBoldText = true
-            }
-
-            // Center lubber triangle at top
-            val caret = Path().apply {
-                moveTo(centerX, 6.dp.toPx())
-                lineTo(centerX - 3.5.dp.toPx(), 1.dp.toPx())
-                lineTo(centerX + 3.5.dp.toPx(), 1.dp.toPx())
-                close()
-            }
-            drawPath(path = caret, color = accentColor)
-
-            // Draw 15-degree tick marks across visible 140-deg arc
-            var deg = 0
-            while (deg < 360) {
-                var delta = ((deg - animatedBearing + 540f) % 360f) - 180f
-                if (abs(delta) <= halfFov) {
-                    val x = centerX + delta * pxPerDeg
-                    val edgeAlpha = (1f - (abs(delta) / halfFov)).coerceIn(0.08f, 1f)
-                    val cardinalLabel = when (deg) {
-                        0 -> "N"
-                        45 -> "NE"
-                        90 -> "E"
-                        135 -> "SE"
-                        180 -> "S"
-                        225 -> "SW"
-                        270 -> "W"
-                        315 -> "NW"
-                        else -> null
-                    }
-                    if (cardinalLabel != null) {
-                        val isCardinal4 = deg % 90 == 0
-                        val col = if (deg == 0) accentColor else primaryText
-                        labelPaint.color = col.copy(alpha = edgeAlpha * (if (isCardinal4) 0.95f else 0.72f)).toArgb()
-                        drawContext.canvas.nativeCanvas.drawText(
-                            cardinalLabel,
-                            x,
-                            h * 0.74f,
-                            labelPaint
-                        )
-                    } else {
-                        drawLine(
-                            color = secondaryText.copy(alpha = edgeAlpha * 0.45f),
-                            start = Offset(x, h * 0.34f),
-                            end = Offset(x, h * 0.66f),
-                            strokeWidth = 1.dp.toPx()
-                        )
-                    }
-                }
-                deg += 15
-            }
-
-            // Active Quest Waypoint indicator on the compass tape
-            if (targetBearing != null) {
-                val delta = (((targetBearing - animatedBearing + 540f) % 360f) - 180f)
-                val clamped = delta.coerceIn(-halfFov + 4f, halfFov - 4f)
-                val x = centerX + clamped * pxPerDeg
-                val diamond = Path().apply {
-                    moveTo(x, h - 7.5.dp.toPx())
-                    lineTo(x + 4.dp.toPx(), h - 3.5.dp.toPx())
-                    lineTo(x, h)
-                    lineTo(x - 4.dp.toPx(), h - 3.5.dp.toPx())
-                    close()
-                }
-                drawPath(path = diamond, color = accentColor)
-            }
-        }
-
-        Text(
-            text = "${headingDeg.toString().padStart(3, '0')}° $cardinal",
-            style = tabular.dateCompact,
-            color = primaryText
-        )
+        content()
     }
 }
 
@@ -1126,28 +990,25 @@ private fun AtlasCompassTape(
 private fun AtlasControlDock(
     isMapDark: Boolean,
     is3DMode: Boolean,
-    isCompassFollow: Boolean,
     showQuestRoute: Boolean,
     bg: Color,
-    sheen: Color,
     border: Color,
     primaryText: Color,
     secondaryText: Color,
     accentColor: Color,
     onToggleMapDark: () -> Unit,
     onToggle3D: () -> Unit,
-    onToggleCompassFollow: () -> Unit,
     onToggleRoute: () -> Unit,
     onRecenter: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val shape = RoundedCornerShape(16.dp)
+    val shape = RoundedCornerShape(14.dp)
     Column(
         modifier = modifier
-            .width(42.dp)
+            .width(38.dp)
+            .shadow(8.dp, shape, clip = false)
             .clip(shape)
             .background(bg)
-            .background(Brush.verticalGradient(listOf(sheen, Color.Transparent)))
             .hairlineBorder(shape = shape, color = border),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
@@ -1156,7 +1017,7 @@ private fun AtlasControlDock(
                 imageVector = if (isMapDark) Icons.Rounded.LightMode else Icons.Rounded.DarkMode,
                 contentDescription = stringResource(R.string.atlas_toggle_map_theme),
                 tint = primaryText,
-                modifier = Modifier.size(18.dp)
+                modifier = Modifier.size(17.dp)
             )
         }
         DockDivider(border)
@@ -1168,21 +1029,12 @@ private fun AtlasControlDock(
             )
         }
         DockDivider(border)
-        DockButton(onClick = onToggleCompassFollow) {
-            Icon(
-                imageVector = Icons.Rounded.Explore,
-                contentDescription = stringResource(R.string.atlas_toggle_compass_follow),
-                tint = if (isCompassFollow) accentColor else secondaryText,
-                modifier = Modifier.size(18.dp)
-            )
-        }
-        DockDivider(border)
         DockButton(onClick = onToggleRoute) {
             Icon(
                 imageVector = Icons.Rounded.Route,
                 contentDescription = stringResource(R.string.atlas_toggle_route),
                 tint = if (showQuestRoute) accentColor else secondaryText,
-                modifier = Modifier.size(18.dp)
+                modifier = Modifier.size(17.dp)
             )
         }
         DockDivider(border)
@@ -1191,7 +1043,7 @@ private fun AtlasControlDock(
                 imageVector = Icons.Rounded.MyLocation,
                 contentDescription = stringResource(R.string.atlas_recenter),
                 tint = accentColor,
-                modifier = Modifier.size(18.dp)
+                modifier = Modifier.size(17.dp)
             )
         }
     }
@@ -1205,7 +1057,7 @@ private fun DockButton(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(42.dp)
+            .height(38.dp)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
@@ -1217,7 +1069,7 @@ private fun DockButton(
 private fun DockDivider(color: Color) {
     Box(
         modifier = Modifier
-            .width(24.dp)
+            .width(20.dp)
             .height(0.5.dp)
             .background(color)
     )
@@ -1228,9 +1080,8 @@ private fun AtlasQuestHudCard(
     marker: AtlasQuestMarker,
     taskIndex: Int,
     focusedTask: TaskItem,
-    hudBg: Color,
-    hudSheen: Color,
-    hudBorder: Color,
+    surfaceBg: Color,
+    surfaceBorder: Color,
     primaryText: Color,
     secondaryText: Color,
     accentColor: Color,
@@ -1248,127 +1099,114 @@ private fun AtlasQuestHudCard(
         animationSpec = tween(durationMillis = 40),
         label = "atlas_hold_progress"
     )
-    val cardShape = RoundedCornerShape(16.dp)
+    val cardShape = RoundedCornerShape(18.dp)
 
     Column(
         modifier = Modifier
             .fillMaxWidth()
+            .shadow(12.dp, cardShape, clip = false)
             .clip(cardShape)
-            .background(hudBg)
-            .background(Brush.verticalGradient(listOf(hudSheen, Color.Transparent)))
+            .background(surfaceBg)
             .hairlineBorder(
                 shape = cardShape,
-                color = if (marker.isInsideGeofence) accentColor else hudBorder
+                color = if (marker.isInsideGeofence) accentColor.copy(alpha = 0.65f) else surfaceBorder
             )
-            .padding(horizontal = 12.dp, vertical = 10.dp),
+            .padding(horizontal = 14.dp, vertical = 11.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        // Row 1: Beacon Dot + Place Title + Distance + Tag + Navigate CTA
+        // Row 1: Place Title + Metadata + Circular Navigate Icon
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    text = marker.place.label,
+                    style = MaterialTheme.typography.titleSmall,
+                    color = primaryText,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    horizontalArrangement = Arrangement.spacedBy(5.dp)
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .size(8.dp)
-                            .clip(CircleShape)
-                            .background(accentColor)
-                    )
                     Text(
-                        text = marker.place.label,
-                        style = MaterialTheme.typography.titleSmall,
-                        color = primaryText,
+                        text = "#${marker.tagPath}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = secondaryText,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f, fill = false)
                     )
                     if (marker.isInsideGeofence) {
                         Text(
-                            text = stringResource(R.string.atlas_inside_geofence),
+                            text = "· ${stringResource(R.string.atlas_inside_geofence)}",
                             style = MaterialTheme.typography.labelSmall,
-                            color = accentColor,
-                            modifier = Modifier
-                                .clip(ZeroCapsuleShape)
-                                .background(accentColor.copy(alpha = 0.16f))
-                                .padding(horizontal = 6.dp, vertical = 1.dp)
+                            color = accentColor
                         )
                     } else if (marker.distanceMeters != null) {
                         Text(
-                            text = AtlasQuestBuilder.formatDistance(marker.distanceMeters),
+                            text = "· ${AtlasQuestBuilder.formatDistance(marker.distanceMeters)}",
                             style = tabular.dateCompact,
                             color = accentColor
                         )
                     }
                 }
-                Text(
-                    text = "#${marker.tagPath}",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = secondaryText,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
             }
 
-            Spacer(modifier = Modifier.width(8.dp))
+            Spacer(modifier = Modifier.width(10.dp))
 
-            Row(
+            Box(
                 modifier = Modifier
-                    .height(34.dp)
-                    .clip(ZeroSmallShape)
+                    .size(34.dp)
+                    .clip(CircleShape)
                     .background(accentColor.copy(alpha = 0.14f))
-                    .hairlineBorder(shape = ZeroSmallShape, color = accentColor.copy(alpha = 0.55f))
-                    .clickable(onClick = onNavigate)
-                    .padding(horizontal = 10.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    .hairlineBorder(shape = CircleShape, color = accentColor.copy(alpha = 0.42f))
+                    .clickable(onClick = onNavigate),
+                contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = Icons.Rounded.Navigation,
-                    contentDescription = null,
+                    contentDescription = stringResource(R.string.atlas_navigate_btn),
                     tint = accentColor,
-                    modifier = Modifier.size(14.dp)
-                )
-                Text(
-                    text = stringResource(R.string.atlas_navigate_btn),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = accentColor
+                    modifier = Modifier.size(16.dp)
                 )
             }
         }
 
-        // Row 2: Compact Task Title + Multi-task Switcher
+        // Row 2: Task Title + Task Switcher + Inline Hold-to-Complete Pill
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(ZeroSmallShape)
-                .background(primaryText.copy(alpha = 0.05f))
-                .clickable(onClick = onOpenTaskDetail)
-                .padding(horizontal = 10.dp, vertical = 6.dp),
+            modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Text(
-                text = focusedTask.title,
-                style = MaterialTheme.typography.bodyMedium,
-                color = primaryText,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f)
-            )
-            if (marker.tasks.size > 1) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = onPrevTask, modifier = Modifier.size(26.dp)) {
+            Row(
+                modifier = Modifier
+                    .weight(1f)
+                    .clip(ZeroSmallShape)
+                    .background(primaryText.copy(alpha = 0.045f))
+                    .clickable(onClick = onOpenTaskDetail)
+                    .padding(horizontal = 9.dp, vertical = 7.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Text(
+                    text = focusedTask.title,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = primaryText,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
+                )
+                if (marker.tasks.size > 1) {
+                    IconButton(onClick = onPrevTask, modifier = Modifier.size(22.dp)) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowLeft,
                             contentDescription = null,
                             tint = secondaryText,
-                            modifier = Modifier.size(16.dp)
+                            modifier = Modifier.size(15.dp)
                         )
                     }
                     Text(
@@ -1380,82 +1218,85 @@ private fun AtlasQuestHudCard(
                         style = tabular.dateCompact,
                         color = secondaryText
                     )
-                    IconButton(onClick = onNextTask, modifier = Modifier.size(26.dp)) {
+                    IconButton(onClick = onNextTask, modifier = Modifier.size(22.dp)) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
                             contentDescription = null,
                             tint = secondaryText,
-                            modifier = Modifier.size(16.dp)
+                            modifier = Modifier.size(15.dp)
                         )
                     }
                 }
             }
-        }
 
-        // Row 3: Sleek 0.3s Hold-to-Complete Anti-Misclick Bar
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(36.dp)
-                .clip(ZeroSmallShape)
-                .background(accentColor.copy(alpha = 0.14f))
-                .hairlineBorder(shape = ZeroSmallShape, color = accentColor.copy(alpha = 0.55f))
-                .pointerInput(focusedTask.id) {
-                    detectTapGestures(
-                        onPress = {
-                            haptics.reorderTick()
-                            var completed = false
-                            val start = System.currentTimeMillis()
-                            val durationMs = 300L
-                            var released = false
-                            while (!released && !completed) {
-                                val elapsed = System.currentTimeMillis() - start
-                                holdProgress = (elapsed.toFloat() / durationMs).coerceIn(0f, 1f)
-                                if (elapsed >= durationMs) {
-                                    completed = true
-                                    holdProgress = 1f
-                                    haptics.confirm()
-                                    onCompleteTask()
-                                    break
+            Box(
+                modifier = Modifier
+                    .height(34.dp)
+                    .widthIn(min = 84.dp)
+                    .clip(ZeroCapsuleShape)
+                    .background(accentColor.copy(alpha = 0.14f))
+                    .hairlineBorder(shape = ZeroCapsuleShape, color = accentColor.copy(alpha = 0.48f))
+                    .pointerInput(focusedTask.id) {
+                        detectTapGestures(
+                            onPress = {
+                                haptics.reorderTick()
+                                var completed = false
+                                val start = System.currentTimeMillis()
+                                val durationMs = 300L
+                                var released = false
+                                while (!released && !completed) {
+                                    val elapsed = System.currentTimeMillis() - start
+                                    holdProgress = (elapsed.toFloat() / durationMs).coerceIn(0f, 1f)
+                                    if (elapsed >= durationMs) {
+                                        completed = true
+                                        holdProgress = 1f
+                                        haptics.confirm()
+                                        onCompleteTask()
+                                        break
+                                    }
+                                    delay(16L)
+                                    released = tryAwaitRelease()
                                 }
-                                delay(16L)
-                                released = tryAwaitRelease()
+                                if (!completed) {
+                                    holdProgress = 0f
+                                }
                             }
-                            if (!completed) {
-                                holdProgress = 0f
-                            }
-                        }
-                    )
-                },
-            contentAlignment = Alignment.CenterStart
-        ) {
-            if (animatedHold > 0.01f) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth(animatedHold)
-                        .fillMaxHeight()
-                        .background(accentColor.copy(alpha = 0.45f))
-                )
-            }
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically
+                        )
+                    },
+                contentAlignment = Alignment.CenterStart
             ) {
-                Icon(
-                    imageVector = Icons.Rounded.Check,
-                    contentDescription = null,
-                    tint = accentColor,
-                    modifier = Modifier.size(15.dp)
-                )
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(
-                    text = stringResource(
-                        if (holdProgress > 0.05f) R.string.atlas_keep_holding else R.string.atlas_hold_complete
-                    ),
-                    style = MaterialTheme.typography.labelLarge,
-                    color = accentColor
-                )
+                if (animatedHold > 0.01f) {
+                    Box(
+                        modifier = Modifier
+                            .matchParentSize()
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth(animatedHold)
+                                .fillMaxHeight()
+                                .background(accentColor.copy(alpha = 0.45f))
+                        )
+                    }
+                }
+                Row(
+                    modifier = Modifier.padding(horizontal = 11.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Check,
+                        contentDescription = null,
+                        tint = accentColor,
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Text(
+                        text = stringResource(
+                            if (holdProgress > 0.05f) R.string.atlas_keep_holding else R.string.atlas_hold_short
+                        ),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = accentColor
+                    )
+                }
             }
         }
     }
@@ -1463,22 +1304,22 @@ private fun AtlasQuestHudCard(
 
 @Composable
 private fun AtlasEmptyQuestCard(
-    hudBg: Color,
-    hudSheen: Color,
-    hudBorder: Color,
+    surfaceBg: Color,
+    surfaceBorder: Color,
     primaryText: Color,
     secondaryText: Color,
     accentColor: Color,
     onOpenVault: () -> Unit
 ) {
+    val cardShape = RoundedCornerShape(18.dp)
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(hudBg)
-            .background(Brush.verticalGradient(listOf(hudSheen, Color.Transparent)))
-            .hairlineBorder(shape = RoundedCornerShape(16.dp), color = hudBorder)
-            .padding(12.dp),
+            .shadow(12.dp, cardShape, clip = false)
+            .clip(cardShape)
+            .background(surfaceBg)
+            .hairlineBorder(shape = cardShape, color = surfaceBorder)
+            .padding(horizontal = 14.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         Text(
@@ -1489,22 +1330,23 @@ private fun AtlasEmptyQuestCard(
         Text(
             text = stringResource(R.string.atlas_empty_desc),
             style = MaterialTheme.typography.bodySmall,
-            color = secondaryText
+            color = secondaryText,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis
         )
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .heightIn(min = 38.dp)
-                .clip(ZeroSmallShape)
+                .height(36.dp)
+                .clip(ZeroCapsuleShape)
                 .background(accentColor.copy(alpha = 0.14f))
-                .hairlineBorder(shape = ZeroSmallShape, color = accentColor.copy(alpha = 0.5f))
-                .clickable(onClick = onOpenVault)
-                .padding(horizontal = 12.dp, vertical = 7.dp),
+                .hairlineBorder(shape = ZeroCapsuleShape, color = accentColor.copy(alpha = 0.45f))
+                .clickable(onClick = onOpenVault),
             contentAlignment = Alignment.Center
         ) {
             Text(
                 text = stringResource(R.string.atlas_open_vault_tags),
-                style = MaterialTheme.typography.labelLarge,
+                style = MaterialTheme.typography.labelMedium,
                 color = accentColor
             )
         }
@@ -1623,46 +1465,37 @@ private fun launchMapsNavigation(context: android.content.Context, lat: Double, 
 }
 
 private fun createPlayerDotIcon(density: Float, accentColor: Int): BitmapDescriptor {
-    val sizePx = (36f * density).toInt().coerceAtLeast(48)
+    val sizePx = (26f * density).toInt().coerceAtLeast(36)
     val bmp = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
     val canvas = Canvas(bmp)
     val cx = sizePx / 2f
     val cy = sizePx / 2f
 
-    val haloPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = ColorUtils.setAlphaComponent(accentColor, 68)
+    val shadowPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = 0x28000000
         style = Paint.Style.FILL
     }
-    canvas.drawCircle(cx, cy, sizePx * 0.46f, haloPaint)
+    canvas.drawCircle(cx, cy + 1f * density, sizePx * 0.34f, shadowPaint)
 
     val whiteRingPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = 0xFFFFFFFF.toInt()
         style = Paint.Style.FILL
     }
-    canvas.drawCircle(cx, cy, sizePx * 0.27f, whiteRingPaint)
+    canvas.drawCircle(cx, cy, sizePx * 0.32f, whiteRingPaint)
 
     val corePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = accentColor
         style = Paint.Style.FILL
     }
-    canvas.drawCircle(cx, cy, sizePx * 0.19f, corePaint)
-
-    val glintPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = 0xCCFFFFFF.toInt()
-        style = Paint.Style.FILL
-    }
-    canvas.drawCircle(cx - sizePx * 0.04f, cy - sizePx * 0.04f, sizePx * 0.05f, glintPaint)
+    canvas.drawCircle(cx, cy, sizePx * 0.21f, corePaint)
 
     return BitmapDescriptorFactory.fromBitmap(bmp)
 }
 
 /**
- * Renders a 3D vertical luminous light-pillar Quest Beacon (`anchor(0.5f, 0.92f)`):
- * - Ground elliptical shadow + glowing bullseye anchor
- * - Vertical gradient energy beam
- * - Floating frosted tactical badge pill with task count orb + truncated landmark label
+ * Clean floating architectural pill pin with a tiny 5dp triangular pointer tail (`anchor(0.5f, 1.0f)`).
  */
-private fun createQuestBeaconIcon(
+private fun createQuestPinIcon(
     density: Float,
     count: Int,
     label: String,
@@ -1670,135 +1503,112 @@ private fun createQuestBeaconIcon(
     isNearest: Boolean,
     isInside: Boolean,
     isMapDark: Boolean,
-    accentColor: Int,
-    fillColor: Int,
-    textColor: Int
+    accentColor: Int
 ): BitmapDescriptor {
-    val showLabel = isSelected || isInside || isNearest
+    val highlighted = isSelected || isInside
+    val showLabel = highlighted || isNearest
     val shortTitle = if (showLabel && label.isNotBlank()) {
         val trimmed = label.trim()
-        if (trimmed.length > 9) trimmed.take(9) + "…" else trimmed
+        if (trimmed.length > 10) trimmed.take(10) + "…" else trimmed
     } else {
         null
     }
 
+    val titleColor = when {
+        highlighted -> 0xFFFFFFFF.toInt()
+        isMapDark -> 0xFFF3F4F6.toInt()
+        else -> 0xFF111827.toInt()
+    }
     val titlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = if (isMapDark) 0xFFF4F4F5.toInt() else 0xFF111827.toInt()
+        color = titleColor
         textSize = 11.5f * density
-        isFakeBoldText = true
+        isFakeBoldText = highlighted
     }
     val countPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = 0xFFFFFFFF.toInt()
-        textSize = 11.5f * density
+        color = if (highlighted) accentColor else 0xFFFFFFFF.toInt()
+        textSize = 10.5f * density
         textAlign = Paint.Align.CENTER
         isFakeBoldText = true
     }
 
-    val orbSize = (if (isSelected || isInside) 26f else 22f) * density
-    val pillPaddingH = 5f * density
-    val titleWidth = shortTitle?.let { titlePaint.measureText(it) } ?: 0f
-    val pillWidth = if (shortTitle != null) {
-        orbSize + 6f * density + titleWidth + pillPaddingH * 2f
+    val badgeSize = 19f * density
+    val pillPadH = 6f * density
+    val titleW = shortTitle?.let { titlePaint.measureText(it) } ?: 0f
+    val pillW = if (shortTitle != null) {
+        pillPadH + badgeSize + 5f * density + titleW + pillPadH + 2f * density
     } else {
-        orbSize + 4f * density
+        badgeSize + 6f * density
     }
-    val pillHeight = orbSize + 4f * density
-    val pillarHeight = (if (isSelected || isInside) 36f else 22f) * density
-    val groundSize = 16f * density
+    val pillH = 26f * density
+    val tailH = 5f * density
+    val pad = 4f * density
 
-    val widthPx = (pillWidth + 12f * density).toInt().coerceAtLeast((36f * density).toInt())
-    val heightPx = (pillHeight + pillarHeight + groundSize).toInt().coerceAtLeast((64f * density).toInt())
+    val widthPx = (pillW + pad * 2f).toInt().coerceAtLeast((30f * density).toInt())
+    val heightPx = (pillH + tailH + pad * 2f).toInt().coerceAtLeast((36f * density).toInt())
 
     val bmp = Bitmap.createBitmap(widthPx, heightPx, Bitmap.Config.ARGB_8888)
     val canvas = Canvas(bmp)
     val cx = widthPx / 2f
-    val groundY = heightPx - groundSize * 0.55f
-    val pillTop = 2f * density
-    val pillBottom = pillTop + pillHeight
+    val pillTop = pad
+    val pillBottom = pillTop + pillH
+    val pillRect = RectF(cx - pillW / 2f, pillTop, cx + pillW / 2f, pillBottom)
+    val corner = pillH / 2f
 
-    // 1. Ground ambient halo + bullseye ring
-    val groundGlowPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = ColorUtils.setAlphaComponent(accentColor, if (isSelected || isInside) 90 else 55)
+    // Subtle elevation shadow
+    val shadowPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = 0x33000000
         style = Paint.Style.FILL
     }
-    canvas.drawOval(
-        RectF(cx - 11f * density, groundY - 4.5f * density, cx + 11f * density, groundY + 4.5f * density),
-        groundGlowPaint
-    )
-    val groundDotPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = accentColor
+    val shadowRect = RectF(pillRect).apply { offset(0f, 1.5f * density) }
+    canvas.drawRoundRect(shadowRect, corner, corner, shadowPaint)
+
+    val fillCol = when {
+        highlighted -> accentColor
+        isMapDark -> 0xF2151923.toInt()
+        else -> 0xFAFFFFFF.toInt()
+    }
+    val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = fillCol
         style = Paint.Style.FILL
     }
-    canvas.drawOval(
-        RectF(cx - 4.5f * density, groundY - 2.2f * density, cx + 4.5f * density, groundY + 2.2f * density),
-        groundDotPaint
-    )
+    canvas.drawRoundRect(pillRect, corner, corner, bgPaint)
 
-    // 2. Vertical Luminous Light Pillar (soft outer beam + sharp bright core)
-    val outerBeamPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        shader = LinearGradient(
-            cx, groundY,
-            cx, pillBottom,
-            ColorUtils.setAlphaComponent(accentColor, if (isSelected || isInside) 210 else 135),
-            ColorUtils.setAlphaComponent(accentColor, 20),
-            Shader.TileMode.CLAMP
-        )
+    // Pointer tail
+    val tailPath = Path().apply {
+        moveTo(cx - 4.5f * density, pillBottom - 0.5f * density)
+        lineTo(cx, pillBottom + tailH)
+        lineTo(cx + 4.5f * density, pillBottom - 0.5f * density)
+        close()
     }
-    val outerHalfW = (if (isSelected || isInside) 4.2f else 2.8f) * density
-    canvas.drawRect(cx - outerHalfW, pillBottom - 2f * density, cx + outerHalfW, groundY, outerBeamPaint)
+    canvas.drawPath(tailPath, bgPaint)
 
-    val coreBeamPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        shader = LinearGradient(
-            cx, groundY,
-            cx, pillBottom,
-            0xFFFFFFFF.toInt(),
-            ColorUtils.setAlphaComponent(accentColor, 210),
-            Shader.TileMode.CLAMP
-        )
+    val borderCol = when {
+        highlighted -> 0x33FFFFFF
+        isMapDark -> 0x24FFFFFF
+        else -> 0x16000000
     }
-    val coreHalfW = (if (isSelected || isInside) 1.3f else 0.9f) * density
-    canvas.drawRect(cx - coreHalfW, pillBottom - 2f * density, cx + coreHalfW, groundY, coreBeamPaint)
-
-    // 3. Floating Tactical Badge Pill perched at beam apex
-    val pillLeft = cx - pillWidth / 2f
-    val pillRight = cx + pillWidth / 2f
-    val pillRect = RectF(pillLeft, pillTop, pillRight, pillBottom)
-    val corner = pillHeight / 2f
-
-    val pillBgColor = if (shortTitle != null) {
-        if (isMapDark) 0xEC101522.toInt() else 0xF5FFFFFF.toInt()
-    } else {
-        fillColor
-    }
-    val pillBgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = pillBgColor
-        style = Paint.Style.FILL
-    }
-    canvas.drawRoundRect(pillRect, corner, corner, pillBgPaint)
-
-    val pillBorderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = if (isSelected || isInside) accentColor else ColorUtils.setAlphaComponent(accentColor, 180)
+    val borderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = borderCol
         style = Paint.Style.STROKE
-        strokeWidth = (if (isSelected || isInside) 1.6f else 1.2f) * density
+        strokeWidth = 0.8f * density
     }
-    canvas.drawRoundRect(pillRect, corner, corner, pillBorderPaint)
+    canvas.drawRoundRect(pillRect, corner, corner, borderPaint)
 
-    // Count Orb
-    val orbCx = if (shortTitle != null) pillLeft + pillPaddingH + orbSize / 2f else cx
-    val orbCy = pillTop + pillHeight / 2f
-    val orbPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = accentColor
+    val badgeCx = if (shortTitle != null) pillRect.left + pillPadH + badgeSize / 2f else cx
+    val badgeCy = pillTop + pillH / 2f
+    val badgeBgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = if (highlighted) 0xFFFFFFFF.toInt() else accentColor
         style = Paint.Style.FILL
     }
-    canvas.drawCircle(orbCx, orbCy, orbSize * 0.44f, orbPaint)
+    canvas.drawCircle(badgeCx, badgeCy, badgeSize / 2f, badgeBgPaint)
 
     val countStr = count.coerceAtMost(99).toString()
-    val countY = orbCy - (countPaint.descent() + countPaint.ascent()) / 2f
-    canvas.drawText(countStr, orbCx, countY, countPaint)
+    val countY = badgeCy - (countPaint.descent() + countPaint.ascent()) / 2f
+    canvas.drawText(countStr, badgeCx, countY, countPaint)
 
     if (shortTitle != null) {
-        val textX = pillLeft + pillPaddingH + orbSize + 4.5f * density
-        val textY = orbCy - (titlePaint.descent() + titlePaint.ascent()) / 2f
+        val textX = pillRect.left + pillPadH + badgeSize + 5.5f * density
+        val textY = badgeCy - (titlePaint.descent() + titlePaint.ascent()) / 2f
         canvas.drawText(shortTitle, textX, textY, titlePaint)
     }
 

@@ -58,6 +58,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -445,7 +446,8 @@ fun ZeroAdaptiveShell(
         activeRunwayTaskId != null
     val shellBackgroundColor by animateColorAsState(
         targetValue = when {
-            isNowAtlas && !isAtlasMapDark -> Color(0xFFF3F4F7)
+            isNowAtlas && !isAtlasMapDark -> Color(0xFFEAEDF3)
+            isNowAtlas && isAtlasMapDark -> Color(0xFF0F141E)
             isNowStage -> MonolithBlack
             else -> colors.background
         },
@@ -470,9 +472,9 @@ fun ZeroAdaptiveShell(
         if (isNowAtlas) {
             Box(modifier = Modifier.fillMaxSize()) {
                 ZeroTheme(
-                    darkTheme = true,
+                    darkTheme = isAtlasMapDark,
                     accent = uiState.activeAccent,
-                    accentOverride = SignalOrange,
+                    accentOverride = null,
                     hapticsEnabled = uiState.hapticsEnabled
                 ) {
                     ExecuteHostScreen(
@@ -516,7 +518,7 @@ fun ZeroAdaptiveShell(
                 ZeroTheme(
                     darkTheme = isAtlasMapDark,
                     accent = uiState.activeAccent,
-                    accentOverride = SignalOrange,
+                    accentOverride = null,
                     hapticsEnabled = uiState.hapticsEnabled
                 ) {
                     DualStateModeBar(
@@ -950,13 +952,13 @@ private fun DualStateModeBar(
 
     val capsuleBg = when {
         !frostedGlass -> colors.surface
-        isDarkStage -> Color(0xBD141822)
-        else -> Color(0xDCFFFFFF)
+        isDarkStage -> Color(0xE813161E)
+        else -> Color(0xF2FFFFFF)
     }
     val capsuleBorder = when {
         !frostedGlass -> colors.hairlineBorder
-        isDarkStage -> Color.White.copy(alpha = 0.18f)
-        else -> Color.Black.copy(alpha = 0.10f)
+        isDarkStage -> Color.White.copy(alpha = 0.10f)
+        else -> Color.Black.copy(alpha = 0.07f)
     }
 
     Box(
@@ -972,30 +974,23 @@ private fun DualStateModeBar(
                 }
             )
             .navigationBarsPadding()
-            .padding(horizontal = 16.dp, vertical = 8.dp),
+            .padding(horizontal = 16.dp, vertical = if (frostedGlass) 10.dp else 8.dp),
         contentAlignment = Alignment.Center
     ) {
         Row(
             modifier = Modifier
-                .widthIn(max = 360.dp)
+                .widthIn(max = if (frostedGlass) 264.dp else 360.dp)
                 .fillMaxWidth()
-                .height(48.dp)
-                .clip(ZeroCapsuleShape)
-                .background(capsuleBg)
+                .height(if (frostedGlass) 44.dp else 48.dp)
                 .then(
                     if (frostedGlass) {
-                        Modifier.background(
-                            androidx.compose.ui.graphics.Brush.verticalGradient(
-                                listOf(
-                                    Color.White.copy(alpha = if (isDarkStage) 0.11f else 0.42f),
-                                    Color.Transparent
-                                )
-                            )
-                        )
+                        Modifier.shadow(elevation = 10.dp, shape = ZeroCapsuleShape, clip = false)
                     } else {
                         Modifier
                     }
                 )
+                .clip(ZeroCapsuleShape)
+                .background(capsuleBg)
                 .hairlineBorder(shape = ZeroCapsuleShape, color = capsuleBorder)
                 .padding(4.dp),
             horizontalArrangement = Arrangement.spacedBy(4.dp)

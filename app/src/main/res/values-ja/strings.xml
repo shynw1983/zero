@@ -571,4 +571,5 @@
     <string name="atlas_open_tasks_at_place">%1$d/%2$d</string>
     <string name="atlas_header_title">ATLAS · 3D マップ</string>
     <string name="atlas_toggle_compass_follow">方位連動カメラ切替</string>
+    <string name="atlas_hold_short">長押し完了</string>
 </resources>
