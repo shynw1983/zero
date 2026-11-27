@@ -16,8 +16,8 @@ android {
         applicationId = "com.zero.todo"
         minSdk = 26
         targetSdk = 35
-        versionCode = 40
-        versionName = "2.13.0"
+        versionCode = 41
+        versionName = "2.13.1"
 
         val localProps = Properties().apply {
             val file = rootProject.file("local.properties")

@@ -274,6 +274,8 @@ fun ZeroAdaptiveShell(
     aiTestStatus: AiTestStatus? = null,
     aiCaptureState: AiCaptureDialogState = AiCaptureDialogState(),
     aiBreakdownState: AiBreakdownDialogState = AiBreakdownDialogState(),
+    isAtlasMapDark: Boolean = uiState.isDarkTheme,
+    onToggleAtlasMapDark: () -> Unit = {},
     windowWidthSizeClass: WindowWidthSizeClass = currentWindowAdaptiveInfo().windowSizeClass.windowWidthSizeClass,
     modifier: Modifier = Modifier
 ) {
@@ -435,13 +437,18 @@ fun ZeroAdaptiveShell(
         }
 
     val isNowStage = uiState.workspaceMode == WorkspaceMode.NOW
+    val isNowAtlas = isNowStage && uiState.executeTheme == ExecuteTheme.ATLAS
     val activeRunwayTaskId = uiState.focusedRunwayTaskId ?: uiState.runwayQueue.firstOrNull()?.id
     val showInlineNowFlow = isNowStage &&
         uiState.focusState.isActive &&
         uiState.focusState.task?.id == activeRunwayTaskId &&
         activeRunwayTaskId != null
     val shellBackgroundColor by animateColorAsState(
-        targetValue = if (isNowStage) MonolithBlack else colors.background,
+        targetValue = when {
+            isNowAtlas && !isAtlasMapDark -> Color(0xFFF3F4F7)
+            isNowStage -> MonolithBlack
+            else -> colors.background
+        },
         animationSpec = ZeroMotion.ColorSpring,
         label = "shell_stage_bg"
     )
@@ -458,9 +465,75 @@ fun ZeroAdaptiveShell(
     Box(
         modifier = rootKeyboardModifier
             .background(shellBackgroundColor)
-            .statusBarsPadding()
+            .then(if (isNowAtlas) Modifier else Modifier.statusBarsPadding())
     ) {
-        Column(modifier = Modifier.fillMaxSize()) {
+        if (isNowAtlas) {
+            Box(modifier = Modifier.fillMaxSize()) {
+                ZeroTheme(
+                    darkTheme = true,
+                    accent = uiState.activeAccent,
+                    accentOverride = SignalOrange,
+                    hapticsEnabled = uiState.hapticsEnabled
+                ) {
+                    ExecuteHostScreen(
+                        state = executeUiState,
+                        quickInputFocusRequester = quickInputFocusRequester,
+                        onSelectExecuteTheme = callbacks.onSetExecuteTheme,
+                        onSelectFocusedTask = callbacks.onSelectFocusedRunwayTask,
+                        onFocusPreviousTask = callbacks.onFocusPreviousRunwayTask,
+                        onFocusNextTask = callbacks.onFocusNextRunwayTask,
+                        onCompleteTask = callbacks.onToggleTaskComplete,
+                        onSkipTask = callbacks.onSkipRunwayTask,
+                        onOpenTaskDetail = callbacks.onOpenTaskDetailFromNow,
+                        onStartFocus = callbacks.onStartFocus,
+                        onSelectFocusMode = callbacks.onSelectFocusMode,
+                        onStartOrResumeFocus = callbacks.onStartOrResumeFocus,
+                        onPauseFocus = callbacks.onPauseFocus,
+                        onResetFocus = callbacks.onResetFocus,
+                        onContinueFocusToPomodoro = callbacks.onContinueFocusToPomodoro,
+                        onStopStopwatchFocus = callbacks.onStopStopwatchFocus,
+                        onCompleteFocusedTask = callbacks.onCompleteFocusedTask,
+                        onExitFocus = callbacks.onExitFocus,
+                        onUpdateFirstStep = callbacks.onUpdateTaskFirstStep,
+                        onCompleteFirstStepAndStartFlow = callbacks.onCompleteFirstStepAndStartFlow,
+                        onUpdateEffort = callbacks.onUpdateTaskEffort,
+                        onOpenTriage = callbacks.onOpenTriage,
+                        onSwitchToVault = { callbacks.onSetWorkspaceMode(WorkspaceMode.VAULT) },
+                        onOpenSettings = callbacks.onOpenSettings,
+                        onQuickInputEdit = callbacks.onQuickInputEdit,
+                        onQuickInputSubmit = callbacks.onQuickInputSubmit,
+                        onToggleContinuousEntry = callbacks.onToggleContinuousEntry,
+                        onVoiceInputRecognized = callbacks.onVoiceInputRecognized,
+                        onOpenAiCapture = callbacks.onOpenAiCapture,
+                        onOpenAiBreakdown = callbacks.onOpenAiBreakdown,
+                        onUndo = callbacks.onUndo,
+                        onUndoTimeout = callbacks.onUndoTimeout,
+                        isAtlasMapDark = isAtlasMapDark,
+                        onToggleAtlasMapDark = onToggleAtlasMapDark
+                    )
+                }
+
+                ZeroTheme(
+                    darkTheme = isAtlasMapDark,
+                    accent = uiState.activeAccent,
+                    accentOverride = SignalOrange,
+                    hapticsEnabled = uiState.hapticsEnabled
+                ) {
+                    DualStateModeBar(
+                        activeMode = uiState.workspaceMode,
+                        runwayCount = uiState.runwayQueue.size,
+                        vaultBadgeCount = uiState.triageQueue.size,
+                        isDarkStage = isAtlasMapDark,
+                        frostedGlass = true,
+                        onSelectMode = callbacks.onSetWorkspaceMode,
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .graphicsLayer { alpha = modeBarAlpha }
+                    )
+                }
+            }
+        } else {
+            Column(modifier = Modifier.fillMaxSize()) {
             // Primary Dual-State Content: NOW (Darkroom Execution Runway) vs VAULT (Swiss-OCD Studio)
             AnimatedContent(
                 targetState = uiState.workspaceMode,
@@ -518,7 +591,9 @@ fun ZeroAdaptiveShell(
                                 onOpenAiCapture = callbacks.onOpenAiCapture,
                                 onOpenAiBreakdown = callbacks.onOpenAiBreakdown,
                                 onUndo = callbacks.onUndo,
-                                onUndoTimeout = callbacks.onUndoTimeout
+                                onUndoTimeout = callbacks.onUndoTimeout,
+                                isAtlasMapDark = isAtlasMapDark,
+                                onToggleAtlasMapDark = onToggleAtlasMapDark
                             )
                         }
                     }
@@ -581,6 +656,7 @@ fun ZeroAdaptiveShell(
                     modifier = Modifier.graphicsLayer { alpha = modeBarAlpha }
                 )
             }
+        }
         }
 
         // Full-Screen 30-Second Lightning Triage Deck Overlay
@@ -866,16 +942,35 @@ private fun DualStateModeBar(
     vaultBadgeCount: Int,
     isDarkStage: Boolean,
     onSelectMode: (WorkspaceMode) -> Unit,
+    frostedGlass: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     val colors = ZeroTheme.colors
     val haptics = rememberZeroHaptics()
 
+    val capsuleBg = when {
+        !frostedGlass -> colors.surface
+        isDarkStage -> Color(0xBD141822)
+        else -> Color(0xDCFFFFFF)
+    }
+    val capsuleBorder = when {
+        !frostedGlass -> colors.hairlineBorder
+        isDarkStage -> Color.White.copy(alpha = 0.18f)
+        else -> Color.Black.copy(alpha = 0.10f)
+    }
+
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .background(if (isDarkStage) MonolithBlack else colors.background)
-            .hairlineDividerTop()
+            .then(
+                if (frostedGlass) {
+                    Modifier
+                } else {
+                    Modifier
+                        .background(if (isDarkStage) MonolithBlack else colors.background)
+                        .hairlineDividerTop()
+                }
+            )
             .navigationBarsPadding()
             .padding(horizontal = 16.dp, vertical = 8.dp),
         contentAlignment = Alignment.Center
@@ -886,8 +981,22 @@ private fun DualStateModeBar(
                 .fillMaxWidth()
                 .height(48.dp)
                 .clip(ZeroCapsuleShape)
-                .background(colors.surface)
-                .hairlineBorder(shape = ZeroCapsuleShape)
+                .background(capsuleBg)
+                .then(
+                    if (frostedGlass) {
+                        Modifier.background(
+                            androidx.compose.ui.graphics.Brush.verticalGradient(
+                                listOf(
+                                    Color.White.copy(alpha = if (isDarkStage) 0.11f else 0.42f),
+                                    Color.Transparent
+                                )
+                            )
+                        )
+                    } else {
+                        Modifier
+                    }
+                )
+                .hairlineBorder(shape = ZeroCapsuleShape, color = capsuleBorder)
                 .padding(4.dp),
             horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {

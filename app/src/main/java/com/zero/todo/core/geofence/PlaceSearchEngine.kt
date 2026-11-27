@@ -127,16 +127,83 @@ object PlaceSearchEngine {
             )
         }
 
-        // 2. OpenStreetMap Nominatim (great for brand/store POIs like 7-Eleven, Lawson, etc.)
+        // 2. Local bounded Nominatim + system Geocoder combined & sorted strictly nearest-first
+        val combined = mutableListOf<PlaceSearchResult>()
+        if (biasLat != null && biasLng != null) {
+            combined += runCatching {
+                queryNominatim(trimmed, biasLat, biasLng, deltaDeg = 0.035, bounded = true, limit = 25)
+            }.getOrDefault(emptyList())
+            combined += runCatching {
+                querySystemGeocoder(context, trimmed, biasLat, biasLng, deltaDeg = 0.035, maxResults = 10)
+            }.getOrDefault(emptyList())
+
+            if (combined.size < 5) {
+                combined += runCatching {
+                    queryNominatim(trimmed, biasLat, biasLng, deltaDeg = 0.18, bounded = true, limit = 15)
+                }.getOrDefault(emptyList())
+            }
+            if (combined.isEmpty()) {
+                combined += runCatching {
+                    queryNominatim(trimmed, biasLat, biasLng, deltaDeg = 0.45, bounded = false, limit = 15)
+                }.getOrDefault(emptyList())
+            }
+            if (combined.isEmpty()) {
+                combined += runCatching {
+                    querySystemGeocoder(context, trimmed, biasLat, biasLng, deltaDeg = 0.35, maxResults = 10)
+                }.getOrDefault(emptyList())
+            }
+            return@withContext mergeAndSortByDistance(combined, biasLat, biasLng, maxResults = 12)
+        }
+
+        // 3. No GPS fix available: unbounded Nominatim then Android system Geocoder fallback
         val nominatim = runCatching {
-            queryNominatim(trimmed, biasLat, biasLng)
+            queryNominatim(trimmed, null, null, deltaDeg = 0.08, bounded = false, limit = 12)
         }.getOrDefault(emptyList())
         if (nominatim.isNotEmpty()) return@withContext nominatim
 
-        // 3. Fallback to Android system Geocoder
         runCatching {
-            querySystemGeocoder(context, trimmed, biasLat, biasLng)
+            querySystemGeocoder(context, trimmed, null, null, deltaDeg = 0.15, maxResults = 8)
         }.getOrDefault(emptyList())
+    }
+
+    fun mergeAndSortByDistance(
+        results: List<PlaceSearchResult>,
+        biasLat: Double?,
+        biasLng: Double?,
+        dedupeMeters: Int = 35,
+        maxResults: Int = 12
+    ): List<PlaceSearchResult> {
+        if (results.isEmpty()) return emptyList()
+        val withDistances = results.map { item ->
+            val computed = if (biasLat != null && biasLng != null) {
+                haversineDistanceMeters(biasLat, biasLng, item.latitude, item.longitude)
+            } else {
+                item.distanceMeters
+            }
+            item.copy(distanceMeters = computed)
+        }.sortedWith(
+            compareBy<PlaceSearchResult>(
+                { it.distanceMeters ?: Int.MAX_VALUE },
+                { -it.address.length }
+            )
+        )
+
+        val deduped = mutableListOf<PlaceSearchResult>()
+        for (candidate in withDistances) {
+            val isDuplicate = deduped.any { existing ->
+                haversineDistanceMeters(
+                    existing.latitude,
+                    existing.longitude,
+                    candidate.latitude,
+                    candidate.longitude
+                ) <= dedupeMeters
+            }
+            if (!isDuplicate) {
+                deduped += candidate
+                if (deduped.size >= maxResults) break
+            }
+        }
+        return deduped
     }
 
     suspend fun reverseGeocode(
@@ -239,15 +306,26 @@ object PlaceSearchEngine {
         bestLast?.let { it.latitude to it.longitude }
     }
 
-    private fun queryNominatim(query: String, biasLat: Double?, biasLng: Double?): List<PlaceSearchResult> {
+    private fun queryNominatim(
+        query: String,
+        biasLat: Double?,
+        biasLng: Double?,
+        deltaDeg: Double = 0.08,
+        bounded: Boolean = false,
+        limit: Int = 15
+    ): List<PlaceSearchResult> {
         val encoded = URLEncoder.encode(query, "UTF-8")
         val viewboxParam = if (biasLat != null && biasLng != null) {
-            val delta = 0.08
-            "&viewbox=${biasLng - delta},${biasLat + delta},${biasLng + delta},${biasLat - delta}"
+            val left = (biasLng - deltaDeg).coerceAtLeast(-180.0)
+            val top = (biasLat + deltaDeg).coerceAtMost(90.0)
+            val right = (biasLng + deltaDeg).coerceAtMost(180.0)
+            val bottom = (biasLat - deltaDeg).coerceAtLeast(-90.0)
+            val boundFlag = if (bounded) "&bounded=1" else ""
+            "&viewbox=$left,$top,$right,$bottom$boundFlag"
         } else {
             ""
         }
-        val url = "https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=8&q=$encoded$viewboxParam"
+        val url = "https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=$limit&q=$encoded$viewboxParam"
         val body = httpGet(url)
         val results = parseNominatimSearchJson(body, biasLat, biasLng)
         return if (biasLat != null && biasLng != null) {
@@ -261,20 +339,22 @@ object PlaceSearchEngine {
         context: Context,
         query: String,
         biasLat: Double?,
-        biasLng: Double?
+        biasLng: Double?,
+        deltaDeg: Double = 0.15,
+        maxResults: Int = 8
     ): List<PlaceSearchResult> {
         @Suppress("DEPRECATION")
         val raw = if (biasLat != null && biasLng != null) {
             Geocoder(context, Locale.getDefault()).getFromLocationName(
                 query,
-                6,
-                (biasLat - 0.15).coerceAtLeast(-90.0),
-                (biasLng - 0.15).coerceAtLeast(-180.0),
-                (biasLat + 0.15).coerceAtMost(90.0),
-                (biasLng + 0.15).coerceAtMost(180.0)
+                maxResults,
+                (biasLat - deltaDeg).coerceAtLeast(-90.0),
+                (biasLng - deltaDeg).coerceAtLeast(-180.0),
+                (biasLat + deltaDeg).coerceAtMost(90.0),
+                (biasLng + deltaDeg).coerceAtMost(180.0)
             )
         } else {
-            Geocoder(context, Locale.getDefault()).getFromLocationName(query, 6)
+            Geocoder(context, Locale.getDefault()).getFromLocationName(query, maxResults)
         }
         return raw.orEmpty().map { addr ->
             val full = (0..addr.maxAddressLineIndex)

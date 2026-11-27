@@ -112,6 +112,8 @@ fun QuickInputCapsule(
     aiConfigured: Boolean = false,
     onOpenAiCapture: (initialText: String, autoLaunchCamera: Boolean, autoAnalyze: Boolean) -> Unit = { _, _, _ -> },
     currentDate: LocalDate = LocalDate.now(),
+    frostedGlass: Boolean = false,
+    frostedDark: Boolean = true,
     modifier: Modifier = Modifier
 ) {
     val colors = ZeroTheme.colors
@@ -248,14 +250,39 @@ fun QuickInputCapsule(
         }
 
         // Main Capsule Container
+        val glassBase = when {
+            !frostedGlass -> colors.surfaceElevated
+            frostedDark -> Color(0xB8141822)
+            else -> Color(0xD9FFFFFF)
+        }
+        val glassBorder = when {
+            isFocused -> colors.accent
+            !frostedGlass -> colors.hairlineBorder
+            frostedDark -> Color.White.copy(alpha = 0.16f)
+            else -> Color.Black.copy(alpha = 0.10f)
+        }
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(ZeroCapsuleShape)
-                .background(colors.surfaceElevated)
+                .background(glassBase)
+                .then(
+                    if (frostedGlass) {
+                        Modifier.background(
+                            androidx.compose.ui.graphics.Brush.verticalGradient(
+                                listOf(
+                                    Color.White.copy(alpha = if (frostedDark) 0.10f else 0.40f),
+                                    Color.Transparent
+                                )
+                            )
+                        )
+                    } else {
+                        Modifier
+                    }
+                )
                 .hairlineBorder(
                     shape = ZeroCapsuleShape,
-                    color = if (isFocused) colors.accent else colors.hairlineBorder
+                    color = glassBorder
                 )
                 .combinedClickable(
                     onClick = { focusRequester.requestFocus() },

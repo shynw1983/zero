@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
@@ -52,8 +53,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.zero.todo.R
+import com.zero.todo.core.designsystem.ZeroAccent
 import com.zero.todo.core.designsystem.ZeroCapsuleShape
 import com.zero.todo.core.designsystem.ZeroMotion
 import com.zero.todo.core.designsystem.ZeroSmallShape
@@ -107,10 +110,12 @@ fun ExecuteHostScreen(
     onOpenAiBreakdown: (TaskItem) -> Unit = {},
     onUndo: (UndoBannerState) -> Unit,
     onUndoTimeout: (Long) -> Unit,
+    isAtlasMapDark: Boolean = state.isDarkTheme,
+    onToggleAtlasMapDark: () -> Unit = {},
+    atlasBottomModeBarHeight: Dp = 66.dp,
     modifier: Modifier = Modifier
 ) {
     val colors = ZeroTheme.colors
-    val tabular = ZeroTheme.tabularTypography
     val haptics = rememberZeroHaptics()
 
     var showThemePicker by remember { mutableStateOf(false) }
@@ -141,224 +146,231 @@ fun ExecuteHostScreen(
         label = "execute_dock_alpha"
     )
 
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .background(MonolithBlack)
-            .imePadding(),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        // Minimalist Top Bar (Constrained to 600.dp across phones, foldables, and tablets)
-        Row(
-            modifier = Modifier
-                .widthIn(max = ExecuteMaxContentWidth)
-                .fillMaxWidth()
-                .graphicsLayer { alpha = headerAlpha }
-                .padding(horizontal = 16.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
+    if (state.executeTheme == ExecuteTheme.ATLAS) {
+        val glassBg = if (isAtlasMapDark) Color(0xB3141822) else Color(0xD4FFFFFF)
+        val glassSheen = Color.White.copy(alpha = if (isAtlasMapDark) 0.09f else 0.36f)
+        val glassBorder = if (isAtlasMapDark) Color.White.copy(alpha = 0.16f) else Color.Black.copy(alpha = 0.10f)
+        val glassPrimary = if (isAtlasMapDark) Color(0xFFF4F4F5) else Color(0xFF111827)
+        val glassSecondary = if (isAtlasMapDark) Color(0xFFC0C6D4) else Color(0xFF52525B)
+        val topScrim = if (isAtlasMapDark) Color(0x880D1017) else Color(0x80F4F6FA)
+        val bottomScrim = if (isAtlasMapDark) Color(0x990D1017) else Color(0x8AF4F6FA)
+        val activeAccent = colors.accent
+
+        Box(
+            modifier = modifier
+                .fillMaxSize()
+                .background(if (isAtlasMapDark) Color(0xFF141822) else Color(0xFFF3F4F7))
+                .imePadding()
         ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            // Layer 0: Full-Screen 100% 3D Google Map Viewport
+            AtlasThemeView(
+                state = state,
+                isMapDark = isAtlasMapDark,
+                onToggleMapDark = onToggleAtlasMapDark,
+                topContentPadding = 68.dp,
+                bottomContentPadding = 82.dp + atlasBottomModeBarHeight,
+                onCompleteTask = onCompleteTask,
+                onOpenTaskDetail = onOpenTaskDetail,
+                onSwitchToVault = onSwitchToVault,
+                modifier = Modifier.fillMaxSize()
+            )
+
+            // Layer 1: Top Floating Frosted Glass Status Header
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .fillMaxWidth()
+                    .background(Brush.verticalGradient(listOf(topScrim, Color.Transparent)))
+                    .statusBarsPadding()
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                NowHeaderBar(
+                    state = state,
+                    primaryColor = glassPrimary,
+                    secondaryColor = glassSecondary,
+                    buttonBg = if (isAtlasMapDark) Color(0x18FFFFFF) else Color(0x12000000),
+                    settingsBorderColor = glassBorder,
+                    buttonSize = 40.dp,
+                    onOpenTriage = onOpenTriage,
+                    onOpenThemePicker = { showThemePicker = true },
+                    onOpenSettings = onOpenSettings,
+                    modifier = Modifier
+                        .widthIn(max = ExecuteMaxContentWidth)
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(18.dp))
+                        .background(glassBg)
+                        .background(Brush.verticalGradient(listOf(glassSheen, Color.Transparent)))
+                        .hairlineBorder(shape = RoundedCornerShape(18.dp), color = glassBorder)
+                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                )
+            }
+
+            // Layer 2: Bottom Floating Frosted Glass Quick Capture Dock
+            ZeroTheme(
+                darkTheme = isAtlasMapDark,
+                accent = ZeroAccent.entries.firstOrNull { it.colorFor(isAtlasMapDark) == activeAccent } ?: ZeroAccent.SlateBlue,
+                accentOverride = SignalOrange
             ) {
                 Box(
                     modifier = Modifier
-                        .size(7.dp)
-                        .clip(CircleShape)
-                        .background(SignalOrange)
-                )
-                Text(
-                    text = stringResource(R.string.now_header_title),
-                    style = MaterialTheme.typography.titleMedium,
-                    color = colors.textPrimary
-                )
-                if (state.runwayQueue.isNotEmpty()) {
-                    val idxLabel = (state.focusedTaskIndex + 1).toString().padStart(2, '0')
-                    val totalLabel = state.runwayQueue.size.toString().padStart(2, '0')
-                    Text(
-                        text = "$idxLabel / $totalLabel",
-                        style = tabular.dateCompact,
-                        color = colors.textMuted
-                    )
-                }
-            }
-
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                if (state.triageCount > 0) {
-                    Row(
+                        .align(Alignment.BottomCenter)
+                        .fillMaxWidth()
+                        .background(Brush.verticalGradient(listOf(Color.Transparent, bottomScrim)))
+                        .navigationBarsPadding()
+                        .padding(bottom = atlasBottomModeBarHeight)
+                        .padding(horizontal = 14.dp, vertical = 6.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(
                         modifier = Modifier
-                            .heightIn(min = 42.dp)
-                            .clip(ZeroCapsuleShape)
-                            .background(SignalOrange.copy(alpha = 0.14f))
-                            .hairlineBorder(
-                                shape = ZeroCapsuleShape,
-                                color = SignalOrange.copy(alpha = 0.65f)
-                            )
-                            .clickable {
-                                haptics.confirm()
-                                onOpenTriage()
-                            }
-                            .padding(horizontal = 11.dp, vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(5.dp)
+                            .widthIn(max = ExecuteMaxContentWidth)
+                            .fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Icon(
-                            imageVector = Icons.Rounded.Layers,
-                            contentDescription = null,
-                            tint = SignalOrange,
-                            modifier = Modifier.size(15.dp)
+                        UndoCapsule(
+                            banner = state.undoBanner,
+                            onUndo = onUndo,
+                            onTimeout = onUndoTimeout
                         )
-                        Text(
-                            text = stringResource(R.string.now_triage_pill, state.triageCount),
-                            style = MaterialTheme.typography.labelMedium,
-                            color = SignalOrange
+                        QuickInputCapsule(
+                            text = state.quickInputText,
+                            parsed = state.parsedQuickInput,
+                            folderSuggestions = state.folderSuggestions,
+                            continuousEntryEnabled = state.continuousEntryEnabled,
+                            focusRequester = quickInputFocusRequester,
+                            onEditText = onQuickInputEdit,
+                            onSubmit = onQuickInputSubmit,
+                            onToggleContinuousEntry = onToggleContinuousEntry,
+                            onVoiceInputRecognized = onVoiceInputRecognized,
+                            aiConfigured = state.aiConfigured,
+                            onOpenAiCapture = onOpenAiCapture,
+                            currentDate = state.currentDate,
+                            frostedGlass = true,
+                            frostedDark = isAtlasMapDark
                         )
                     }
                 }
-
-                // Minimalist Execution Theme Switcher Button
-                Box(
-                    modifier = Modifier
-                        .size(44.dp)
-                        .clip(ZeroSmallShape)
-                        .background(Color(0xFF141417))
-                        .hairlineBorder(
-                            shape = ZeroSmallShape,
-                            color = SignalOrange.copy(alpha = 0.45f)
-                        )
-                        .clickable {
-                            haptics.reorderTick()
-                            showThemePicker = true
-                        },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.Palette,
-                        contentDescription = stringResource(R.string.cd_switch_execute_theme),
-                        tint = SignalOrange,
-                        modifier = Modifier.size(19.dp)
-                    )
-                }
-
-                Box(
-                    modifier = Modifier
-                        .size(44.dp)
-                        .clip(ZeroSmallShape)
-                        .background(Color(0xFF141417))
-                        .hairlineBorder(
-                            shape = ZeroSmallShape,
-                            color = Color.White.copy(alpha = 0.12f)
-                        )
-                        .clickable {
-                            haptics.reorderTick()
-                            onOpenSettings()
-                        },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.Settings,
-                        contentDescription = stringResource(R.string.cd_open_settings),
-                        tint = colors.textSecondary,
-                        modifier = Modifier.size(19.dp)
-                    )
-                }
             }
         }
-
-        // Theme Engine Stage — Crossfades smoothly while keeping shared state intact
-        Crossfade(
-            targetState = state.executeTheme,
-            animationSpec = tween(durationMillis = 300),
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth(),
-            label = "execute_theme_crossfade"
-        ) { theme ->
-            when (theme) {
-                ExecuteTheme.MONOLITH -> {
-                    MonolithThemeView(
-                        state = state,
-                        onFocusPreviousTask = onFocusPreviousTask,
-                        onFocusNextTask = onFocusNextTask,
-                        onStartFocus = onStartFocus,
-                        onPauseFocus = onPauseFocus,
-                        onStartOrResumeFocus = onStartOrResumeFocus,
-                        onContinueFocusToPomodoro = onContinueFocusToPomodoro,
-                        onCompleteTask = onCompleteTask,
-                        onCompleteFocusedTask = onCompleteFocusedTask,
-                        onExitFocus = onExitFocus,
-                        onSkipTask = onSkipTask,
-                        onUpdateEffort = onUpdateEffort,
-                        onUpdateFirstStep = onUpdateFirstStep,
-                        onCompleteFirstStepAndStartFlow = onCompleteFirstStepAndStartFlow,
-                        onOpenTaskDetail = onOpenTaskDetail,
-                        onOpenAiBreakdown = onOpenAiBreakdown,
-                        onOpenTriage = onOpenTriage,
-                        onSwitchToVault = onSwitchToVault
-                    )
-                }
-
-                ExecuteTheme.RUNWAY -> {
-                    RunwayThemeView(
-                        state = state,
-                        onSelectFocusedTask = onSelectFocusedTask,
-                        onCompleteTask = onCompleteTask,
-                        onSkipTask = onSkipTask,
-                        onOpenTaskDetail = onOpenTaskDetail,
-                        onStartFocus = onStartFocus,
-                        onPauseFocus = onPauseFocus,
-                        onStartOrResumeFocus = onStartOrResumeFocus,
-                        onContinueFocusToPomodoro = onContinueFocusToPomodoro,
-                        onCompleteFocusedTask = onCompleteFocusedTask,
-                        onExitFocus = onExitFocus,
-                        onOpenTriage = onOpenTriage,
-                        onSwitchToVault = onSwitchToVault
-                    )
-                }
-
-                ExecuteTheme.ATLAS -> {
-                    AtlasThemeView(
-                        state = state,
-                        onCompleteTask = onCompleteTask,
-                        onOpenTaskDetail = onOpenTaskDetail,
-                        onSwitchToVault = onSwitchToVault
-                    )
-                }
-            }
-        }
-
-        // Shared Bottom Quick Capture & Undo Dock (Subdued in MONOLITH)
+    } else {
         Column(
-            modifier = Modifier
-                .widthIn(max = ExecuteMaxContentWidth)
-                .fillMaxWidth()
-                .graphicsLayer { alpha = bottomDockAlpha }
-                .padding(horizontal = 14.dp, vertical = 6.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            modifier = modifier
+                .fillMaxSize()
+                .background(MonolithBlack)
+                .imePadding(),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            UndoCapsule(
-                banner = state.undoBanner,
-                onUndo = onUndo,
-                onTimeout = onUndoTimeout
+            NowHeaderBar(
+                state = state,
+                primaryColor = colors.textPrimary,
+                secondaryColor = colors.textMuted,
+                buttonBg = Color(0xFF141417),
+                settingsBorderColor = Color.White.copy(alpha = 0.12f),
+                buttonSize = 44.dp,
+                onOpenTriage = onOpenTriage,
+                onOpenThemePicker = { showThemePicker = true },
+                onOpenSettings = onOpenSettings,
+                modifier = Modifier
+                    .widthIn(max = ExecuteMaxContentWidth)
+                    .fillMaxWidth()
+                    .graphicsLayer { alpha = headerAlpha }
+                    .padding(horizontal = 16.dp, vertical = 10.dp)
             )
-            QuickInputCapsule(
-                text = state.quickInputText,
-                parsed = state.parsedQuickInput,
-                folderSuggestions = state.folderSuggestions,
-                continuousEntryEnabled = state.continuousEntryEnabled,
-                focusRequester = quickInputFocusRequester,
-                onEditText = onQuickInputEdit,
-                onSubmit = onQuickInputSubmit,
-                onToggleContinuousEntry = onToggleContinuousEntry,
-                onVoiceInputRecognized = onVoiceInputRecognized,
-                aiConfigured = state.aiConfigured,
-                onOpenAiCapture = onOpenAiCapture,
-                currentDate = state.currentDate
-            )
+
+            // Theme Engine Stage — Crossfades smoothly while keeping shared state intact
+            Crossfade(
+                targetState = state.executeTheme,
+                animationSpec = tween(durationMillis = 300),
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth(),
+                label = "execute_theme_crossfade"
+            ) { theme ->
+                when (theme) {
+                    ExecuteTheme.MONOLITH -> {
+                        MonolithThemeView(
+                            state = state,
+                            onFocusPreviousTask = onFocusPreviousTask,
+                            onFocusNextTask = onFocusNextTask,
+                            onStartFocus = onStartFocus,
+                            onPauseFocus = onPauseFocus,
+                            onStartOrResumeFocus = onStartOrResumeFocus,
+                            onContinueFocusToPomodoro = onContinueFocusToPomodoro,
+                            onCompleteTask = onCompleteTask,
+                            onCompleteFocusedTask = onCompleteFocusedTask,
+                            onExitFocus = onExitFocus,
+                            onSkipTask = onSkipTask,
+                            onUpdateEffort = onUpdateEffort,
+                            onUpdateFirstStep = onUpdateFirstStep,
+                            onCompleteFirstStepAndStartFlow = onCompleteFirstStepAndStartFlow,
+                            onOpenTaskDetail = onOpenTaskDetail,
+                            onOpenAiBreakdown = onOpenAiBreakdown,
+                            onOpenTriage = onOpenTriage,
+                            onSwitchToVault = onSwitchToVault
+                        )
+                    }
+
+                    ExecuteTheme.RUNWAY -> {
+                        RunwayThemeView(
+                            state = state,
+                            onSelectFocusedTask = onSelectFocusedTask,
+                            onCompleteTask = onCompleteTask,
+                            onSkipTask = onSkipTask,
+                            onOpenTaskDetail = onOpenTaskDetail,
+                            onStartFocus = onStartFocus,
+                            onPauseFocus = onPauseFocus,
+                            onStartOrResumeFocus = onStartOrResumeFocus,
+                            onContinueFocusToPomodoro = onContinueFocusToPomodoro,
+                            onCompleteFocusedTask = onCompleteFocusedTask,
+                            onExitFocus = onExitFocus,
+                            onOpenTriage = onOpenTriage,
+                            onSwitchToVault = onSwitchToVault
+                        )
+                    }
+
+                    ExecuteTheme.ATLAS -> {
+                        AtlasThemeView(
+                            state = state,
+                            isMapDark = isAtlasMapDark,
+                            onToggleMapDark = onToggleAtlasMapDark,
+                            onCompleteTask = onCompleteTask,
+                            onOpenTaskDetail = onOpenTaskDetail,
+                            onSwitchToVault = onSwitchToVault
+                        )
+                    }
+                }
+            }
+
+            // Shared Bottom Quick Capture & Undo Dock (Subdued in MONOLITH)
+            Column(
+                modifier = Modifier
+                    .widthIn(max = ExecuteMaxContentWidth)
+                    .fillMaxWidth()
+                    .graphicsLayer { alpha = bottomDockAlpha }
+                    .padding(horizontal = 14.dp, vertical = 6.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                UndoCapsule(
+                    banner = state.undoBanner,
+                    onUndo = onUndo,
+                    onTimeout = onUndoTimeout
+                )
+                QuickInputCapsule(
+                    text = state.quickInputText,
+                    parsed = state.parsedQuickInput,
+                    folderSuggestions = state.folderSuggestions,
+                    continuousEntryEnabled = state.continuousEntryEnabled,
+                    focusRequester = quickInputFocusRequester,
+                    onEditText = onQuickInputEdit,
+                    onSubmit = onQuickInputSubmit,
+                    onToggleContinuousEntry = onToggleContinuousEntry,
+                    onVoiceInputRecognized = onVoiceInputRecognized,
+                    aiConfigured = state.aiConfigured,
+                    onOpenAiCapture = onOpenAiCapture,
+                    currentDate = state.currentDate
+                )
+            }
         }
     }
 
@@ -371,6 +383,138 @@ fun ExecuteHostScreen(
             },
             onDismiss = { showThemePicker = false }
         )
+    }
+}
+
+@Composable
+private fun NowHeaderBar(
+    state: ExecuteUiState,
+    primaryColor: Color,
+    secondaryColor: Color,
+    buttonBg: Color,
+    settingsBorderColor: Color,
+    buttonSize: Dp,
+    onOpenTriage: () -> Unit,
+    onOpenThemePicker: () -> Unit,
+    onOpenSettings: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val tabular = ZeroTheme.tabularTypography
+    val haptics = rememberZeroHaptics()
+
+    Row(
+        modifier = modifier,
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(7.dp)
+                    .clip(CircleShape)
+                    .background(SignalOrange)
+            )
+            Text(
+                text = stringResource(R.string.now_header_title),
+                style = MaterialTheme.typography.titleMedium,
+                color = primaryColor
+            )
+            if (state.runwayQueue.isNotEmpty()) {
+                val idxLabel = (state.focusedTaskIndex + 1).toString().padStart(2, '0')
+                val totalLabel = state.runwayQueue.size.toString().padStart(2, '0')
+                Text(
+                    text = "$idxLabel / $totalLabel",
+                    style = tabular.dateCompact,
+                    color = secondaryColor
+                )
+            }
+        }
+
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            if (state.triageCount > 0) {
+                Row(
+                    modifier = Modifier
+                        .heightIn(min = buttonSize - 2.dp)
+                        .clip(ZeroCapsuleShape)
+                        .background(SignalOrange.copy(alpha = 0.14f))
+                        .hairlineBorder(
+                            shape = ZeroCapsuleShape,
+                            color = SignalOrange.copy(alpha = 0.65f)
+                        )
+                        .clickable {
+                            haptics.confirm()
+                            onOpenTriage()
+                        }
+                        .padding(horizontal = 11.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(5.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Layers,
+                        contentDescription = null,
+                        tint = SignalOrange,
+                        modifier = Modifier.size(15.dp)
+                    )
+                    Text(
+                        text = stringResource(R.string.now_triage_pill, state.triageCount),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = SignalOrange
+                    )
+                }
+            }
+
+            Box(
+                modifier = Modifier
+                    .size(buttonSize)
+                    .clip(ZeroSmallShape)
+                    .background(buttonBg)
+                    .hairlineBorder(
+                        shape = ZeroSmallShape,
+                        color = SignalOrange.copy(alpha = 0.45f)
+                    )
+                    .clickable {
+                        haptics.reorderTick()
+                        onOpenThemePicker()
+                    },
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Palette,
+                    contentDescription = stringResource(R.string.cd_switch_execute_theme),
+                    tint = SignalOrange,
+                    modifier = Modifier.size(19.dp)
+                )
+            }
+
+            Box(
+                modifier = Modifier
+                    .size(buttonSize)
+                    .clip(ZeroSmallShape)
+                    .background(buttonBg)
+                    .hairlineBorder(
+                        shape = ZeroSmallShape,
+                        color = settingsBorderColor
+                    )
+                    .clickable {
+                        haptics.reorderTick()
+                        onOpenSettings()
+                    },
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Settings,
+                    contentDescription = stringResource(R.string.cd_open_settings),
+                    tint = secondaryColor,
+                    modifier = Modifier.size(19.dp)
+                )
+            }
+        }
     }
 }
 
@@ -516,7 +660,6 @@ private fun ExecuteThemeSwatch(theme: ExecuteTheme) {
 
             ExecuteTheme.RUNWAY -> {
                 val stroke = 0.8.dp.toPx()
-                // Left time ticks
                 for (i in 1..4) {
                     val y = size.height * (i / 5f)
                     drawLine(
@@ -526,7 +669,6 @@ private fun ExecuteThemeSwatch(theme: ExecuteTheme) {
                         strokeWidth = stroke
                     )
                 }
-                // Proportional task blocks
                 drawRoundRect(
                     color = Color(0xFF1C1C21),
                     topLeft = Offset(size.width * 0.32f, size.height * 0.14f),
@@ -556,15 +698,14 @@ private fun ExecuteThemeSwatch(theme: ExecuteTheme) {
 
             ExecuteTheme.ATLAS -> {
                 val stroke = 0.9.dp.toPx()
-                // Isometric tactical street grid + glowing beacon
                 drawLine(
-                    color = Color(0xFF27272F),
+                    color = Color(0xFF3D4B66),
                     start = Offset(size.width * 0.12f, size.height * 0.72f),
                     end = Offset(size.width * 0.88f, size.height * 0.34f),
                     strokeWidth = stroke
                 )
                 drawLine(
-                    color = Color(0xFF27272F),
+                    color = Color(0xFF3D4B66),
                     start = Offset(size.width * 0.20f, size.height * 0.24f),
                     end = Offset(size.width * 0.82f, size.height * 0.78f),
                     strokeWidth = stroke

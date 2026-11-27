@@ -35,6 +35,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.zero.todo.core.designsystem.ZeroTheme
 import com.zero.todo.domain.model.AppLanguage
+import com.zero.todo.domain.model.ExecuteTheme
 import com.zero.todo.domain.model.WorkspaceMode
 import java.util.Locale
 
@@ -66,13 +67,19 @@ fun ZeroAppRoot(
     val baseConfig = LocalConfiguration.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val view = LocalView.current
+    var isAtlasMapDark by remember(uiState.isDarkTheme) { mutableStateOf(uiState.isDarkTheme) }
 
     // Sync system status & navigation bar icon contrast cleanly with Dark / Light theme
-    // NOW Execution Runway always enters the matte darkroom stage for deep focus contrast.
+    // NOW Execution Runway enters darkroom contrast, except ATLAS follows the active Light/Dark map style.
     SideEffect {
         val window = baseContext.findActivity()?.window
         if (window != null && !view.isInEditMode) {
-            val effectiveDarkSurface = uiState.isDarkTheme || uiState.workspaceMode == WorkspaceMode.NOW
+            val isNowAtlas = uiState.workspaceMode == WorkspaceMode.NOW && uiState.executeTheme == ExecuteTheme.ATLAS
+            val effectiveDarkSurface = when {
+                isNowAtlas -> isAtlasMapDark
+                uiState.workspaceMode == WorkspaceMode.NOW -> true
+                else -> uiState.isDarkTheme
+            }
             val controller = WindowCompat.getInsetsController(window, view)
             controller.isAppearanceLightStatusBars = !effectiveDarkSurface
             controller.isAppearanceLightNavigationBars = !effectiveDarkSurface
@@ -337,6 +344,8 @@ fun ZeroAppRoot(
                             aiTestStatus = aiTestStatus,
                             aiCaptureState = aiCaptureState,
                             aiBreakdownState = aiBreakdownState,
+                            isAtlasMapDark = isAtlasMapDark,
+                            onToggleAtlasMapDark = { isAtlasMapDark = !isAtlasMapDark },
                             windowWidthSizeClass = windowWidthSizeClass
                         )
                     }

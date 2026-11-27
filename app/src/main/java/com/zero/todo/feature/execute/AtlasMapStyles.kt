@@ -1,32 +1,33 @@
 package com.zero.todo.feature.execute
 
 /**
- * Minimalist Swiss-architectural Google Maps styles paired with ZERO's Obsidian Dark and Cool Paper Light palettes.
+ * Minimalist Swiss-architectural Google Maps styles paired with ZERO's Night Slate and Cool Paper palettes.
  * Commercial POIs and visual clutter are suppressed so 3D buildings and quest beacons dominate cleanly.
  */
 object AtlasMapStyles {
 
+    // Brighter Tactical Midnight Slate so 3D buildings, streets, water, and labels remain crisp in dark mode.
     val OBSIDIAN_DARK_STYLE_JSON: String = """
         [
-          {"elementType":"geometry","stylers":[{"color":"#0B0C10"}]},
+          {"elementType":"geometry","stylers":[{"color":"#181D27"}]},
           {"elementType":"labels.icon","stylers":[{"visibility":"off"}]},
-          {"elementType":"labels.text.fill","stylers":[{"color":"#71717A"}]},
-          {"elementType":"labels.text.stroke","stylers":[{"color":"#09090B"}]},
-          {"featureType":"administrative","elementType":"geometry","stylers":[{"color":"#27272A"}]},
-          {"featureType":"landscape.man_made","elementType":"geometry.fill","stylers":[{"color":"#14161D"}]},
-          {"featureType":"landscape.man_made","elementType":"geometry.stroke","stylers":[{"color":"#27272F"}]},
+          {"elementType":"labels.text.fill","stylers":[{"color":"#AEB9CC"}]},
+          {"elementType":"labels.text.stroke","stylers":[{"color":"#141923"}]},
+          {"featureType":"administrative","elementType":"geometry","stylers":[{"color":"#3A4354"}]},
+          {"featureType":"landscape.man_made","elementType":"geometry.fill","stylers":[{"color":"#273042"}]},
+          {"featureType":"landscape.man_made","elementType":"geometry.stroke","stylers":[{"color":"#3D4A63"}]},
           {"featureType":"poi","stylers":[{"visibility":"off"}]},
-          {"featureType":"poi.park","elementType":"geometry","stylers":[{"visibility":"on"},{"color":"#0E1412"}]},
-          {"featureType":"road","elementType":"geometry.fill","stylers":[{"color":"#1F232C"}]},
-          {"featureType":"road","elementType":"geometry.stroke","stylers":[{"color":"#09090B"}]},
-          {"featureType":"road","elementType":"labels.text.fill","stylers":[{"color":"#63666F"}]},
-          {"featureType":"road.arterial","elementType":"geometry.fill","stylers":[{"color":"#272B36"}]},
-          {"featureType":"road.highway","elementType":"geometry.fill","stylers":[{"color":"#323846"}]},
-          {"featureType":"road.highway","elementType":"geometry.stroke","stylers":[{"color":"#181B24"}]},
-          {"featureType":"transit","elementType":"geometry","stylers":[{"color":"#1C2029"}]},
-          {"featureType":"transit.station","elementType":"labels.text.fill","stylers":[{"color":"#8E95A5"}]},
-          {"featureType":"water","elementType":"geometry","stylers":[{"color":"#071019"}]},
-          {"featureType":"water","elementType":"labels.text.fill","stylers":[{"color":"#3E4C5E"}]}
+          {"featureType":"poi.park","elementType":"geometry","stylers":[{"visibility":"on"},{"color":"#1B2E28"}]},
+          {"featureType":"road","elementType":"geometry.fill","stylers":[{"color":"#303A4F"}]},
+          {"featureType":"road","elementType":"geometry.stroke","stylers":[{"color":"#161B24"}]},
+          {"featureType":"road","elementType":"labels.text.fill","stylers":[{"color":"#9BA7BC"}]},
+          {"featureType":"road.arterial","elementType":"geometry.fill","stylers":[{"color":"#3D4B66"}]},
+          {"featureType":"road.highway","elementType":"geometry.fill","stylers":[{"color":"#4F6182"}]},
+          {"featureType":"road.highway","elementType":"geometry.stroke","stylers":[{"color":"#222B3C"}]},
+          {"featureType":"transit","elementType":"geometry","stylers":[{"color":"#273145"}]},
+          {"featureType":"transit.station","elementType":"labels.text.fill","stylers":[{"color":"#D4DEEE"}]},
+          {"featureType":"water","elementType":"geometry","stylers":[{"color":"#112A42"}]},
+          {"featureType":"water","elementType":"labels.text.fill","stylers":[{"color":"#5B7A99"}]}
         ]
     """.trimIndent()
 

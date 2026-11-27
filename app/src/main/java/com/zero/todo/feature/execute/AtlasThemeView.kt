@@ -30,14 +30,18 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
@@ -75,12 +79,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
@@ -128,12 +135,17 @@ private const val PLAYER_MARKER_TAG = "__zero_player__"
 @Composable
 fun AtlasThemeView(
     state: ExecuteUiState,
+    isMapDark: Boolean = state.isDarkTheme,
+    onToggleMapDark: () -> Unit = {},
+    topContentPadding: Dp = 68.dp,
+    bottomContentPadding: Dp = 148.dp,
     onCompleteTask: (TaskItem) -> Unit,
     onOpenTaskDetail: (TaskItem) -> Unit,
     onSwitchToVault: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val density = LocalDensity.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val haptics = rememberZeroHaptics()
     val colors = ZeroTheme.colors
@@ -150,7 +162,6 @@ fun AtlasThemeView(
     var userLng by remember { mutableStateOf<Double?>(null) }
     var compassBearing by remember { mutableFloatStateOf(0f) }
 
-    var isMapDark by remember(state.isDarkTheme) { mutableStateOf(state.isDarkTheme) }
     var is3DMode by remember { mutableStateOf(true) }
     var showQuestRoute by remember { mutableStateOf(true) }
     var selectedPlaceId by remember { mutableStateOf<String?>(null) }
@@ -360,6 +371,15 @@ fun AtlasThemeView(
         runCatching { gMap.setMapStyle(MapStyleOptions(json)) }
     }
 
+    // Pad Google Maps camera focus & Google watermark cleanly between floating frosted top & bottom chrome
+    val statusTopPx = WindowInsets.statusBars.getTop(density)
+    val navBottomPx = WindowInsets.navigationBars.getBottom(density)
+    val mapTopPadPx = with(density) { topContentPadding.roundToPx() } + statusTopPx
+    val mapBottomPadPx = with(density) { bottomContentPadding.roundToPx() } + navBottomPx
+    LaunchedEffect(googleMapRef, mapTopPadPx, mapBottomPadPx) {
+        googleMapRef?.setPadding(0, mapTopPadPx, 0, mapBottomPadPx)
+    }
+
     // Center camera smoothly on initial player fix or first marker
     fun animateCameraTo(lat: Double, lng: Double, zoom: Float? = null) {
         val gMap = googleMapRef ?: return
@@ -510,10 +530,11 @@ fun AtlasThemeView(
         }
     }
 
-    val hudBg = if (isMapDark) Color(0xE8121216) else Color(0xF0FFFFFF)
-    val hudBorder = if (isMapDark) Color(0xFF2B2B33) else Color(0xFFD4D4DC)
+    val hudBg = if (isMapDark) Color(0xB5141822) else Color(0xD6FFFFFF)
+    val hudSheen = if (isMapDark) Color.White.copy(alpha = 0.09f) else Color.White.copy(alpha = 0.38f)
+    val hudBorder = if (isMapDark) Color.White.copy(alpha = 0.16f) else Color.Black.copy(alpha = 0.10f)
     val hudPrimaryText = if (isMapDark) Color(0xFFF4F4F5) else Color(0xFF111827)
-    val hudSecondaryText = if (isMapDark) Color(0xFFA1A1AA) else Color(0xFF52525B)
+    val hudSecondaryText = if (isMapDark) Color(0xFFC0C6D4) else Color(0xFF52525B)
 
     Box(modifier = modifier.fillMaxSize()) {
         // 1. Live 3D Google Map Surface
@@ -552,7 +573,8 @@ fun AtlasThemeView(
         Column(
             modifier = Modifier
                 .align(Alignment.TopStart)
-                .padding(12.dp),
+                .statusBarsPadding()
+                .padding(start = 12.dp, top = topContentPadding + 8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Row(
@@ -563,6 +585,7 @@ fun AtlasThemeView(
                     modifier = Modifier
                         .clip(ZeroCapsuleShape)
                         .background(hudBg)
+                        .background(Brush.verticalGradient(listOf(hudSheen, Color.Transparent)))
                         .hairlineBorder(shape = ZeroCapsuleShape, color = hudBorder)
                         .padding(horizontal = 11.dp, vertical = 7.dp),
                     verticalAlignment = Alignment.CenterVertically,
@@ -593,6 +616,7 @@ fun AtlasThemeView(
                         modifier = Modifier
                             .clip(ZeroCapsuleShape)
                             .background(hudBg)
+                            .background(Brush.verticalGradient(listOf(hudSheen, Color.Transparent)))
                             .hairlineBorder(shape = ZeroCapsuleShape, color = hudBorder)
                             .clickable {
                                 haptics.reorderTick()
@@ -622,6 +646,7 @@ fun AtlasThemeView(
                     modifier = Modifier
                         .clip(ZeroSmallShape)
                         .background(hudBg)
+                        .background(Brush.verticalGradient(listOf(hudSheen, Color.Transparent)))
                         .hairlineBorder(shape = ZeroSmallShape, color = colors.priorityMedium.copy(alpha = 0.65f))
                         .clickable {
                             locationPermissionLauncher.launch(
@@ -659,16 +684,18 @@ fun AtlasThemeView(
         Column(
             modifier = Modifier
                 .align(Alignment.TopEnd)
-                .padding(12.dp),
+                .statusBarsPadding()
+                .padding(end = 12.dp, top = topContentPadding + 8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
             horizontalAlignment = Alignment.End
         ) {
             AtlasControlButton(
                 bg = hudBg,
+                sheen = hudSheen,
                 border = hudBorder,
                 onClick = {
                     haptics.reorderTick()
-                    isMapDark = !isMapDark
+                    onToggleMapDark()
                 }
             ) {
                 Icon(
@@ -681,6 +708,7 @@ fun AtlasThemeView(
 
             AtlasControlButton(
                 bg = hudBg,
+                sheen = hudSheen,
                 border = if (is3DMode) colors.accent.copy(alpha = 0.7f) else hudBorder,
                 onClick = {
                     haptics.reorderTick()
@@ -696,6 +724,7 @@ fun AtlasThemeView(
 
             AtlasControlButton(
                 bg = hudBg,
+                sheen = hudSheen,
                 border = if (showQuestRoute) colors.accent.copy(alpha = 0.7f) else hudBorder,
                 onClick = {
                     haptics.reorderTick()
@@ -712,6 +741,7 @@ fun AtlasThemeView(
 
             AtlasControlButton(
                 bg = hudBg,
+                sheen = hudSheen,
                 border = hudBorder,
                 onClick = {
                     haptics.reorderTick()
@@ -752,9 +782,10 @@ fun AtlasThemeView(
         Box(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
+                .navigationBarsPadding()
                 .widthIn(max = ExecuteMaxContentWidth)
                 .fillMaxWidth()
-                .padding(horizontal = 14.dp, vertical = 10.dp)
+                .padding(start = 14.dp, end = 14.dp, bottom = bottomContentPadding + 8.dp)
         ) {
             if (selectedMarker != null) {
                 val safeTaskIdx = focusedTaskIdxInPlace.coerceIn(0, selectedMarker.tasks.lastIndex)
@@ -764,6 +795,7 @@ fun AtlasThemeView(
                     taskIndex = safeTaskIdx,
                     focusedTask = focusedTask,
                     hudBg = hudBg,
+                    hudSheen = hudSheen,
                     hudBorder = hudBorder,
                     primaryText = hudPrimaryText,
                     secondaryText = hudSecondaryText,
@@ -791,6 +823,7 @@ fun AtlasThemeView(
             } else {
                 AtlasEmptyQuestCard(
                     hudBg = hudBg,
+                    hudSheen = hudSheen,
                     hudBorder = hudBorder,
                     primaryText = hudPrimaryText,
                     secondaryText = hudSecondaryText,
@@ -820,6 +853,7 @@ fun AtlasThemeView(
 @Composable
 private fun AtlasControlButton(
     bg: Color,
+    sheen: Color,
     border: Color,
     onClick: () -> Unit,
     content: @Composable () -> Unit
@@ -829,6 +863,7 @@ private fun AtlasControlButton(
             .size(44.dp)
             .clip(ZeroSmallShape)
             .background(bg)
+            .background(Brush.verticalGradient(listOf(sheen, Color.Transparent)))
             .hairlineBorder(shape = ZeroSmallShape, color = border)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center
@@ -843,6 +878,7 @@ private fun AtlasQuestHudCard(
     taskIndex: Int,
     focusedTask: TaskItem,
     hudBg: Color,
+    hudSheen: Color,
     hudBorder: Color,
     primaryText: Color,
     secondaryText: Color,
@@ -867,6 +903,7 @@ private fun AtlasQuestHudCard(
             .fillMaxWidth()
             .clip(RoundedCornerShape(18.dp))
             .background(hudBg)
+            .background(Brush.verticalGradient(listOf(hudSheen, Color.Transparent)))
             .hairlineBorder(
                 shape = RoundedCornerShape(18.dp),
                 color = if (marker.isInsideGeofence) accentColor else hudBorder
@@ -1068,6 +1105,7 @@ private fun AtlasQuestHudCard(
 @Composable
 private fun AtlasEmptyQuestCard(
     hudBg: Color,
+    hudSheen: Color,
     hudBorder: Color,
     primaryText: Color,
     secondaryText: Color,
@@ -1079,6 +1117,7 @@ private fun AtlasEmptyQuestCard(
             .fillMaxWidth()
             .clip(RoundedCornerShape(18.dp))
             .background(hudBg)
+            .background(Brush.verticalGradient(listOf(hudSheen, Color.Transparent)))
             .hairlineBorder(shape = RoundedCornerShape(18.dp), color = hudBorder)
             .padding(14.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)

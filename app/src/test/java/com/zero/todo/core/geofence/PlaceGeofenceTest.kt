@@ -112,6 +112,47 @@ class PlaceGeofenceTest {
     }
 
     @Test
+    fun `mergeAndSortByDistance orders stores strictly nearest to farthest and deduplicates nearby hits`() {
+        val merged = PlaceSearchEngine.mergeAndSortByDistance(
+            results = listOf(
+                PlaceSearchResult(
+                    label = "セブンイレブン 遠方",
+                    address = "3.4km away",
+                    latitude = 35.6900,
+                    longitude = 139.7000
+                ),
+                PlaceSearchResult(
+                    label = "セブンイレブン 近所",
+                    address = "博多駅前2丁目",
+                    latitude = 35.6602,
+                    longitude = 139.7008
+                ),
+                PlaceSearchResult(
+                    label = "セブンイレブン 近所 (重複)",
+                    address = "短",
+                    latitude = 35.6603,
+                    longitude = 139.7009
+                ),
+                PlaceSearchResult(
+                    label = "セブンイレブン 中間",
+                    address = "1.5km away",
+                    latitude = 35.6730,
+                    longitude = 139.7020
+                )
+            ),
+            biasLat = 35.6595,
+            biasLng = 139.7004
+        )
+
+        assertEquals(3, merged.size)
+        assertEquals("セブンイレブン 近所", merged[0].label)
+        assertEquals("セブンイレブン 中間", merged[1].label)
+        assertEquals("セブンイレブン 遠方", merged[2].label)
+        assertTrue((merged[0].distanceMeters ?: 0) < (merged[1].distanceMeters ?: 0))
+        assertTrue((merged[1].distanceMeters ?: 0) < (merged[2].distanceMeters ?: 0))
+    }
+
+    @Test
     fun `geofence evaluator handles request IDs, enter-exit modes, and cooldowns`() {
         val id = "place-uuid-42"
         val reqId = GeofenceEvaluator.requestIdFor(id)
