@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -14,8 +16,21 @@ android {
         applicationId = "com.zero.todo"
         minSdk = 26
         targetSdk = 35
-        versionCode = 39
-        versionName = "2.12.0"
+        versionCode = 40
+        versionName = "2.13.0"
+
+        val localProps = Properties().apply {
+            val file = rootProject.file("local.properties")
+            if (file.exists()) {
+                file.inputStream().use(::load)
+            }
+        }
+        val mapsApiKey = localProps.getProperty("MAPS_API_KEY")
+            ?.trim()
+            ?.takeIf { it.isNotEmpty() }
+            ?: System.getenv("MAPS_API_KEY")
+            ?: ""
+        manifestPlaceholders["MAPS_API_KEY"] = mapsApiKey
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -100,6 +115,7 @@ dependencies {
 
     // Location & Geofencing (with LocationManager fallback on non-GMS devices)
     implementation(libs.play.services.location)
+    implementation(libs.play.services.maps)
 
     // Unit Tests (JVM + Robolectric for in-memory Room DB verification)
     testImplementation(libs.junit)

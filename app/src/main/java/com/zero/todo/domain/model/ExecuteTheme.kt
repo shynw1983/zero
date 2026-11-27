@@ -19,6 +19,10 @@ enum class ExecuteTheme(
     RUNWAY(
         titleRes = R.string.execute_theme_runway_title,
         subtitleRes = R.string.execute_theme_runway_desc
+    ),
+    ATLAS(
+        titleRes = R.string.execute_theme_atlas_title,
+        subtitleRes = R.string.execute_theme_atlas_desc
     );
 
     companion object {

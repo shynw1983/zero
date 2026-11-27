@@ -546,4 +546,27 @@
     <string name="place_no_active_tasks">このタグに未完了タスクがないため通知テストできません。</string>
     <string name="place_distance_away">約 %1$d m</string>
     <string name="place_disabled_badge">停止中</string>
+
+    <!-- v2.13.0: ATLAS 3D Googleマップ・クエストテーマ -->
+    <string name="execute_theme_atlas_title">ATLAS · 3D クエストマップ</string>
+    <string name="execute_theme_atlas_desc">Google 3D建築マップ上に現在地・方位コーン・場所タスク・ジオフェンスリングとルートを表示。</string>
+    <string name="atlas_gps_need_perm">位置情報オフ</string>
+    <string name="atlas_grant_gps">許可する</string>
+    <string name="atlas_places_count">%1$d 拠点</string>
+    <string name="atlas_anywhere_chip">どこでも %1$d</string>
+    <string name="atlas_anywhere_sheet_title">場所指定なしのタスク（%1$d）</string>
+    <string name="atlas_anywhere_empty">場所指定なしの未完了タスクはありません。</string>
+    <string name="atlas_mode_3d">3D</string>
+    <string name="atlas_mode_2d">2D</string>
+    <string name="atlas_toggle_map_theme">ライト／ダーク地図を切替</string>
+    <string name="atlas_toggle_route">最短ルート表示切替</string>
+    <string name="atlas_recenter">現在地へ戻る</string>
+    <string name="atlas_inside_geofence">エリア内</string>
+    <string name="atlas_navigate_btn">ナビ</string>
+    <string name="atlas_hold_complete">0.3秒長押しで完了</string>
+    <string name="atlas_keep_holding">そのままホールド…</string>
+    <string name="atlas_empty_title">表示できる場所タスクがありません</string>
+    <string name="atlas_empty_desc">整理庫のタグで「場所・ジオフェンス」を有効にして住所を紐付けると、3Dマップ上に拠点マーカーが出現します。</string>
+    <string name="atlas_open_vault_tags">整理庫で場所タグを設定</string>
+    <string name="atlas_open_tasks_at_place">%1$d/%2$d</string>
 </resources>

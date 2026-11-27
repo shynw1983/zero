@@ -3,6 +3,7 @@ package com.zero.todo.feature.execute
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.zero.todo.core.nlp.ParsedQuickInput
+import com.zero.todo.data.repository.TagWithCount
 import com.zero.todo.domain.model.ExecuteTheme
 import com.zero.todo.domain.model.FocusMode
 import com.zero.todo.domain.model.FolderBadgeDisplay
@@ -44,7 +45,11 @@ data class ExecuteUiState(
     val folderSuggestions: List<FolderPathSuggestion> = emptyList(),
     val continuousEntryEnabled: Boolean = true,
     val undoBanner: UndoBannerState? = null,
-    val aiConfigured: Boolean = false
+    val aiConfigured: Boolean = false,
+    val isDarkTheme: Boolean = true,
+    val allActiveTasks: List<TaskItem> = emptyList(),
+    val tagsWithCounts: List<TagWithCount> = emptyList(),
+    val tagPathById: Map<String, String> = emptyMap()
 )
 
 /**

@@ -546,4 +546,27 @@
     <string name="place_no_active_tasks">This tag has no incomplete tasks to trigger an alert yet.</string>
     <string name="place_distance_away">~%1$d m</string>
     <string name="place_disabled_badge">Paused</string>
+
+    <!-- v2.13.0: ATLAS 3D Google Maps Quest NOW Theme -->
+    <string name="execute_theme_atlas_title">ATLAS · 3D Quest Map</string>
+    <string name="execute_theme_atlas_desc">Interactive 3D Google Map with compass cone, place beacons, geofence rings, and quick navigation.</string>
+    <string name="atlas_gps_need_perm">Location off</string>
+    <string name="atlas_grant_gps">Enable</string>
+    <string name="atlas_places_count">%1$d spot(s)</string>
+    <string name="atlas_anywhere_chip">Anywhere %1$d</string>
+    <string name="atlas_anywhere_sheet_title">Anywhere Tasks (%1$d)</string>
+    <string name="atlas_anywhere_empty">No standalone tasks right now.</string>
+    <string name="atlas_mode_3d">3D</string>
+    <string name="atlas_mode_2d">2D</string>
+    <string name="atlas_toggle_map_theme">Switch light / dark map</string>
+    <string name="atlas_toggle_route">Toggle quest route</string>
+    <string name="atlas_recenter">Center on my location</string>
+    <string name="atlas_inside_geofence">In Zone</string>
+    <string name="atlas_navigate_btn">Navigate</string>
+    <string name="atlas_hold_complete">Hold 0.3s to Complete</string>
+    <string name="atlas_keep_holding">Keep holding…</string>
+    <string name="atlas_empty_title">No Active Place Quests</string>
+    <string name="atlas_empty_desc">Enable Place &amp; Geofence on any tag in VAULT, link one or more addresses, and attach open tasks to see them on the 3D map.</string>
+    <string name="atlas_open_vault_tags">Configure Place Tags in VAULT</string>
+    <string name="atlas_open_tasks_at_place">%1$d/%2$d</string>
 </resources>

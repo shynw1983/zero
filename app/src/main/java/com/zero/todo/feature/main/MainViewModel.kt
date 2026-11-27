@@ -749,7 +749,11 @@ class MainViewModel @Inject constructor(
             folderSuggestions = folderSuggestions,
             continuousEntryEnabled = continuousEntryEnabled,
             undoBanner = undoBanner,
-            aiConfigured = aiConfig.isConfigured
+            aiConfigured = aiConfig.isConfigured,
+            isDarkTheme = isDarkTheme,
+            allActiveTasks = allActiveTasks,
+            tagsWithCounts = tagsWithCounts,
+            tagPathById = tagPathById
         )
     }
 

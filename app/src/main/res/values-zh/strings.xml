@@ -546,4 +546,27 @@
     <string name="place_no_active_tasks">此标签下暂无未完成任务，暂无法预览提醒。</string>
     <string name="place_distance_away">约 %1$d 米</string>
     <string name="place_disabled_badge">已暂停</string>
+
+    <!-- v2.13.0: ATLAS 3D 谷歌任务地图主题 -->
+    <string name="execute_theme_atlas_title">ATLAS · 3D 任务地图</string>
+    <string name="execute_theme_atlas_desc">谷歌 3D 立体建筑地图，实时显示朝向光锥、多据点任务信标、围栏光圈与一键导航。</string>
+    <string name="atlas_gps_need_perm">未开启定位</string>
+    <string name="atlas_grant_gps">去开启</string>
+    <string name="atlas_places_count">%1$d 个据点</string>
+    <string name="atlas_anywhere_chip">随时可做 %1$d</string>
+    <string name="atlas_anywhere_sheet_title">不限地点任务（%1$d）</string>
+    <string name="atlas_anywhere_empty">当前没有不限地点的待办。</string>
+    <string name="atlas_mode_3d">3D</string>
+    <string name="atlas_mode_2d">2D</string>
+    <string name="atlas_toggle_map_theme">切换浅色/深色地图</string>
+    <string name="atlas_toggle_route">开关顺路连线</string>
+    <string name="atlas_recenter">回到当前位置</string>
+    <string name="atlas_inside_geofence">已进入围栏</string>
+    <string name="atlas_navigate_btn">导航</string>
+    <string name="atlas_hold_complete">长按 0.3s 完成目标</string>
+    <string name="atlas_keep_holding">继续按住…</string>
+    <string name="atlas_empty_title">暂无激活的地图据点</string>
+    <string name="atlas_empty_desc">在整理库长按任意标签进入「场所与电子围栏」，绑定 1 个或多个地址并关联未完成任务后，这里将亮起 3D 任务信标。</string>
+    <string name="atlas_open_vault_tags">前往整理库配置场所标签</string>
+    <string name="atlas_open_tasks_at_place">%1$d/%2$d</string>
 </resources>

@@ -319,6 +319,15 @@ fun ExecuteHostScreen(
                         onSwitchToVault = onSwitchToVault
                     )
                 }
+
+                ExecuteTheme.ATLAS -> {
+                    AtlasThemeView(
+                        state = state,
+                        onCompleteTask = onCompleteTask,
+                        onOpenTaskDetail = onOpenTaskDetail,
+                        onSwitchToVault = onSwitchToVault
+                    )
+                }
             }
         }
 
@@ -542,6 +551,34 @@ private fun ExecuteThemeSwatch(theme: ExecuteTheme) {
                     topLeft = Offset(size.width * 0.32f, size.height * 0.68f),
                     size = Size(size.width * 0.54f, size.height * 0.18f),
                     cornerRadius = CornerRadius(3.dp.toPx())
+                )
+            }
+
+            ExecuteTheme.ATLAS -> {
+                val stroke = 0.9.dp.toPx()
+                // Isometric tactical street grid + glowing beacon
+                drawLine(
+                    color = Color(0xFF27272F),
+                    start = Offset(size.width * 0.12f, size.height * 0.72f),
+                    end = Offset(size.width * 0.88f, size.height * 0.34f),
+                    strokeWidth = stroke
+                )
+                drawLine(
+                    color = Color(0xFF27272F),
+                    start = Offset(size.width * 0.20f, size.height * 0.24f),
+                    end = Offset(size.width * 0.82f, size.height * 0.78f),
+                    strokeWidth = stroke
+                )
+                drawCircle(
+                    color = SignalOrange.copy(alpha = 0.25f),
+                    radius = size.minDimension * 0.24f,
+                    center = Offset(size.width * 0.55f, size.height * 0.48f),
+                    style = Stroke(width = 1.1.dp.toPx())
+                )
+                drawCircle(
+                    color = SignalOrange,
+                    radius = size.minDimension * 0.10f,
+                    center = Offset(size.width * 0.55f, size.height * 0.48f)
                 )
             }
         }

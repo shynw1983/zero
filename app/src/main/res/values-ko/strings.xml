@@ -546,4 +546,27 @@
     <string name="place_no_active_tasks">이 태그에 미완료 할 일이 없어 알림을 테스트할 수 없습니다.</string>
     <string name="place_distance_away">약 %1$d m</string>
     <string name="place_disabled_badge">일시중지</string>
+
+    <!-- v2.13.0: ATLAS 3D Google 지도 퀘스트 테마 -->
+    <string name="execute_theme_atlas_title">ATLAS · 3D 퀘스트 지도</string>
+    <string name="execute_theme_atlas_desc">Google 3D 건물 지도에서 현재 위치, 시야 콘, 장소 마커, 지오펜스 링 및 경로를 확인합니다.</string>
+    <string name="atlas_gps_need_perm">위치 꺼짐</string>
+    <string name="atlas_grant_gps">허용</string>
+    <string name="atlas_places_count">%1$d곳</string>
+    <string name="atlas_anywhere_chip">어디서나 %1$d</string>
+    <string name="atlas_anywhere_sheet_title">장소 무관 할 일 (%1$d)</string>
+    <string name="atlas_anywhere_empty">장소 제한 없는 할 일이 없습니다.</string>
+    <string name="atlas_mode_3d">3D</string>
+    <string name="atlas_mode_2d">2D</string>
+    <string name="atlas_toggle_map_theme">라이트 / 다크 지도 전환</string>
+    <string name="atlas_toggle_route">최단 경로 표시</string>
+    <string name="atlas_recenter">현재 위치로 이동</string>
+    <string name="atlas_inside_geofence">반경 내</string>
+    <string name="atlas_navigate_btn">길안내</string>
+    <string name="atlas_hold_complete">0.3초 길게 눌러 완료</string>
+    <string name="atlas_keep_holding">계속 누르세요…</string>
+    <string name="atlas_empty_title">표시할 장소 할 일이 없습니다</string>
+    <string name="atlas_empty_desc">보관함 태그에서 장소 · 지오펜스를 켜고 주소를 연결하면 3D 지도에 퀘스트 마커가 표시됩니다.</string>
+    <string name="atlas_open_vault_tags">보관함에서 장소 태그 설정</string>
+    <string name="atlas_open_tasks_at_place">%1$d/%2$d</string>
 </resources>
