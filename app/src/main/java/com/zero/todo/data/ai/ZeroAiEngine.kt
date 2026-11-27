@@ -309,7 +309,9 @@ object ZeroAiJsonParser {
                                 .put("type", "image_url")
                                 .put(
                                     "image_url",
-                                    JSONObject().put("url", "data:${image.mimeType};base64,${image.base64Jpeg}")
+                                    JSONObject()
+                                        .put("url", "data:${image.mimeType};base64,${image.base64Jpeg}")
+                                        .put("detail", "high")
                                 )
                         )
                 )
@@ -504,7 +506,8 @@ ${buildLanguageStyleDirective(context.languageTag)}$customSection
 - Existing folders: ${context.folderPaths.take(40).joinToString(", ").ifBlank { "(none)" }}
 - Existing tags: ${context.tagPaths.take(40).joinToString(", ").ifBlank { "(none)" }}
 - Prefer reusing existing folderPaths and tags accurately.
-- SHORT HEADLINE TITLES: Keep every "title" and "subtask.title" ultra-short (<=12 chars CJK / 2-5 words EN). NEVER stitch "for event X, prepare Y" into a single long sentence; express that relationship via parent task + subtasks or checklistItems.
+- SHORT HEADLINE TITLES: Keep every "title" and "subtask.title" ultra-short (<=12 chars CJK / 2-5 words EN) by stripping filler and honorifics—NEVER drop a substantive second action, required deliverable (e.g., photographing, reporting, sending), or distinguishing item specifier just to shorten a title, and NEVER stitch "for event X, prepare Y" into one long sentence (express that via parent task + subtasks or checklistItems).
+- IMAGE & CHAT SCREENSHOT FIDELITY: When reading images or chat screenshots, read every text bubble accurately BEFORE translating. Treat stickers, memes, emojis, and avatars purely as decoration—NEVER let sticker artwork bias or distort the meaning of nearby text. Keep distinct actionable requests from a chat as separate independent tasks (do not force-merge independent requests), while ignoring emotional banter or non-actionable chatter.
 - EVENT VS. PREPARATION SPLIT & ADVANCE DATES: When input describes an upcoming event, meeting, or deadline X AND preparation work Y needed before X, make X the parent task (dueDate = X's date) and put Y in "subtasks" scheduled EARLIER (for example today ${context.currentDateIso} when X is tomorrow, never after X) so preparation surfaces immediately in ZERO's Leaf-Only NOW runway.
 - SUBTASKS VS. CHECKLIST: Use "subtasks" for distinct prerequisite actions requiring a different time, location, or substantial prep step before completing the parent; use "checklistItems" for quick parallel items, materials, or sub-checks done in the SAME sitting (never list items inside a long title). Keep both empty for simple single-step tasks.
 - FIRST STEP DISCIPLINE: ALWAYS set parent "firstStep" to JSON null when "subtasks" is non-empty (ZERO's NOW runway only executes leaf subtasks, never parent containers). For standalone leaf tasks, default "firstStep" to JSON null for straightforward, self-explanatory, or single-action physical tasks; ONLY populate when genuinely heavy, ambiguous, or procrastination-prone with a concrete physical starter action (never abstract filler or tautologies).
@@ -577,10 +580,10 @@ ${buildLanguageStyleDirective(context.languageTag)}$customSection
                 }
             } else {
                 when (primaryLang) {
-                    "ja" -> append("添付画像から対応すべきタスク・期限・補足情報を読み取り、自然な日本語（新聞見出し風・敬語なし）でタスクJSONにしてください。")
-                    "zh" -> append("请识别图片中的待办事项、截止日期与关键参考信息，整理为简体中文极简任务 JSON。")
-                    "ko" -> append("첨부 이미지에서 할 일, 마감일, 참고 정보를 추출하여 간결한 한국어(존댓말 금지) 태스크 JSON으로 정리하세요.")
-                    else -> append("Extract actionable tasks, deadlines, and reference details from this image in concise English JSON.")
+                    "ja" -> append("添付画像の文字を正確に読み取り（スタンプや絵文字の絵柄に引きずられないこと）、依頼された動作や対象を落とさずに自然な日本語（新聞見出し風・敬語なし）でタスクJSONにしてください。")
+                    "zh" -> append("请先准确识别图片中的文字（不要被表情包或头像干扰），保留全部核心动作与关键限定词，整理为简体中文极简任务 JSON。")
+                    "ko" -> append("첨부 이미지의 텍스트를 정확히 읽고(이모티콘·스티커 그림에 흔들리지 말 것), 핵심 동작과 대상을 누락하지 말고 간결한 한국어(존댓말 금지) 태스크 JSON으로 정리하세요.")
+                    else -> append("Read all text in this image accurately (ignore stickers, memes, and avatars), preserve every required action and distinguishing detail, and extract actionable tasks in concise English JSON.")
                 }
             }
         }

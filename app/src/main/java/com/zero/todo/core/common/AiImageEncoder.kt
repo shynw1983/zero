@@ -28,8 +28,8 @@ object AiImageEncoder {
     suspend fun encodeUriToJpegPayload(
         context: Context,
         uri: Uri,
-        maxEdgePx: Int = 1280,
-        quality: Int = 82
+        maxEdgePx: Int = 2048,
+        quality: Int = 90
     ): AiImagePayload? = withContext(Dispatchers.IO) {
         runCatching {
             val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }

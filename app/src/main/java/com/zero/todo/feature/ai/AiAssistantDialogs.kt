@@ -398,6 +398,7 @@ fun AiCaptureDialog(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .weight(1f, fill = false)
                         .padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
@@ -746,7 +747,8 @@ fun AiCaptureDialog(
                         LazyColumn(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .heightIn(max = 260.dp),
+                                .weight(1f, fill = false)
+                                .heightIn(max = 400.dp),
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             itemsIndexed(draftEdits) { idx, draft ->
@@ -1119,6 +1121,17 @@ private fun AiCapturedTaskPreviewCard(
             )
         }
 
+        if (draft.description.isNotBlank()) {
+            Text(
+                text = draft.description.trim().replace("\n", " · "),
+                style = MaterialTheme.typography.bodySmall,
+                color = colors.textMuted,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(start = 26.dp)
+            )
+        }
+
         if (draft.subtasks.isNotEmpty()) {
             Column(
                 modifier = Modifier.padding(start = 26.dp),
@@ -1278,6 +1291,7 @@ fun AiBreakdownDialog(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .weight(1f, fill = false)
                         .padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {

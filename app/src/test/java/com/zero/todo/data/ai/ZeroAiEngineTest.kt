@@ -126,6 +126,10 @@ class ZeroAiEngineTest {
             "data:image/jpeg;base64,QUJD",
             userContent.getJSONObject(1).getJSONObject("image_url").getString("url")
         )
+        assertEquals(
+            "high",
+            userContent.getJSONObject(1).getJSONObject("image_url").getString("detail")
+        )
     }
 
     @Test
@@ -568,11 +572,24 @@ class ZeroAiEngineTest {
         )
         assertTrue(prompt.contains("\"checklistItems\""))
         assertTrue(prompt.contains("SHORT HEADLINE TITLES"))
+        assertTrue(prompt.contains("NEVER drop a substantive second action"))
+        assertTrue(prompt.contains("IMAGE & CHAT SCREENSHOT FIDELITY"))
         assertTrue(prompt.contains("EVENT VS. PREPARATION"))
         assertTrue(prompt.contains("SUBTASKS VS. CHECKLIST"))
         assertTrue(prompt.contains("ALWAYS set parent \"firstStep\" to JSON null"))
         assertFalse(prompt.contains("煤炉"))
         assertFalse(prompt.contains("后备箱"))
         assertFalse(prompt.contains("トランク"))
+        assertFalse(prompt.contains("牛仔"))
+        assertFalse(prompt.contains("五斗橱"))
+        assertFalse(prompt.contains("着ぐるみ"))
+
+        val imageUserPrompt = ZeroAiJsonParser.buildCaptureUserPrompt(
+            effectiveText = "",
+            hasImage = true,
+            hasAudio = false,
+            languageTag = "ja-JP"
+        )
+        assertTrue(imageUserPrompt.contains("スタンプや絵文字の絵柄に引きずられないこと"))
     }
 }
