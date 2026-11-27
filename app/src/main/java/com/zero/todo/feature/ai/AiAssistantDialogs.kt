@@ -1,12 +1,12 @@
 package com.zero.todo.feature.ai
 
-import android.app.Activity
-import android.content.Intent
+import android.Manifest
+import android.content.pm.PackageManager
 import android.graphics.BitmapFactory
 import android.net.Uri
-import android.speech.RecognizerIntent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -38,14 +38,17 @@ import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.Mic
 import androidx.compose.material.icons.rounded.PhotoCamera
 import androidx.compose.material.icons.rounded.Refresh
+import androidx.compose.material.icons.rounded.Stop
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -65,6 +68,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.zero.todo.R
 import com.zero.todo.core.common.AiImageEncoder
+import com.zero.todo.core.common.ZeroAudioRecorder
 import com.zero.todo.core.designsystem.ZeroCardShape
 import com.zero.todo.core.designsystem.ZeroPriorityBadge
 import com.zero.todo.core.designsystem.ZeroSmallShape
@@ -72,6 +76,7 @@ import com.zero.todo.core.designsystem.ZeroTheme
 import com.zero.todo.core.designsystem.hairlineBorder
 import com.zero.todo.core.designsystem.hairlineDividerBottom
 import com.zero.todo.core.designsystem.rememberZeroHaptics
+import com.zero.todo.data.ai.AiAudioPayload
 import com.zero.todo.data.ai.AiBreakdownDialogState
 import com.zero.todo.data.ai.AiCaptureDialogState
 import com.zero.todo.data.ai.AiCapturedTaskDraft
@@ -84,6 +89,7 @@ import com.zero.todo.domain.model.TaskItem
 import com.zero.todo.domain.model.TaskPriority
 import com.zero.todo.feature.calendar.ZeroMiniCalendarDialog
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.time.Instant
@@ -105,7 +111,7 @@ fun AiCaptureDialog(
     availableFolderPaths: List<String> = emptyList(),
     onDismiss: () -> Unit,
     onOpenSettings: () -> Unit,
-    onAnalyze: (text: String, image: AiImagePayload?) -> Unit,
+    onAnalyze: (text: String, image: AiImagePayload?, audio: AiAudioPayload?) -> Unit,
     onApplyTasks: (List<AiCapturedTaskDraft>) -> Unit
 ) {
     if (!state.isOpen) return
@@ -115,13 +121,37 @@ fun AiCaptureDialog(
     val haptics = rememberZeroHaptics()
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val voicePromptText = stringResource(R.string.ai_capture_voice_prompt)
+    val permissionDeniedText = stringResource(R.string.ai_voice_permission_denied)
+    val recordingFailedText = stringResource(R.string.ai_voice_recording_failed)
 
     var inputText by remember(state.sessionId, state.isOpen) { mutableStateOf(state.initialText) }
     var attachedImagePayload by remember(state.sessionId, state.isOpen) { mutableStateOf<AiImagePayload?>(null) }
     var attachedPreviewBitmap by remember(state.sessionId, state.isOpen) { mutableStateOf<android.graphics.Bitmap?>(null) }
     var encodingImage by remember(state.sessionId, state.isOpen) { mutableStateOf(false) }
     var pendingCameraUri by remember { mutableStateOf<Uri?>(null) }
+
+    val audioRecorder = remember { ZeroAudioRecorder() }
+    var isRecording by remember(state.sessionId, state.isOpen) { mutableStateOf(false) }
+    var recordingSeconds by remember(state.sessionId, state.isOpen) { mutableIntStateOf(0) }
+    var voiceError by remember(state.sessionId, state.isOpen) { mutableStateOf<String?>(null) }
+
+    DisposableEffect(state.sessionId, state.isOpen) {
+        onDispose {
+            audioRecorder.cancel()
+        }
+    }
+
+    LaunchedEffect(isRecording) {
+        if (!isRecording) {
+            recordingSeconds = 0
+            return@LaunchedEffect
+        }
+        recordingSeconds = 0
+        while (true) {
+            delay(1_000L)
+            recordingSeconds += 1
+        }
+    }
 
     val draftEdits = remember(state.results) {
         mutableStateListOf<AiCapturedTaskDraft>().apply {
@@ -152,7 +182,7 @@ fun AiCaptureDialog(
             attachedPreviewBitmap = thumb
             encodingImage = false
             if (payload != null && aiConfig.isConfigured && (autoAnalyzeText != null || inputText.isBlank())) {
-                onAnalyze(autoAnalyzeText ?: inputText, payload)
+                onAnalyze(autoAnalyzeText ?: inputText, payload, null)
             }
         }
     }
@@ -174,20 +204,23 @@ fun AiCaptureDialog(
         }
     }
 
-    val voiceLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        if (result.resultCode == Activity.RESULT_OK) {
-            val matches = result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
-            val spoken = matches?.firstOrNull()?.trim()
-            if (!spoken.isNullOrEmpty()) {
-                haptics.confirm()
-                val updated = if (inputText.isBlank()) spoken else "${inputText.trimEnd()}\n$spoken"
-                inputText = updated
-                if (aiConfig.isConfigured) {
-                    onAnalyze(updated, attachedImagePayload)
-                }
-            }
+    fun startRecordingInternal() {
+        voiceError = null
+        if (audioRecorder.start(context)) {
+            isRecording = true
+        } else {
+            isRecording = false
+            voiceError = recordingFailedText
+        }
+    }
+
+    val recordAudioPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) {
+            startRecordingInternal()
+        } else {
+            voiceError = permissionDeniedText
         }
     }
 
@@ -199,13 +232,26 @@ fun AiCaptureDialog(
         }
     }
 
-    fun launchVoiceToAi() {
-        runCatching {
-            val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-                putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                putExtra(RecognizerIntent.EXTRA_PROMPT, voicePromptText)
+    fun toggleVoiceRecording() {
+        if (isRecording) {
+            isRecording = false
+            val audioPayload = audioRecorder.stopAndReadPayload()
+            if (audioPayload == null) {
+                voiceError = recordingFailedText
+            } else if (aiConfig.isConfigured) {
+                haptics.confirm()
+                onAnalyze(inputText, attachedImagePayload, audioPayload)
             }
-            voiceLauncher.launch(intent)
+            return
+        }
+        val granted = ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.RECORD_AUDIO
+        ) == PackageManager.PERMISSION_GRANTED
+        if (granted) {
+            startRecordingInternal()
+        } else {
+            recordAudioPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
         }
     }
 
@@ -222,8 +268,11 @@ fun AiCaptureDialog(
                     )
                 }
             }
+            state.autoStartVoice -> {
+                toggleVoiceRecording()
+            }
             state.autoAnalyzeOnOpen && state.initialText.isNotBlank() -> {
-                onAnalyze(state.initialText, null)
+                onAnalyze(state.initialText, null, null)
             }
             state.autoLaunchCamera -> {
                 launchCamera()
@@ -376,26 +425,31 @@ fun AiCaptureDialog(
                             modifier = Modifier
                                 .height(38.dp)
                                 .clip(ZeroSmallShape)
-                                .background(colors.surface)
-                                .hairlineBorder(shape = ZeroSmallShape)
+                                .background(if (isRecording) colors.priorityUrgent.copy(alpha = 0.16f) else colors.surface)
+                                .hairlineBorder(
+                                    shape = ZeroSmallShape,
+                                    color = if (isRecording) colors.priorityUrgent else colors.hairlineBorder
+                                )
                                 .clickable {
                                     haptics.reorderTick()
-                                    launchVoiceToAi()
+                                    toggleVoiceRecording()
                                 }
                                 .padding(horizontal = 12.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
                             Icon(
-                                imageVector = Icons.Rounded.Mic,
+                                imageVector = if (isRecording) Icons.Rounded.Stop else Icons.Rounded.Mic,
                                 contentDescription = null,
-                                tint = colors.accent,
+                                tint = if (isRecording) colors.priorityUrgent else colors.accent,
                                 modifier = Modifier.size(16.dp)
                             )
                             Text(
-                                text = stringResource(R.string.ai_capture_voice_btn),
+                                text = stringResource(
+                                    if (isRecording) R.string.ai_voice_stop_and_analyze else R.string.ai_capture_voice_btn
+                                ),
                                 style = MaterialTheme.typography.labelMedium,
-                                color = colors.textPrimary
+                                color = if (isRecording) colors.priorityUrgent else colors.textPrimary
                             )
                         }
 
@@ -406,6 +460,84 @@ fun AiCaptureDialog(
                                 modifier = Modifier.size(18.dp)
                             )
                         }
+                    }
+
+                    if (isRecording) {
+                        val mins = recordingSeconds / 60
+                        val secs = recordingSeconds % 60
+                        val timerLabel = "%02d:%02d".format(mins, secs)
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(ZeroSmallShape)
+                                .background(colors.priorityUrgent.copy(alpha = 0.10f))
+                                .hairlineBorder(
+                                    shape = ZeroSmallShape,
+                                    color = colors.priorityUrgent.copy(alpha = 0.55f)
+                                )
+                                .padding(horizontal = 12.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(8.dp)
+                                    .clip(CircleShape)
+                                    .background(colors.priorityUrgent)
+                            )
+                            Text(
+                                text = timerLabel,
+                                style = tabular.dateCompact,
+                                color = colors.priorityUrgent
+                            )
+                            Text(
+                                text = stringResource(R.string.ai_voice_recording_hint),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = colors.textPrimary,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f)
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .clip(ZeroSmallShape)
+                                    .background(colors.accent)
+                                    .clickable {
+                                        haptics.confirm()
+                                        toggleVoiceRecording()
+                                    }
+                                    .padding(horizontal = 10.dp, vertical = 5.dp)
+                            ) {
+                                Text(
+                                    text = stringResource(R.string.ai_voice_stop_and_analyze),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = colors.onAccent
+                                )
+                            }
+                            IconButton(
+                                onClick = {
+                                    audioRecorder.cancel()
+                                    isRecording = false
+                                    voiceError = null
+                                },
+                                modifier = Modifier.size(26.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Close,
+                                    contentDescription = stringResource(R.string.action_cancel),
+                                    tint = colors.textMuted,
+                                    modifier = Modifier.size(15.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    voiceError?.let { vErr ->
+                        Text(
+                            text = vErr,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = colors.priorityUrgent
+                        )
                     }
 
                     attachedPreviewBitmap?.let { bmp ->
@@ -476,7 +608,7 @@ fun AiCaptureDialog(
                         )
                     }
 
-                    val canAnalyze = !state.isAnalyzing && !encodingImage &&
+                    val canAnalyze = !state.isAnalyzing && !encodingImage && !isRecording &&
                         (inputText.isNotBlank() || attachedImagePayload != null)
                     Box(
                         modifier = Modifier
@@ -490,7 +622,7 @@ fun AiCaptureDialog(
                             )
                             .clickable(enabled = canAnalyze) {
                                 haptics.heavyClick()
-                                onAnalyze(inputText, attachedImagePayload)
+                                onAnalyze(inputText, attachedImagePayload, null)
                             },
                         contentAlignment = Alignment.Center
                     ) {

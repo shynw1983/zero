@@ -1,6 +1,7 @@
 package com.zero.todo.feature.tasklist
 
 import android.app.Activity
+import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.speech.RecognizerIntent
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -146,32 +147,10 @@ fun QuickInputCapsule(
         }
     }
 
-    val aiSpeechLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        if (result.resultCode == Activity.RESULT_OK) {
-            val matches = result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
-            val spoken = matches?.firstOrNull()?.trim()
-            if (!spoken.isNullOrEmpty()) {
-                voiceStatusNotice = null
-                haptics.confirm()
-                onOpenAiCapture(spoken, false, true)
-            }
-        }
-    }
-
     fun launchAiVoiceInput() {
         haptics.heavyClick()
-        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-            putExtra(RecognizerIntent.EXTRA_PROMPT, aiVoicePromptText)
-        }
-        if (intent.resolveActivity(context.packageManager) != null) {
-            voiceStatusNotice = null
-            aiSpeechLauncher.launch(intent)
-        } else {
-            voiceStatusNotice = voiceUnavailableText
-        }
+        voiceStatusNotice = null
+        onOpenAiCapture("", false, true)
     }
 
     fun launchVoiceInput() {
@@ -181,11 +160,16 @@ fun QuickInputCapsule(
             putExtra(RecognizerIntent.EXTRA_LANGUAGE, activeLocale.toLanguageTag())
             putExtra(RecognizerIntent.EXTRA_PROMPT, voicePromptText)
         }
-        if (intent.resolveActivity(context.packageManager) != null) {
+        try {
             voiceStatusNotice = null
             speechLauncher.launch(intent)
-        } else {
-            voiceStatusNotice = voiceUnavailableText
+        } catch (_: ActivityNotFoundException) {
+            if (aiConfigured) {
+                voiceStatusNotice = null
+                onOpenAiCapture("", false, true)
+            } else {
+                voiceStatusNotice = voiceUnavailableText
+            }
         }
     }
 

@@ -330,4 +330,36 @@ class ZeroAiEngineTest {
         assertEquals(TaskPriority.URGENT, nextPreviewPriority(TaskPriority.HIGH))
         assertEquals(TaskPriority.NONE, nextPreviewPriority(TaskPriority.URGENT))
     }
+
+    @Test
+    fun buildsGeminiAudioPayloadAndParsesOpenAiWhisperTranscriptionResponse() {
+        val audio = AiAudioPayload(
+            bytes = byteArrayOf(1, 2, 3, 4),
+            base64Data = "AQIDBA==",
+            mimeType = "audio/mp4"
+        )
+        val geminiJson = ZeroAiJsonParser.buildGeminiRequestJson(
+            systemPrompt = "sys",
+            userPrompt = "voice note",
+            image = null,
+            audio = audio
+        )
+        val parts = geminiJson.getJSONArray("contents").getJSONObject(0).getJSONArray("parts")
+        assertEquals(2, parts.length())
+        assertEquals("audio/mp4", parts.getJSONObject(1).getJSONObject("inline_data").getString("mime_type"))
+        assertEquals("AQIDBA==", parts.getJSONObject(1).getJSONObject("inline_data").getString("data"))
+
+        assertEquals(
+            "https://api.openai.com/v1/audio/transcriptions",
+            ZeroAiJsonParser.resolveOpenAiTranscriptionsUrl("")
+        )
+        assertEquals(
+            "https://proxy.example.com/v1/audio/transcriptions",
+            ZeroAiJsonParser.resolveOpenAiTranscriptionsUrl("https://proxy.example.com/v1/chat/completions")
+        )
+        assertEquals(
+            "整理后备箱",
+            ZeroAiJsonParser.extractOpenAiTranscriptionText("{\"text\":\"整理后备箱\"}")
+        )
+    }
 }

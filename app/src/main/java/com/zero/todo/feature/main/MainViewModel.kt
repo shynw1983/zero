@@ -9,6 +9,7 @@ import com.zero.todo.core.nlp.ParsedQuickInput
 import com.zero.todo.core.nlp.QuickInputParser
 import com.zero.todo.core.notification.ReminderScheduler
 import com.zero.todo.core.notification.syncTaskReminder
+import com.zero.todo.data.ai.AiAudioPayload
 import com.zero.todo.data.ai.AiBreakdownDialogState
 import com.zero.todo.data.ai.AiCaptureDialogState
 import com.zero.todo.data.ai.AiCapturedTaskDraft
@@ -1740,12 +1741,14 @@ class MainViewModel @Inject constructor(
     }
 
     override fun openAiCapture(initialText: String, autoLaunchCamera: Boolean, autoAnalyze: Boolean) {
+        val autoVoice = initialText.isBlank() && !autoLaunchCamera && autoAnalyze
         _aiCaptureState.value = AiCaptureDialogState(
             sessionId = System.nanoTime(),
             isOpen = true,
             initialText = initialText,
             autoLaunchCamera = autoLaunchCamera,
-            autoAnalyzeOnOpen = autoAnalyze
+            autoStartVoice = autoVoice,
+            autoAnalyzeOnOpen = autoAnalyze && !autoVoice
         )
     }
 
@@ -1764,11 +1767,17 @@ class MainViewModel @Inject constructor(
         _aiCaptureState.value = AiCaptureDialogState()
     }
 
-    fun analyzeAiCapture(text: String, image: AiImagePayload?, languageTag: String) {
+    fun analyzeAiCapture(
+        text: String,
+        image: AiImagePayload?,
+        audio: AiAudioPayload? = null,
+        languageTag: String
+    ) {
         val cfg = userPreferencesRepository.preferences.value.aiConfig
         _aiCaptureState.value = _aiCaptureState.value.copy(
             isAnalyzing = true,
             autoLaunchCamera = false,
+            autoStartVoice = false,
             errorMessage = null
         )
         viewModelScope.launch {
@@ -1777,6 +1786,7 @@ class MainViewModel @Inject constructor(
                 config = cfg,
                 rawText = text,
                 image = image,
+                audio = audio,
                 context = ctx
             )
             _aiCaptureState.value = result.fold(

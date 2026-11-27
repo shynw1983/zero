@@ -48,6 +48,12 @@ data class AiImagePayload(
     val mimeType: String = "image/jpeg"
 )
 
+class AiAudioPayload(
+    val bytes: ByteArray,
+    val base64Data: String,
+    val mimeType: String = "audio/mp4"
+)
+
 data class AiWorkspaceContext(
     val currentDateIso: String,
     val currentWeekday: String,
@@ -95,6 +101,7 @@ data class AiCaptureDialogState(
     val initialText: String = "",
     val initialImageUri: String? = null,
     val autoLaunchCamera: Boolean = false,
+    val autoStartVoice: Boolean = false,
     val autoAnalyzeOnOpen: Boolean = false,
     val isAnalyzing: Boolean = false,
     val results: List<AiCapturedTaskDraft> = emptyList(),

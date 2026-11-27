@@ -5,6 +5,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.ByteArrayOutputStream
 import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
@@ -238,6 +239,7 @@ object ZeroAiJsonParser {
         systemPrompt: String,
         userPrompt: String,
         image: AiImagePayload?,
+        audio: AiAudioPayload? = null,
         expectJson: Boolean = true
     ): JSONObject {
         val parts = JSONArray().put(JSONObject().put("text", userPrompt))
@@ -248,6 +250,16 @@ object ZeroAiJsonParser {
                     JSONObject()
                         .put("mime_type", image.mimeType)
                         .put("data", image.base64Jpeg)
+                )
+            )
+        }
+        if (audio != null) {
+            parts.put(
+                JSONObject().put(
+                    "inline_data",
+                    JSONObject()
+                        .put("mime_type", audio.mimeType)
+                        .put("data", audio.base64Data)
                 )
             )
         }
@@ -328,6 +340,21 @@ object ZeroAiJsonParser {
         val text = message.optString("content", "").trim()
         if (text.isEmpty()) error("Empty OpenAI text output")
         return text
+    }
+
+    fun resolveOpenAiTranscriptionsUrl(openAiBaseUrl: String): String {
+        val raw = openAiBaseUrl.trim().ifBlank { AiConfig.DEFAULT_OPENAI_BASE_URL }.trimEnd('/')
+        val base = raw.removeSuffix("/chat/completions").trimEnd('/')
+        return if (base.endsWith("/audio/transcriptions")) base else "$base/audio/transcriptions"
+    }
+
+    fun extractOpenAiTranscriptionText(responseBody: String): String {
+        val trimmed = responseBody.trim()
+        val parsed = runCatching {
+            if (trimmed.startsWith("{")) JSONObject(trimmed).optString("text", "").trim() else trimmed
+        }.getOrDefault(trimmed)
+        if (parsed.isBlank()) error("Empty audio transcription")
+        return parsed
     }
 
     fun extractApiError(responseBody: String?, httpCode: Int): String {
@@ -472,17 +499,32 @@ class ZeroAiEngine @Inject constructor() {
         config: AiConfig,
         rawText: String,
         image: AiImagePayload?,
+        audio: AiAudioPayload? = null,
         context: AiWorkspaceContext
     ): Result<List<AiCapturedTaskDraft>> = withContext(Dispatchers.IO) {
         runCatching {
             require(config.isConfigured) { "API key is empty" }
-            require(rawText.isNotBlank() || image != null) { "Input text and image are both empty" }
+            require(rawText.isNotBlank() || image != null || audio != null) { "Input text, image, and audio are all empty" }
 
             val systemPrompt = ZeroAiJsonParser.buildCaptureSystemPrompt(context)
 
+            val transcribedAudio = if (audio != null && config.provider == AiProvider.OPENAI) {
+                transcribeOpenAiAudio(config, audio)
+            } else {
+                null
+            }
+            val effectiveText = listOfNotNull(
+                rawText.trim().takeIf { it.isNotEmpty() },
+                transcribedAudio?.trim()?.takeIf { it.isNotEmpty() }
+            ).joinToString("\n")
+
             val userPrompt = buildString {
-                if (rawText.isNotBlank()) {
-                    append("Note:\n").append(rawText.trim())
+                if (effectiveText.isNotBlank()) {
+                    append("Note:\n").append(effectiveText)
+                } else if (audio != null && image == null) {
+                    append("Listen carefully to this voice note, then extract and translate all actionable tasks into the target UI language following the ZERO rules.")
+                } else if (audio != null) {
+                    append("Listen to this voice note and inspect the attached image, then extract all actionable tasks into the target UI language.")
                 } else {
                     append("Extract actionable tasks, deadlines, and reference details from this image.")
                 }
@@ -493,6 +535,7 @@ class ZeroAiEngine @Inject constructor() {
                 systemPrompt = systemPrompt,
                 userPrompt = userPrompt,
                 image = image,
+                audio = if (config.provider == AiProvider.GEMINI) audio else null,
                 expectJson = true
             )
             val parsed = ZeroAiJsonParser.sanitizeCapturedDrafts(
@@ -545,6 +588,7 @@ class ZeroAiEngine @Inject constructor() {
         systemPrompt: String,
         userPrompt: String,
         image: AiImagePayload?,
+        audio: AiAudioPayload? = null,
         expectJson: Boolean
     ): String {
         val model = config.activeModel
@@ -554,7 +598,7 @@ class ZeroAiEngine @Inject constructor() {
                 val encodedModel = URLEncoder.encode(model, "UTF-8")
                 val encodedKey = URLEncoder.encode(apiKey, "UTF-8")
                 val url = "https://generativelanguage.googleapis.com/v1beta/models/$encodedModel:generateContent?key=$encodedKey"
-                val body = ZeroAiJsonParser.buildGeminiRequestJson(systemPrompt, userPrompt, image, expectJson)
+                val body = ZeroAiJsonParser.buildGeminiRequestJson(systemPrompt, userPrompt, image, audio, expectJson)
                 val response = postJson(url, body.toString(), headers = emptyMap())
                 ZeroAiJsonParser.extractGeminiText(response)
             }
@@ -567,6 +611,47 @@ class ZeroAiEngine @Inject constructor() {
                 ZeroAiJsonParser.extractOpenAiText(response)
             }
         }
+    }
+
+    private fun transcribeOpenAiAudio(config: AiConfig, audio: AiAudioPayload): String {
+        val url = ZeroAiJsonParser.resolveOpenAiTranscriptionsUrl(config.openAiBaseUrl)
+        val boundary = "----ZeroAudioBoundary${System.currentTimeMillis()}"
+        val payloadStream = ByteArrayOutputStream()
+        fun writeStr(s: String) = payloadStream.write(s.toByteArray(Charsets.UTF_8))
+
+        writeStr("--$boundary\r\n")
+        writeStr("Content-Disposition: form-data; name=\"model\"\r\n\r\n")
+        writeStr("whisper-1\r\n")
+
+        writeStr("--$boundary\r\n")
+        writeStr("Content-Disposition: form-data; name=\"file\"; filename=\"voice.m4a\"\r\n")
+        writeStr("Content-Type: ${audio.mimeType}\r\n\r\n")
+        payloadStream.write(audio.bytes)
+        writeStr("\r\n--$boundary--\r\n")
+
+        val bodyBytes = payloadStream.toByteArray()
+        val conn = (URL(url).openConnection() as HttpURLConnection).apply {
+            requestMethod = "POST"
+            connectTimeout = 15_000
+            readTimeout = 45_000
+            doOutput = true
+            setRequestProperty("Authorization", "Bearer ${config.activeApiKey}")
+            setRequestProperty("Content-Type", "multipart/form-data; boundary=$boundary")
+            setRequestProperty("Accept", "application/json")
+        }
+        val responseBody = try {
+            conn.outputStream.use { out -> out.write(bodyBytes) }
+            val code = conn.responseCode
+            val stream = if (code in 200..299) conn.inputStream else conn.errorStream
+            val body = stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }.orEmpty()
+            if (code !in 200..299) {
+                error(ZeroAiJsonParser.extractApiError(body, code))
+            }
+            body
+        } finally {
+            conn.disconnect()
+        }
+        return ZeroAiJsonParser.extractOpenAiTranscriptionText(responseBody)
     }
 
     private fun postJson(urlString: String, jsonBody: String, headers: Map<String, String>): String {

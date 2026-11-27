@@ -498,4 +498,8 @@
     <string name="ai_capture_add_date">+ 日期</string>
     <string name="ai_capture_pick_folder_title">选择归属目录</string>
     <string name="action_clear_date">清除日期</string>
+    <string name="ai_voice_recording_hint">录音中… 说完点击右侧完成提取</string>
+    <string name="ai_voice_stop_and_analyze">说完提取</string>
+    <string name="ai_voice_permission_denied">请先允许麦克风权限后再使用语音录入</string>
+    <string name="ai_voice_recording_failed">录音过短或启动失败，请重试</string>
 </resources>

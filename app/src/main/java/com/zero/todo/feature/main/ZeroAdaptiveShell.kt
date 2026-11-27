@@ -85,6 +85,7 @@ import com.zero.todo.core.designsystem.hairlineDividerStart
 import com.zero.todo.core.designsystem.hairlineDividerTop
 import com.zero.todo.core.designsystem.rememberZeroHaptics
 import com.zero.todo.core.nlp.QuickInputParser
+import com.zero.todo.data.ai.AiAudioPayload
 import com.zero.todo.data.ai.AiBreakdownDialogState
 import com.zero.todo.data.ai.AiCaptureDialogState
 import com.zero.todo.data.ai.AiCapturedTaskDraft
@@ -225,7 +226,7 @@ data class ZeroShellCallbacks(
     val onTestAiConnection: () -> Unit = {},
     val onOpenAiCapture: (initialText: String, autoLaunchCamera: Boolean, autoAnalyze: Boolean) -> Unit = { _, _, _ -> },
     val onCloseAiCapture: () -> Unit = {},
-    val onAnalyzeAiCapture: (text: String, image: AiImagePayload?) -> Unit = { _, _ -> },
+    val onAnalyzeAiCapture: (text: String, image: AiImagePayload?, audio: AiAudioPayload?) -> Unit = { _, _, _ -> },
     val onApplyAiCapturedTasks: (List<AiCapturedTaskDraft>) -> Unit = {},
     val onOpenAiBreakdown: (TaskItem) -> Unit = {},
     val onCloseAiBreakdown: () -> Unit = {},

@@ -270,8 +270,8 @@ fun ZeroAppRoot(
             onTestAiConnection = viewModel::testAiConnection,
             onOpenAiCapture = viewModel::openAiCapture,
             onCloseAiCapture = viewModel::closeAiCapture,
-            onAnalyzeAiCapture = { text, image ->
-                viewModel.analyzeAiCapture(text, image, activeLanguageTag)
+            onAnalyzeAiCapture = { text, image, audio ->
+                viewModel.analyzeAiCapture(text, image, audio, activeLanguageTag)
             },
             onApplyAiCapturedTasks = viewModel::applyAiCapturedTasks,
             onOpenAiBreakdown = { task ->

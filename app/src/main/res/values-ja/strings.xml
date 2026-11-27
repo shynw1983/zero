@@ -498,4 +498,8 @@
     <string name="ai_capture_add_date">+ 日付</string>
     <string name="ai_capture_pick_folder_title">フォルダを選択</string>
     <string name="action_clear_date">日付をクリア</string>
+    <string name="ai_voice_recording_hint">録音中… 話し終えたら完了をタップ</string>
+    <string name="ai_voice_stop_and_analyze">完了・抽出</string>
+    <string name="ai_voice_permission_denied">音声入力にはマイク権限が必要です</string>
+    <string name="ai_voice_recording_failed">録音が短すぎるか開始できませんでした</string>
 </resources>
