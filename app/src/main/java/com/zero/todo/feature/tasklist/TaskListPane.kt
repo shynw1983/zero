@@ -331,7 +331,7 @@ fun TaskListPane(
                                 )
                                 Text(
                                     text = stringResource(taskSortMode.labelRes),
-                                    style = MaterialTheme.typography.labelSmall,
+                                    style = MaterialTheme.typography.labelMedium,
                                     color = sortColor,
                                     maxLines = 1
                                 )

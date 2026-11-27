@@ -529,7 +529,7 @@ fun IncludeSubfoldersPill(
             text = stringResource(
                 if (includeSubfolders) R.string.filter_include_subfolders else R.string.filter_current_folder
             ),
-            style = MaterialTheme.typography.labelSmall,
+            style = MaterialTheme.typography.labelMedium,
             color = textColor,
             maxLines = 1
         )

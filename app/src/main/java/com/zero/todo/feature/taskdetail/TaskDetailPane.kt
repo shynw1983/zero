@@ -285,7 +285,8 @@ fun TaskDetailPane(
             modifier = Modifier
                 .fillMaxWidth()
                 .hairlineDividerBottom()
-                .padding(horizontal = 12.dp, vertical = 10.dp),
+                .padding(horizontal = 12.dp, vertical = 10.dp)
+                .height(38.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
@@ -293,13 +294,13 @@ fun TaskDetailPane(
                 if (showBackButton) {
                     IconButton(
                         onClick = onNavigateBack,
-                        modifier = Modifier.size(34.dp)
+                        modifier = Modifier.size(36.dp)
                     ) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
                             contentDescription = stringResource(R.string.cd_back_to_list),
                             tint = colors.textPrimary,
-                            modifier = Modifier.size(20.dp)
+                            modifier = Modifier.size(19.dp)
                         )
                     }
                     Spacer(modifier = Modifier.width(4.dp))
@@ -307,6 +308,7 @@ fun TaskDetailPane(
                 Row(
                     modifier = Modifier
                         .weight(1f, fill = false)
+                        .height(36.dp)
                         .clip(ZeroSmallShape)
                         .background(colors.surface)
                         .hairlineBorder(shape = ZeroSmallShape)
@@ -314,7 +316,7 @@ fun TaskDetailPane(
                             haptics.reorderTick()
                             showFolderPicker = true
                         }
-                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                        .padding(horizontal = 10.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
@@ -322,7 +324,7 @@ fun TaskDetailPane(
                         imageVector = Icons.Rounded.Folder,
                         contentDescription = null,
                         tint = colors.textSecondary,
-                        modifier = Modifier.size(13.dp)
+                        modifier = Modifier.size(14.dp)
                     )
                     Text(
                         text = folderName ?: stringResource(R.string.nav_inbox),
@@ -340,6 +342,8 @@ fun TaskDetailPane(
                 }
             }
 
+            Spacer(modifier = Modifier.width(6.dp))
+
             Row(
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                 verticalAlignment = Alignment.CenterVertically
@@ -347,6 +351,7 @@ fun TaskDetailPane(
                 // "Just 2 Mins" anti-procrastination direct starter
                 Row(
                     modifier = Modifier
+                        .height(36.dp)
                         .clip(ZeroSmallShape)
                         .background(colors.accentSubtle)
                         .hairlineBorder(shape = ZeroSmallShape, color = colors.accent)
@@ -354,9 +359,9 @@ fun TaskDetailPane(
                             haptics.heavyClick()
                             onStartFocus(task, FocusMode.TWO_MIN_STARTER)
                         }
-                        .padding(horizontal = 8.dp, vertical = 5.dp),
+                        .padding(horizontal = 10.dp),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(3.dp)
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     Icon(
                         imageVector = Icons.Rounded.PlayArrow,
@@ -367,12 +372,14 @@ fun TaskDetailPane(
                     Text(
                         text = stringResource(R.string.detail_start_2min),
                         style = MaterialTheme.typography.labelMedium,
-                        color = colors.accent
+                        color = colors.accent,
+                        maxLines = 1
                     )
                 }
 
                 Box(
                     modifier = Modifier
+                        .height(36.dp)
                         .clip(ZeroSmallShape)
                         .background(if (task.isCompleted) colors.accentSubtle else colors.surface)
                         .hairlineBorder(
@@ -383,23 +390,26 @@ fun TaskDetailPane(
                             haptics.taskComplete()
                             onToggleComplete(task)
                         }
-                        .padding(horizontal = 10.dp, vertical = 5.dp)
+                        .padding(horizontal = 10.dp),
+                    contentAlignment = Alignment.Center
                 ) {
                     Text(
                         text = stringResource(
                             if (task.isCompleted) R.string.action_completed else R.string.action_done
                         ),
                         style = MaterialTheme.typography.labelMedium,
-                        color = if (task.isCompleted) colors.accent else colors.textPrimary
+                        color = if (task.isCompleted) colors.accent else colors.textPrimary,
+                        maxLines = 1
                     )
                 }
 
                 Box {
-                    IconButton(onClick = { showTaskActions = true }, modifier = Modifier.size(48.dp)) {
+                    IconButton(onClick = { showTaskActions = true }, modifier = Modifier.size(36.dp)) {
                         Icon(
                             imageVector = Icons.Rounded.MoreHoriz,
                             contentDescription = stringResource(R.string.cd_task_actions),
-                            tint = colors.textSecondary
+                            tint = colors.textSecondary,
+                            modifier = Modifier.size(18.dp)
                         )
                     }
                     DropdownMenu(expanded = showTaskActions, onDismissRequest = { showTaskActions = false }) {
@@ -1041,7 +1051,7 @@ fun TaskDetailPane(
                     task.tags.forEach { tag ->
                         Row(
                             modifier = Modifier
-                                .heightIn(min = 38.dp)
+                                .height(34.dp)
                                 .clip(ZeroSmallShape)
                                 .background(colors.surface)
                                 .hairlineBorder(shape = ZeroSmallShape)
@@ -1053,16 +1063,15 @@ fun TaskDetailPane(
                                 text = "#${tagPathById[tag.id] ?: tag.name}",
                                 style = MaterialTheme.typography.labelMedium,
                                 color = colors.textPrimary,
-                                modifier = Modifier
-                                    .clickable {
-                                        haptics.reorderTick()
-                                        onSelectTag(tag.id)
-                                    }
-                                    .padding(vertical = 8.dp)
+                                maxLines = 1,
+                                modifier = Modifier.clickable {
+                                    haptics.reorderTick()
+                                    onSelectTag(tag.id)
+                                }
                             )
                             Box(
                                 modifier = Modifier
-                                    .size(34.dp)
+                                    .size(30.dp)
                                     .clip(ZeroSmallShape)
                                     .clickable { onRemoveTag(task.id, tag.id) },
                                 contentAlignment = Alignment.Center
@@ -1071,7 +1080,7 @@ fun TaskDetailPane(
                                     imageVector = Icons.Rounded.Close,
                                     contentDescription = stringResource(R.string.cd_remove_tag),
                                     tint = colors.textMuted,
-                                    modifier = Modifier.size(15.dp)
+                                    modifier = Modifier.size(14.dp)
                                 )
                             }
                         }
@@ -1079,24 +1088,27 @@ fun TaskDetailPane(
 
                     Box(
                         modifier = Modifier
-                            .width(136.dp)
+                            .width(140.dp)
+                            .height(34.dp)
                             .clip(ZeroSmallShape)
                             .background(colors.surface)
                             .hairlineBorder(shape = ZeroSmallShape)
-                            .padding(horizontal = 8.dp, vertical = 5.dp)
+                            .padding(horizontal = 10.dp),
+                        contentAlignment = Alignment.CenterStart
                     ) {
                         if (newTagDraft.isEmpty()) {
                             Text(
                                 text = stringResource(R.string.detail_add_tag_placeholder),
-                                style = MaterialTheme.typography.labelSmall,
-                                color = colors.textMuted
+                                style = MaterialTheme.typography.labelMedium,
+                                color = colors.textMuted,
+                                maxLines = 1
                             )
                         }
                         BasicTextField(
                             value = newTagDraft,
                             onValueChange = { newTagDraft = it },
                             singleLine = true,
-                            textStyle = MaterialTheme.typography.labelSmall.copy(color = colors.textPrimary),
+                            textStyle = MaterialTheme.typography.labelMedium.copy(color = colors.textPrimary),
                             cursorBrush = SolidColor(colors.accent),
                             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                             keyboardActions = KeyboardActions(
@@ -1134,6 +1146,7 @@ fun TaskDetailPane(
                         tagSuggestions.forEach { (candidate, path) ->
                             Box(
                                 modifier = Modifier
+                                    .height(34.dp)
                                     .clip(ZeroSmallShape)
                                     .background(colors.background)
                                     .hairlineBorder(shape = ZeroSmallShape)
@@ -1142,12 +1155,14 @@ fun TaskDetailPane(
                                         onAddTag(task.id, path)
                                         newTagDraft = ""
                                     }
-                                    .padding(horizontal = 8.dp, vertical = 5.dp)
+                                    .padding(horizontal = 10.dp),
+                                contentAlignment = Alignment.Center
                             ) {
                                 Text(
                                     text = "+ #$path",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = colors.textSecondary
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = colors.textSecondary,
+                                    maxLines = 1
                                 )
                             }
                         }
