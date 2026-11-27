@@ -151,4 +151,51 @@ class ZeroAiEngineTest {
         assertEquals("gpt-4o", loaded.openAiModel)
         assertEquals("https://proxy.example.com/v1", loaded.openAiBaseUrl)
     }
+
+    @Test
+    fun languageStyleDirectiveEnforcesUiTranslationAndNoHonorificsAcrossLocales() {
+        val jaDirective = ZeroAiJsonParser.buildLanguageStyleDirective("ja-JP")
+        assertTrue(jaDirective.contains("Japanese"))
+        assertTrue(jaDirective.contains("新聞見出し・体言止め"))
+        assertTrue(jaDirective.contains("敬語・丁寧語禁止"))
+        assertTrue(jaDirective.contains("してください"))
+
+        val zhDirective = ZeroAiJsonParser.buildLanguageStyleDirective("zh-CN")
+        assertTrue(zhDirective.contains("Simplified Chinese"))
+        assertTrue(zhDirective.contains("极简动宾短语"))
+
+        val koDirective = ZeroAiJsonParser.buildLanguageStyleDirective("ko-KR")
+        assertTrue(koDirective.contains("Korean"))
+        assertTrue(koDirective.contains("개조식·명사형"))
+        assertTrue(koDirective.contains("존댓말·해요체·합니다체 금지"))
+
+        val enDirective = ZeroAiJsonParser.buildLanguageStyleDirective("en-US")
+        assertTrue(enDirective.contains("TARGET OUTPUT LANGUAGE: English"))
+        assertTrue(enDirective.contains("Newspaper Headline"))
+        assertTrue(enDirective.contains("Please"))
+
+        val fallbackDirective = ZeroAiJsonParser.buildLanguageStyleDirective("fr-FR")
+        assertTrue(fallbackDirective.contains("TARGET OUTPUT LANGUAGE: English"))
+    }
+
+    @Test
+    fun captureAndBreakdownPromptsEmbedUiLocaleDirectiveAndPreserveWorkspaceTaxonomy() {
+        val ctx = AiWorkspaceContext(
+            languageTag = "ja",
+            currentDateIso = "2026-11-27",
+            currentWeekday = "Friday",
+            folderPaths = listOf("丸九/経理"),
+            tagPaths = listOf("外出/コンビニ")
+        )
+        val capturePrompt = ZeroAiJsonParser.buildCaptureSystemPrompt(ctx)
+        assertTrue(capturePrompt.contains("新聞見出し・体言止め"))
+        assertTrue(capturePrompt.contains("丸九/経理"))
+        assertTrue(capturePrompt.contains("外出/コンビニ"))
+        assertTrue(capturePrompt.contains("do NOT translate existing folderPath or existing tag paths"))
+
+        val breakdownPrompt = ZeroAiJsonParser.buildBreakdownSystemPrompt(ctx)
+        assertTrue(breakdownPrompt.contains("新聞見出し・体言止め"))
+        assertTrue(breakdownPrompt.contains("敬語・丁寧語禁止"))
+        assertTrue(breakdownPrompt.contains("外出/コンビニ"))
+    }
 }

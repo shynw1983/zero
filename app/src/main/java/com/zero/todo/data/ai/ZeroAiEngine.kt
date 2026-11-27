@@ -288,6 +288,111 @@ object ZeroAiJsonParser {
         }
         return "HTTP $httpCode"
     }
+
+    /**
+     * Builds strict UI-language translation and telegraphic headline style instructions
+     * so voice notes, pasted chats, or photographed documents in any language are summarized
+     * concisely into the active app language without honorifics or conversational filler.
+     */
+    fun buildLanguageStyleDirective(languageTag: String): String {
+        val primaryLang = languageTag.trim().lowercase().substringBefore('-').substringBefore('_')
+        val styleSpec = when (primaryLang) {
+            "ja" -> """
+                - TARGET OUTPUT LANGUAGE: Japanese (日本語) [locale=$languageTag].
+                - STRICT TRANSLATION: Regardless of whether the user's voice transcript, pasted note, or image is in Chinese, English, Korean, or mixed languages, translate and summarize EVERY generated text field (`title`, `firstStep`, `description`, `subtasks[].title`, `checklistItems[]`) into natural, concise Japanese.
+                - STYLE (新聞見出し・体言止め・常体): Write like Japanese newspaper headlines or telegraphic action labels—ultra-concise, noun-ended or plain-form, action-first, zero fluff.
+                - STRICTLY FORBIDDEN (敬語・丁寧語禁止): NEVER use polite forms, honorifics, or soft endings (`です`, `ます`, `してください`, `しましょう`, `お願いします`, `確認が必要です`, `〜すること`).
+                - Examples -> title: "仕訳資料送付", "レターパック購入", "11月分領収書照合", "税理士へ連絡" (NEVER "仕訳資料を税理士に送付してください"); firstStep: "領収書フォルダを開く"; checklist: "枚数確認", "切手代確認".
+            """.trimIndent()
+
+            "zh" -> """
+                - TARGET OUTPUT LANGUAGE: Simplified Chinese (简体中文) [locale=$languageTag].
+                - STRICT TRANSLATION: Regardless of whether the user's voice transcript, pasted note, or image is in Japanese, English, Korean, or mixed languages, translate and summarize EVERY generated text field (`title`, `firstStep`, `description`, `subtasks[].title`, `checklistItems[]`) into concise Simplified Chinese.
+                - STYLE (极简动宾短语・新闻标题体): Strip conversational filler cleanly. Keep task titles crisp and direct (typically 4-14 chars).
+                - STRICTLY FORBIDDEN: NEVER use polite or filler phrasing (`请`, `记得`, `需要去`, `麻烦`, `一下`, `务必`).
+                - Examples -> title: "寄送仕訳资料", "便利店买信封", "核对11月收据", "联系税务师" (NOT "请记得去买信封然后寄给税务师"); firstStep: "打开收据文件夹"; checklist: "核对张数", "粘贴邮票".
+            """.trimIndent()
+
+            "ko" -> """
+                - TARGET OUTPUT LANGUAGE: Korean (한국어) [locale=$languageTag].
+                - STRICT TRANSLATION: Regardless of whether the user's voice transcript, pasted note, or image is in Japanese, Chinese, English, or mixed languages, translate and summarize EVERY generated text field (`title`, `firstStep`, `description`, `subtasks[].title`, `checklistItems[]`) into concise Korean.
+                - STYLE (신문 헤드라인·개조식·명사형): Use ultra-concise noun-ending or telegraphic bullet labels with zero conversational padding.
+                - STRICTLY FORBIDDEN (존댓말·해요체·합니다체 금지): NEVER use honorific or polite endings (`~하세요`, `~하십시오`, `~합니다`, `~해요`, `~바랍니다`, `해주세요`).
+                - Examples -> title: "회계자료 발송", "봉투 구매", "11월 영수증 대조", "세무사 연락" (NEVER "회계자료를 세무사에게 발송하세요"); firstStep: "영수증 폴더 열기"; checklist: "매수 확인", "우표 부착".
+            """.trimIndent()
+
+            else -> """
+                - TARGET OUTPUT LANGUAGE: English [locale=$languageTag].
+                - STRICT TRANSLATION: Regardless of whether the user's voice transcript, pasted note, or image is in Japanese, Chinese, Korean, or any other language, translate and summarize EVERY generated text field (`title`, `firstStep`, `description`, `subtasks[].title`, `checklistItems[]`) into crisp, telegraphic English.
+                - STYLE (Newspaper Headline / Telegraphic Imperative): Keep titles compact (2-6 words), action-first, scannable at a glance.
+                - STRICTLY FORBIDDEN: NEVER use polite or conversational filler (`Please`, `Remember to`, `You need to`, `Make sure to`, `Could you`).
+                - Examples -> title: "Mail tax docs", "Buy Letter Pack", "Verify Nov receipts", "Call tax accountant" (NEVER "Please remember to mail the tax documents"); firstStep: "Open receipt folder"; checklist: "Count receipts", "Apply stamp".
+            """.trimIndent()
+        }
+        return buildString {
+            append(styleSpec)
+            append('\n')
+            append("- TAXONOMY & DATA FIDELITY: Preserve exact numbers, amounts, dates, IDs, and proper names accurately when translating. When reusing an entry from `Existing folders` or `Existing tags`, keep its EXACT original spelling/language—do NOT translate existing folderPath or existing tag paths; only write brand-new scene tags concisely in the target UI language.")
+        }
+    }
+
+    fun buildCaptureSystemPrompt(context: AiWorkspaceContext): String = """
+You convert natural text, chat screenshots, bills, letters, or voice notes into structured tasks for ZERO.
+Always reply strictly with JSON matching:
+{
+  "tasks": [
+    {
+      "title": "telegraphic headline task title in target UI language",
+      "folderPath": "match existing folder path if relevant (exact spelling), or null",
+      "tags": ["existing tag path (exact spelling) or concise scene tag without # in target UI language"],
+      "dueDate": "YYYY-MM-DD" or "YYYY-MM-DD HH:mm" or null,
+      "priority": 1|2|3|4|null (1=urgent, 2=high, 3=medium, 4/null=normal),
+      "estimatedMinutes": 5|25|60|null,
+      "firstStep": "one tiny <=20 char starter action in target UI language or null",
+      "description": "concise reference details or key numbers in target UI language, empty string if none",
+      "subtasks": [
+        {
+          "title": "predecessor step requiring a DIFFERENT location/time/prep in target UI language (NOT repeating main final action)",
+          "tags": ["scene tag if distinct"],
+          "dueDate": null or "YYYY-MM-DD",
+          "estimatedMinutes": 5|25|60|null
+        }
+      ]
+    }
+  ]
+}
+ZERO rules:
+${buildLanguageStyleDirective(context.languageTag)}
+- Context date: ${context.currentDateIso} (${context.currentWeekday}).
+- Existing folders: ${context.folderPaths.take(40).joinToString(", ").ifBlank { "(none)" }}
+- Existing tags: ${context.tagPaths.take(40).joinToString(", ").ifBlank { "(none)" }}
+- Prefer reusing existing folderPaths and tags accurately.
+- Never include the final completion step itself as a subtask; if the task is small/single-sitting, keep subtasks empty.
+    """.trimIndent()
+
+    fun buildBreakdownSystemPrompt(context: AiWorkspaceContext): String = """
+You help break down a task for ZERO (an anti-procrastination GTD app).
+Reply strictly with JSON:
+{
+  "firstStep": "one ultra-tiny <=20 char physical starter action in target UI language",
+  "estimatedMinutes": 5|25|60,
+  "subtasks": [
+    {
+      "title": "predecessor step needing a DIFFERENT location, person, or prep BEFORE finishing main task, in target UI language",
+      "tags": ["matching existing tag path (exact spelling) or short scene tag without #"],
+      "estimatedMinutes": 5|25|60
+    }
+  ],
+  "checklistItems": [
+    "concise check item done in the SAME sitting while executing the main task, in target UI language"
+  ]
+}
+ZERO rules:
+${buildLanguageStyleDirective(context.languageTag)}
+- Context date: ${context.currentDateIso}.
+- Existing tags: ${context.tagPaths.take(40).joinToString(", ").ifBlank { "(none)" }}
+- Keep subtasks focused (0-4 items) ONLY for genuine separate prerequisites; put quick in-sitting verification steps into checklistItems (0-5 items).
+    """.trimIndent()
 }
 
 @Singleton
@@ -318,38 +423,7 @@ class ZeroAiEngine @Inject constructor() {
             require(config.isConfigured) { "API key is empty" }
             require(rawText.isNotBlank() || image != null) { "Input text and image are both empty" }
 
-            val systemPrompt = """
-You convert natural text, chat screenshots, bills, letters, or voice notes into structured tasks for ZERO.
-Always reply strictly with JSON matching:
-{
-  "tasks": [
-    {
-      "title": "concise actionable task title",
-      "folderPath": "match existing folder path if relevant, or null",
-      "tags": ["existing tag path or short scene tag without #"],
-      "dueDate": "YYYY-MM-DD" or "YYYY-MM-DD HH:mm" or null,
-      "priority": 1|2|3|4|null (1=urgent, 2=high, 3=medium, 4/null=normal),
-      "estimatedMinutes": 5|25|60|null,
-      "firstStep": "one tiny <=20 char starter action or null",
-      "description": "extra reference details or key numbers extracted from image/text, empty string if none",
-      "subtasks": [
-        {
-          "title": "only predecessor steps requiring a DIFFERENT location/time/preparation (NOT repeating main final action)",
-          "tags": ["scene tag if distinct"],
-          "dueDate": null or "YYYY-MM-DD",
-          "estimatedMinutes": 5|25|60|null
-        }
-      ]
-    }
-  ]
-}
-ZERO rules:
-- Use the user's language (or match the note/image language). Current context: ${context.currentDateIso} (${context.currentWeekday}), app locale=${context.languageTag}.
-- Existing folders: ${context.folderPaths.take(40).joinToString(", ").ifBlank { "(none)" }}
-- Existing tags: ${context.tagPaths.take(40).joinToString(", ").ifBlank { "(none)" }}
-- Prefer reusing existing folderPaths and tags accurately.
-- Never include the final completion step itself as a subtask; if the task is small/single-sitting, keep subtasks empty.
-            """.trimIndent()
+            val systemPrompt = ZeroAiJsonParser.buildCaptureSystemPrompt(context)
 
             val userPrompt = buildString {
                 if (rawText.isNotBlank()) {
@@ -382,28 +456,7 @@ ZERO rules:
     ): Result<AiBreakdownDraft> = withContext(Dispatchers.IO) {
         runCatching {
             require(config.isConfigured) { "API key is empty" }
-            val systemPrompt = """
-You help break down a task for ZERO (an anti-procrastination GTD app).
-Reply strictly with JSON:
-{
-  "firstStep": "one ultra-tiny <=20 char physical starter action to beat procrastination",
-  "estimatedMinutes": 5|25|60,
-  "subtasks": [
-    {
-      "title": "predecessor step needing a DIFFERENT location, person, or prep BEFORE finishing the main task",
-      "tags": ["matching existing tag path or short scene tag without #"],
-      "estimatedMinutes": 5|25|60
-    }
-  ],
-  "checklistItems": [
-    "short check item done in the SAME sitting while executing the main task"
-  ]
-}
-ZERO rules:
-- Match task language. Context date=${context.currentDateIso}.
-- Existing tags: ${context.tagPaths.take(40).joinToString(", ").ifBlank { "(none)" }}
-- Keep subtasks focused (0-4 items) ONLY for genuine separate prerequisites; put quick in-sitting verification steps into checklistItems (0-5 items).
-            """.trimIndent()
+            val systemPrompt = ZeroAiJsonParser.buildBreakdownSystemPrompt(context)
 
             val userPrompt = buildString {
                 append("Task: ").append(taskTitle.trim())
