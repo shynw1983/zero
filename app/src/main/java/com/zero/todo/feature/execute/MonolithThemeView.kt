@@ -408,6 +408,17 @@ fun MonolithThemeView(
                         }
                     }
 
+                    val parentTitle = state.parentTaskTitleById[activeTask.id]
+                    if (!parentTitle.isNullOrBlank()) {
+                        Text(
+                            text = "↳ $parentTitle",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = colors.textMuted.copy(alpha = 0.8f),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+
                     // Centered Large Title (Tap -> Minimalist BottomSheet)
                     Text(
                         text = activeTask.title,

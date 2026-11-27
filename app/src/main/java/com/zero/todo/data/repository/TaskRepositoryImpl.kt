@@ -330,12 +330,17 @@ class TaskRepositoryImpl @Inject constructor(
             } else {
                 task.sortOrder
             }
+            val now = System.currentTimeMillis()
             taskDao.moveTaskToFolder(
                 taskId = taskId,
                 folderId = targetFolderId,
                 sortOrder = newOrder,
-                updatedAt = System.currentTimeMillis()
+                updatedAt = now
             )
+            val descendants = taskDao.getDescendantTaskIds(taskId).filter { it != taskId }
+            if (descendants.isNotEmpty()) {
+                taskDao.updateFolderForTasks(descendants, targetFolderId, now)
+            }
         }
     }
 

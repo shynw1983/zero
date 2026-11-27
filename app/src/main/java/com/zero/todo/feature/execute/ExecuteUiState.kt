@@ -36,6 +36,7 @@ data class ExecuteUiState(
     val folderNameById: Map<String, String> = emptyMap(),
     val folderBadgeById: Map<String, FolderBadgeDisplay> = emptyMap(),
     val monolithFolderBadgeById: Map<String, FolderBadgeDisplay> = emptyMap(),
+    val parentTaskTitleById: Map<String, String> = emptyMap(),
     val focusState: FocusUiState = FocusUiState(),
     val isInlineFlowActive: Boolean = false,
     val quickInputText: String = "",

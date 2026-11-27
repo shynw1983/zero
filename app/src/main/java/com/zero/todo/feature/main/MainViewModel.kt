@@ -30,6 +30,7 @@ import com.zero.todo.domain.model.FolderBadgeDisplay
 import com.zero.todo.domain.model.FolderNode
 import com.zero.todo.domain.model.FolderPathDisplayMode
 import com.zero.todo.domain.model.FolderPathFormatter
+import com.zero.todo.domain.model.RunwayQueueBuilder
 import com.zero.todo.domain.model.TaskItem
 import com.zero.todo.domain.model.TaskPlacementChange
 import com.zero.todo.domain.model.TaskPriority
@@ -100,6 +101,7 @@ data class MainUiState(
     val folderBreadcrumbsById: Map<String, List<String>> = emptyMap(),
     val folderColorHexById: Map<String, String> = emptyMap(),
     val folderRootNameById: Map<String, String> = emptyMap(),
+    val parentTaskTitleById: Map<String, String> = emptyMap(),
     val tagsWithCounts: List<TagWithCount> = emptyList(),
     val tagNameById: Map<String, String> = emptyMap(),
     val tagPathById: Map<String, String> = emptyMap(),
@@ -563,36 +565,21 @@ class MainViewModel @Inject constructor(
         val parsed = QuickInputParser.parse(ui.quickInputText)
         val suggestions = buildFolderSuggestions(nav.folderTree, parsed.activeFolderQuery)
 
-        // ZERO 2.0: Compute NOW Runway Queue, Day Budget Scheduled Minutes, Today Rhythm & Triage Queue
+        // ZERO 2.0 + v2.8.0: Leaf-Only Parallel NOW Runway Queue, Day Budget Scheduled Minutes, Today Rhythm & Triage Queue
         val todayStart = ZeroDateFormatter.startOfDayMillis(nav.currentDate)
         val tomorrowStart = ZeroDateFormatter.startOfDayMillis(nav.currentDate.plusDays(1))
         val todayCompletedCount = allTasks.count { task ->
             task.isCompleted && (task.completedAt?.let { it in todayStart until tomorrowStart } == true)
         }
         val activeIncomplete = allTasks.filterNot { it.isCompleted }
-        val todayAndOverdue = activeIncomplete.filter { task ->
-            val due = task.dueDate
-            due != null && due < tomorrowStart
-        }
-        val scheduledTodayMinutes = todayAndOverdue.sumOf { task ->
-            task.estimatedMinutes ?: EffortTier.DEFAULT_UNSET_MINUTES
-        }
-        val baseRunwayCandidates = if (todayAndOverdue.isNotEmpty()) {
-            todayAndOverdue
-        } else {
-            activeIncomplete.filter { it.folderId == null && it.parentTaskId == null }
-        }
-        val pinnedId = searchTrash.pinnedRunwayTaskId
-        val skippedRank = searchTrash.skippedRunwayIds.withIndex().associate { (idx, id) -> id to (idx + 1) }
-        val runwayQueue = baseRunwayCandidates.sortedWith(
-            compareBy<TaskItem>(
-                { if (it.id == pinnedId) 0 else 1 },
-                { skippedRank[it.id] ?: 0 },
-                { it.priority.value },
-                { it.dueDate ?: Long.MAX_VALUE },
-                { it.sortOrder }
-            )
+        val runwayResult = RunwayQueueBuilder.build(
+            allActiveTasks = allTasks,
+            tomorrowStartMillis = tomorrowStart,
+            pinnedTaskId = searchTrash.pinnedRunwayTaskId,
+            skippedIds = searchTrash.skippedRunwayIds
         )
+        val scheduledTodayMinutes = runwayResult.scheduledTodayMinutes
+        val runwayQueue = runwayResult.runwayQueue
         val triageQueue = activeIncomplete.filter { task ->
             val isOverdue = task.dueDate != null && task.dueDate < todayStart
             val isUnfiledInbox = task.parentTaskId == null && task.folderId == null && task.dueDate == null
@@ -629,6 +616,7 @@ class MainViewModel @Inject constructor(
             folderBreadcrumbsById = folderBreadcrumbsById,
             folderColorHexById = folderIndex.colorHexById,
             folderRootNameById = folderIndex.rootNameById,
+            parentTaskTitleById = runwayResult.parentTitleByTaskId,
             tagsWithCounts = nav.tagsWithCounts,
             tagNameById = tagNameById,
             tagPathById = tagPathById,
@@ -718,6 +706,7 @@ class MainViewModel @Inject constructor(
             folderNameById = folderNameById,
             folderBadgeById = folderBadgeById,
             monolithFolderBadgeById = monolithFolderBadgeById,
+            parentTaskTitleById = parentTaskTitleById,
             focusState = focusState,
             isInlineFlowActive = inlineFlow,
             quickInputText = quickInputText,
@@ -1375,10 +1364,32 @@ class MainViewModel @Inject constructor(
     }
 
     fun addSubtask(parentTaskId: String, title: String) {
-        if (title.isBlank()) return
+        val raw = title.trim()
+        if (raw.isEmpty()) return
+        val parsed = QuickInputParser.parse(raw)
+        val resolvedTitle = parsed.title.ifBlank { raw }
+        if (resolvedTitle.isBlank()) return
         viewModelScope.launch {
             val parent = taskRepository.getTaskById(parentTaskId) ?: return@launch
-            taskRepository.createTask(title = title, folderId = parent.folderId, parentTaskId = parent.id)
+            val inheritedPriority = if (parsed.priority != TaskPriority.NONE) parsed.priority else parent.priority
+            val resolvedDueDate = parsed.dueDateMillis
+            val resolvedIsAllDay = if (resolvedDueDate != null) parsed.isAllDay else true
+            val resolvedReminderAt = if (resolvedDueDate != null && !resolvedIsAllDay) resolvedDueDate else null
+            val created = taskRepository.createTask(
+                title = resolvedTitle,
+                folderId = parent.folderId,
+                parentTaskId = parent.id,
+                priority = inheritedPriority,
+                dueDate = resolvedDueDate,
+                isAllDay = resolvedIsAllDay,
+                reminderAt = resolvedReminderAt
+            )
+            parsed.tags.forEach { tagName ->
+                val tag = tagRepository.getOrCreateTag(tagName)
+                tagRepository.attachTagToTask(created.id, tag.id)
+            }
+            syncTaskReminder(created)
+            widgetRefresher.refreshAll()
         }
     }
 

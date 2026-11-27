@@ -120,7 +120,7 @@
     <string name="cd_add_nested_subtask">하위 작업 추가</string>
     <string name="cd_delete_subtask">하위 작업 삭제</string>
     <string name="detail_add_child_subtask_placeholder">「%1$s」 아래에 하위 작업 추가…</string>
-    <string name="detail_add_subtask_placeholder">하위 작업 추가…</string>
+    <string name="detail_add_subtask_placeholder">하위 할 일 추가 (#태그, 내일, !1 지원)…</string>
     <string name="detail_markdown_notes">MARKDOWN 노트</string>
     <string name="detail_mode_edit">편집</string>
     <string name="detail_mode_preview">미리보기</string>

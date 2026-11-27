@@ -312,6 +312,9 @@ interface TaskDao {
     @Query("UPDATE tasks SET folderId = NULL, updatedAt = :updatedAt WHERE folderId IN (:folderIds) AND isDeleted = 0")
     suspend fun detachTasksFromFolders(folderIds: List<String>, updatedAt: Long)
 
+    @Query("UPDATE tasks SET folderId = :folderId, updatedAt = :updatedAt WHERE id IN (:taskIds) AND isDeleted = 0")
+    suspend fun updateFolderForTasks(taskIds: List<String>, folderId: String?, updatedAt: Long)
+
     @Query("UPDATE tasks SET isDeleted = 1, updatedAt = :updatedAt WHERE folderId IN (:folderIds) AND isDeleted = 0")
     suspend fun softDeleteTasksInFolders(folderIds: List<String>, updatedAt: Long)
 

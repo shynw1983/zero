@@ -1259,13 +1259,19 @@ fun TaskDetailPane(
                 }
 
                 val attachedIds = remember(task.tags) { task.tags.map { it.id }.toSet() }
-                val tagSuggestions = remember(allTags, attachedIds, newTagDraft, tagPathById) {
+                val parentTagIds = remember(parentTask) { parentTask?.tags?.map { it.id }?.toSet().orEmpty() }
+                val tagSuggestions = remember(allTags, attachedIds, parentTagIds, newTagDraft, tagPathById) {
                     val q = newTagDraft.trim().removePrefix("#").lowercase()
                     allTags.asSequence()
                         .filter { it.id !in attachedIds }
                         .map { it to (tagPathById[it.id] ?: it.name) }
                         .filter { (_, path) -> q.isEmpty() || path.lowercase().contains(q) }
-                        .sortedBy { (_, path) -> path.lowercase() }
+                        .sortedWith(
+                            compareBy<Pair<TagItem, String>>(
+                                { if (it.first.id in parentTagIds) 0 else 1 },
+                                { it.second.lowercase() }
+                            )
+                        )
                         .take(12)
                         .toList()
                 }
@@ -1278,12 +1284,16 @@ fun TaskDetailPane(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         tagSuggestions.forEach { (candidate, path) ->
+                            val isFromParent = candidate.id in parentTagIds
                             Box(
                                 modifier = Modifier
                                     .height(34.dp)
                                     .clip(ZeroSmallShape)
-                                    .background(colors.background)
-                                    .hairlineBorder(shape = ZeroSmallShape)
+                                    .background(if (isFromParent) colors.accentSubtle else colors.background)
+                                    .hairlineBorder(
+                                        shape = ZeroSmallShape,
+                                        color = if (isFromParent) colors.accent.copy(alpha = 0.55f) else colors.hairlineBorder
+                                    )
                                     .clickable {
                                         haptics.reorderTick()
                                         onAddTag(task.id, path)
@@ -1295,7 +1305,7 @@ fun TaskDetailPane(
                                 Text(
                                     text = "+ #$path",
                                     style = MaterialTheme.typography.labelMedium,
-                                    color = colors.textSecondary,
+                                    color = if (isFromParent) colors.accent else colors.textSecondary,
                                     maxLines = 1
                                 )
                             }

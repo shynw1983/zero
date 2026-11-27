@@ -119,7 +119,7 @@
     <string name="cd_add_nested_subtask">Add nested subtask</string>
     <string name="cd_delete_subtask">Delete subtask</string>
     <string name="detail_add_child_subtask_placeholder">Add subtask under \"%1$s\"…</string>
-    <string name="detail_add_subtask_placeholder">Add subtask…</string>
+    <string name="detail_add_subtask_placeholder">Add subtask (supports #tag, tomorrow, !1)…</string>
     <string name="detail_markdown_notes">MARKDOWN NOTES</string>
     <string name="detail_mode_edit">Edit</string>
     <string name="detail_mode_preview">Preview</string>

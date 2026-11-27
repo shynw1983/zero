@@ -331,6 +331,7 @@ fun RunwayThemeView(
                                 focusState = state.focusState,
                                 folderName = slot.task.folderId?.let(state.folderNameById::get),
                                 folderBadge = slot.task.folderId?.let(state.folderBadgeById::get),
+                                parentTitle = state.parentTaskTitleById[slot.task.id],
                                 onComplete = { onCompleteTask(slot.task) },
                                 onSkip = { onSkipTask(slot.task) },
                                 onBlockTap = {
@@ -495,6 +496,7 @@ private fun RunwayTimelineBlockRow(
     focusState: FocusUiState,
     folderName: String?,
     folderBadge: FolderBadgeDisplay? = null,
+    parentTitle: String? = null,
     onComplete: () -> Unit,
     onSkip: () -> Unit,
     onBlockTap: () -> Unit,
@@ -613,14 +615,24 @@ private fun RunwayTimelineBlockRow(
                         .clip(ZeroCapsuleShape)
                         .background(if (slot.task.priority != TaskPriority.NONE) priorityColor else colors.textMuted.copy(alpha = 0.4f))
                 )
-                Text(
-                    text = slot.task.title,
-                    style = if (isActive) MaterialTheme.typography.titleMedium else MaterialTheme.typography.bodyMedium,
-                    color = colors.textPrimary,
-                    maxLines = if (isActive) 2 else 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f)
-                )
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = slot.task.title,
+                        style = if (isActive) MaterialTheme.typography.titleMedium else MaterialTheme.typography.bodyMedium,
+                        color = colors.textPrimary,
+                        maxLines = if (isActive) 2 else 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    if (isActive && !parentTitle.isNullOrBlank()) {
+                        Text(
+                            text = "↳ $parentTitle",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = colors.textMuted,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
                 if ((folderBadge != null || !folderName.isNullOrBlank()) && isActive) {
                     val dotColor = parseFolderColorHex(folderBadge?.colorHex)
                     Row(
