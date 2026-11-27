@@ -48,6 +48,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -68,6 +69,8 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.zero.todo.R
 import com.zero.todo.core.common.AiImageEncoder
+import com.zero.todo.core.common.VoiceAutoStopDecision
+import com.zero.todo.core.common.VoiceAutoStopDetector
 import com.zero.todo.core.common.ZeroAudioRecorder
 import com.zero.todo.core.designsystem.ZeroCardShape
 import com.zero.todo.core.designsystem.ZeroPriorityBadge
@@ -133,6 +136,7 @@ fun AiCaptureDialog(
     val audioRecorder = remember { ZeroAudioRecorder() }
     var isRecording by remember(state.sessionId, state.isOpen) { mutableStateOf(false) }
     var recordingSeconds by remember(state.sessionId, state.isOpen) { mutableIntStateOf(0) }
+    var voiceLevel by remember(state.sessionId, state.isOpen) { mutableFloatStateOf(0f) }
     var voiceError by remember(state.sessionId, state.isOpen) { mutableStateOf<String?>(null) }
 
     DisposableEffect(state.sessionId, state.isOpen) {
@@ -141,15 +145,50 @@ fun AiCaptureDialog(
         }
     }
 
+    fun finishRecordingAndAnalyze() {
+        if (!isRecording) return
+        isRecording = false
+        voiceLevel = 0f
+        val audioPayload = audioRecorder.stopAndReadPayload()
+        if (audioPayload == null) {
+            voiceError = recordingFailedText
+        } else if (aiConfig.isConfigured) {
+            haptics.confirm()
+            onAnalyze(inputText, attachedImagePayload, audioPayload)
+        }
+    }
+
     LaunchedEffect(isRecording) {
         if (!isRecording) {
             recordingSeconds = 0
+            voiceLevel = 0f
             return@LaunchedEffect
         }
         recordingSeconds = 0
-        while (true) {
-            delay(1_000L)
-            recordingSeconds += 1
+        voiceLevel = 0f
+        val detector = VoiceAutoStopDetector()
+        var elapsed = 0L
+        while (isRecording) {
+            delay(100L)
+            if (!isRecording) break
+            elapsed += 100L
+            recordingSeconds = (elapsed / 1_000L).toInt()
+            val tick = detector.onSample(audioRecorder.currentAmplitude(), 100L)
+            voiceLevel = tick.normalizedLevel
+            when (tick.decision) {
+                VoiceAutoStopDecision.AUTO_STOP_AND_ANALYZE -> {
+                    finishRecordingAndAnalyze()
+                    break
+                }
+                VoiceAutoStopDecision.AUTO_CANCEL_NO_SPEECH -> {
+                    audioRecorder.cancel()
+                    isRecording = false
+                    voiceLevel = 0f
+                    voiceError = recordingFailedText
+                    break
+                }
+                VoiceAutoStopDecision.CONTINUE -> Unit
+            }
         }
     }
 
@@ -234,14 +273,7 @@ fun AiCaptureDialog(
 
     fun toggleVoiceRecording() {
         if (isRecording) {
-            isRecording = false
-            val audioPayload = audioRecorder.stopAndReadPayload()
-            if (audioPayload == null) {
-                voiceError = recordingFailedText
-            } else if (aiConfig.isConfigured) {
-                haptics.confirm()
-                onAnalyze(inputText, attachedImagePayload, audioPayload)
-            }
+            finishRecordingAndAnalyze()
             return
         }
         val granted = ContextCompat.checkSelfPermission(
@@ -479,12 +511,23 @@ fun AiCaptureDialog(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(8.dp)
-                                    .clip(CircleShape)
-                                    .background(colors.priorityUrgent)
-                            )
+                            Row(
+                                modifier = Modifier.height(16.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(2.dp)
+                            ) {
+                                val weights = listOf(0.55f, 1.0f, 0.7f)
+                                weights.forEach { w ->
+                                    val barHeight = (5f + (voiceLevel * w * 11f)).dp
+                                    Box(
+                                        modifier = Modifier
+                                            .width(2.5.dp)
+                                            .height(barHeight)
+                                            .clip(ZeroSmallShape)
+                                            .background(colors.priorityUrgent)
+                                    )
+                                }
+                            }
                             Text(
                                 text = timerLabel,
                                 style = tabular.dateCompact,

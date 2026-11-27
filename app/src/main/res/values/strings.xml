@@ -498,7 +498,7 @@
     <string name="ai_capture_add_date">+ Date</string>
     <string name="ai_capture_pick_folder_title">Assign Folder</string>
     <string name="action_clear_date">Clear Date</string>
-    <string name="ai_voice_recording_hint">Recording… Tap Done to analyze</string>
+    <string name="ai_voice_recording_hint">Listening… Auto-extracts when you pause</string>
     <string name="ai_voice_stop_and_analyze">Done &amp; Extract</string>
     <string name="ai_voice_permission_denied">Microphone permission is required for voice capture</string>
     <string name="ai_voice_recording_failed">Recording too short or failed, please try again</string>

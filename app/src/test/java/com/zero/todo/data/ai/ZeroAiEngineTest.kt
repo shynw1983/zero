@@ -3,6 +3,8 @@ package com.zero.todo.data.ai
 import android.content.Intent
 import android.net.Uri
 import androidx.test.core.app.ApplicationProvider
+import com.zero.todo.core.common.VoiceAutoStopDecision
+import com.zero.todo.core.common.VoiceAutoStopDetector
 import com.zero.todo.core.common.ZeroShareIntentParser
 import com.zero.todo.data.preferences.SharedPrefsUserPreferencesRepository
 import com.zero.todo.domain.model.PriorityDisplayStyle
@@ -361,5 +363,45 @@ class ZeroAiEngineTest {
             "整理后备箱",
             ZeroAiJsonParser.extractOpenAiTranscriptionText("{\"text\":\"整理后备箱\"}")
         )
+    }
+
+    @Test
+    fun voiceAutoStopDetectorStopsOnPostSpeechSilenceAndIgnoresBriefPauses() {
+        val detector = VoiceAutoStopDetector()
+        // Ambient background hum (~900) for first 500ms should stay CONTINUE
+        repeat(5) {
+            val tick = detector.onSample(amplitude = 900, stepMs = 100L)
+            assertEquals(VoiceAutoStopDecision.CONTINUE, tick.decision)
+        }
+        // Clear speech (~4500) for 1000ms
+        repeat(10) {
+            val tick = detector.onSample(amplitude = 4_500, stepMs = 100L)
+            assertEquals(VoiceAutoStopDecision.CONTINUE, tick.decision)
+            assertTrue(tick.hasHeardSpeech)
+            assertTrue(tick.normalizedLevel > 0.3f)
+        }
+        // Brief mid-sentence pause (800ms) should NOT auto-stop
+        repeat(8) {
+            val tick = detector.onSample(amplitude = 700, stepMs = 100L)
+            assertEquals(VoiceAutoStopDecision.CONTINUE, tick.decision)
+        }
+        // Resume speech briefly (400ms)
+        repeat(4) {
+            assertEquals(VoiceAutoStopDecision.CONTINUE, detector.onSample(amplitude = 4_200, stepMs = 100L).decision)
+        }
+        // End-of-utterance silence reaches 1600ms -> AUTO_STOP_AND_ANALYZE
+        var finalDecision = VoiceAutoStopDecision.CONTINUE
+        repeat(16) {
+            finalDecision = detector.onSample(amplitude = 650, stepMs = 100L).decision
+        }
+        assertEquals(VoiceAutoStopDecision.AUTO_STOP_AND_ANALYZE, finalDecision)
+
+        // Separate session with only silence cancels cleanly at 7s
+        val silentDetector = VoiceAutoStopDetector()
+        var silentDecision = VoiceAutoStopDecision.CONTINUE
+        repeat(70) {
+            silentDecision = silentDetector.onSample(amplitude = 400, stepMs = 100L).decision
+        }
+        assertEquals(VoiceAutoStopDecision.AUTO_CANCEL_NO_SPEECH, silentDecision)
     }
 }
