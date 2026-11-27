@@ -546,6 +546,9 @@
     <string name="place_no_active_tasks">This tag has no incomplete tasks to trigger an alert yet.</string>
     <string name="place_distance_away">~%1$d m</string>
     <string name="place_disabled_badge">Paused</string>
+    <string name="place_edit_action">Edit location</string>
+    <string name="place_edit_dialog_title">Edit Location</string>
+    <string name="place_confirm_add_title">Confirm &amp; Name Location</string>
 
     <!-- v2.13.0: ATLAS 3D Google Maps Quest NOW Theme -->
     <string name="execute_theme_atlas_title">ATLAS · 3D Quest Map</string>

@@ -546,6 +546,9 @@
     <string name="place_no_active_tasks">このタグに未完了タスクがないため通知テストできません。</string>
     <string name="place_distance_away">約 %1$d m</string>
     <string name="place_disabled_badge">停止中</string>
+    <string name="place_edit_action">地点を編集</string>
+    <string name="place_edit_dialog_title">地点名を編集</string>
+    <string name="place_confirm_add_title">地点名を確認・編集</string>
 
     <!-- v2.13.0: ATLAS 3D Googleマップ・クエストテーマ -->
     <string name="execute_theme_atlas_title">ATLAS · 3D クエストマップ</string>

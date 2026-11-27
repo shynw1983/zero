@@ -546,6 +546,9 @@
     <string name="place_no_active_tasks">此标签下暂无未完成任务，暂无法预览提醒。</string>
     <string name="place_distance_away">约 %1$d 米</string>
     <string name="place_disabled_badge">已暂停</string>
+    <string name="place_edit_action">编辑地点</string>
+    <string name="place_edit_dialog_title">编辑地点名称</string>
+    <string name="place_confirm_add_title">确认并命名地点</string>
 
     <!-- v2.13.0: ATLAS 3D 谷歌任务地图主题 -->
     <string name="execute_theme_atlas_title">ATLAS · 3D 任务地图</string>

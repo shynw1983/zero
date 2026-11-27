@@ -546,6 +546,9 @@
     <string name="place_no_active_tasks">이 태그에 미완료 할 일이 없어 알림을 테스트할 수 없습니다.</string>
     <string name="place_distance_away">약 %1$d m</string>
     <string name="place_disabled_badge">일시중지</string>
+    <string name="place_edit_action">장소 편집</string>
+    <string name="place_edit_dialog_title">장소 이름 편집</string>
+    <string name="place_confirm_add_title">장소 이름 확인 및 편집</string>
 
     <!-- v2.13.0: ATLAS 3D Google 지도 퀘스트 테마 -->
     <string name="execute_theme_atlas_title">ATLAS · 3D 퀘스트 지도</string>

@@ -29,6 +29,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AddLocationAlt
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.DeleteOutline
+import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.LocationOn
 import androidx.compose.material.icons.rounded.MyLocation
 import androidx.compose.material.icons.rounded.NotificationsActive
@@ -42,6 +43,7 @@ import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -51,12 +53,16 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
@@ -80,6 +86,17 @@ import com.zero.todo.domain.model.TagPlace
 import kotlinx.coroutines.launch
 
 private val RADIUS_PRESETS = listOf(100, 150, 300, 500)
+
+private sealed interface PlaceEditorTarget {
+    data class Existing(val place: TagPlace) : PlaceEditorTarget
+    data class PendingNew(
+        val defaultLabel: String,
+        val address: String,
+        val latitude: Double,
+        val longitude: Double,
+        val radiusMeters: Int
+    ) : PlaceEditorTarget
+}
 
 private fun nextRadiusPreset(current: Int): Int {
     val idx = RADIUS_PRESETS.indexOf(current)
@@ -124,6 +141,7 @@ fun TagPlaceConfigDialog(
     var searchResults by remember(tag.id) { mutableStateOf<List<PlaceSearchResult>>(emptyList()) }
     var searchAttemptedEmpty by remember(tag.id) { mutableStateOf(false) }
     var statusNotice by remember(tag.id) { mutableStateOf<String?>(null) }
+    var editorTarget by remember(tag.id) { mutableStateOf<PlaceEditorTarget?>(null) }
 
     val noActiveTasksMsg = stringResource(R.string.place_no_active_tasks)
     val locationUnavailableMsg = stringResource(R.string.place_location_unavailable)
@@ -233,18 +251,29 @@ fun TagPlaceConfigDialog(
                 coords.first,
                 coords.second
             )
-            val finalLabel = customLabelDraft.trim().ifBlank { revLabel }
-            onAddPlace(
-                tag.id,
-                finalLabel,
-                revAddr,
-                coords.first,
-                coords.second,
-                selectedRadius
-            )
-            customLabelDraft = ""
+            val alias = customLabelDraft.trim()
+            if (alias.isNotEmpty()) {
+                onAddPlace(
+                    tag.id,
+                    alias,
+                    revAddr,
+                    coords.first,
+                    coords.second,
+                    selectedRadius
+                )
+                customLabelDraft = ""
+                haptics.confirm()
+            } else {
+                editorTarget = PlaceEditorTarget.PendingNew(
+                    defaultLabel = revLabel,
+                    address = revAddr,
+                    latitude = coords.first,
+                    longitude = coords.second,
+                    radiusMeters = selectedRadius
+                )
+                haptics.reorderTick()
+            }
             isFetchingCurrent = false
-            haptics.confirm()
         }
     }
 
@@ -510,6 +539,10 @@ fun TagPlaceConfigDialog(
                                 haptics.reorderTick()
                                 onUpdatePlace(place.copy(radiusMeters = nextRadiusPreset(place.radiusMeters)))
                             },
+                            onEdit = {
+                                haptics.reorderTick()
+                                editorTarget = PlaceEditorTarget.Existing(place)
+                            },
                             onTestAlert = {
                                 if (activeTaskCount <= 0) {
                                     statusNotice = noActiveTasksMsg
@@ -727,17 +760,28 @@ fun TagPlaceConfigDialog(
                                             .background(colors.background)
                                             .hairlineBorder(shape = ZeroSmallShape)
                                             .clickable {
-                                                val chosenLabel = customLabelDraft.trim().ifBlank { result.label }
-                                                onAddPlace(
-                                                    tag.id,
-                                                    chosenLabel,
-                                                    result.address,
-                                                    result.latitude,
-                                                    result.longitude,
-                                                    selectedRadius
-                                                )
-                                                customLabelDraft = ""
-                                                haptics.confirm()
+                                                val alias = customLabelDraft.trim()
+                                                if (alias.isNotEmpty()) {
+                                                    onAddPlace(
+                                                        tag.id,
+                                                        alias,
+                                                        result.address,
+                                                        result.latitude,
+                                                        result.longitude,
+                                                        selectedRadius
+                                                    )
+                                                    customLabelDraft = ""
+                                                    haptics.confirm()
+                                                } else {
+                                                    editorTarget = PlaceEditorTarget.PendingNew(
+                                                        defaultLabel = result.label,
+                                                        address = result.address,
+                                                        latitude = result.latitude,
+                                                        longitude = result.longitude,
+                                                        radiusMeters = selectedRadius
+                                                    )
+                                                    haptics.reorderTick()
+                                                }
                                             }
                                             .padding(horizontal = 10.dp, vertical = 8.dp),
                                         verticalAlignment = Alignment.CenterVertically,
@@ -781,6 +825,202 @@ fun TagPlaceConfigDialog(
             }
         }
     }
+
+    editorTarget?.let { target ->
+        PlaceNameEditorDialog(
+            target = target,
+            onDismiss = { editorTarget = null },
+            onSave = { finalLabel, finalRadius ->
+                when (target) {
+                    is PlaceEditorTarget.Existing -> {
+                        onUpdatePlace(target.place.copy(label = finalLabel, radiusMeters = finalRadius))
+                    }
+                    is PlaceEditorTarget.PendingNew -> {
+                        onAddPlace(
+                            tag.id,
+                            finalLabel,
+                            target.address,
+                            target.latitude,
+                            target.longitude,
+                            finalRadius
+                        )
+                    }
+                }
+                editorTarget = null
+                haptics.confirm()
+            }
+        )
+    }
+}
+
+@Composable
+private fun PlaceNameEditorDialog(
+    target: PlaceEditorTarget,
+    onDismiss: () -> Unit,
+    onSave: (label: String, radiusMeters: Int) -> Unit
+) {
+    val colors = ZeroTheme.colors
+    val initialLabel = when (target) {
+        is PlaceEditorTarget.Existing -> target.place.label
+        is PlaceEditorTarget.PendingNew -> target.defaultLabel
+    }
+    val initialRadius = when (target) {
+        is PlaceEditorTarget.Existing -> target.place.radiusMeters
+        is PlaceEditorTarget.PendingNew -> target.radiusMeters
+    }
+    val addressPreview = when (target) {
+        is PlaceEditorTarget.Existing -> target.place.address
+        is PlaceEditorTarget.PendingNew -> target.address
+    }
+
+    var textFieldState by remember(target) {
+        mutableStateOf(TextFieldValue(text = initialLabel, selection = TextRange(initialLabel.length)))
+    }
+    var radiusMeters by remember(target) { mutableIntStateOf(initialRadius) }
+    val focusRequester = remember { FocusRequester() }
+    LaunchedEffect(target) {
+        runCatching { focusRequester.requestFocus() }
+    }
+    val trimmed = textFieldState.text.trim()
+
+    Dialog(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(ZeroCardShape)
+                .background(colors.surfaceElevated)
+                .hairlineBorder(shape = ZeroCardShape)
+                .padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text(
+                text = stringResource(
+                    if (target is PlaceEditorTarget.Existing) {
+                        R.string.place_edit_dialog_title
+                    } else {
+                        R.string.place_confirm_add_title
+                    }
+                ),
+                style = MaterialTheme.typography.titleMedium,
+                color = colors.textPrimary
+            )
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(ZeroSmallShape)
+                    .background(colors.surface)
+                    .hairlineBorder(shape = ZeroSmallShape, color = colors.accent.copy(alpha = 0.45f))
+                    .padding(horizontal = 12.dp, vertical = 10.dp)
+            ) {
+                if (textFieldState.text.isEmpty()) {
+                    Text(
+                        text = stringResource(R.string.place_label_placeholder),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = colors.textMuted,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                BasicTextField(
+                    value = textFieldState,
+                    onValueChange = { textFieldState = it },
+                    singleLine = true,
+                    textStyle = MaterialTheme.typography.bodyMedium.copy(color = colors.textPrimary),
+                    cursorBrush = SolidColor(colors.accent),
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                    keyboardActions = KeyboardActions(
+                        onDone = {
+                            if (trimmed.isNotEmpty()) {
+                                onSave(trimmed, radiusMeters)
+                            }
+                        }
+                    ),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .focusRequester(focusRequester)
+                )
+            }
+
+            if (addressPreview.isNotBlank()) {
+                Text(
+                    text = addressPreview,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = colors.textMuted,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                RADIUS_PRESETS.forEach { preset ->
+                    val selected = radiusMeters == preset
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(ZeroSmallShape)
+                            .background(if (selected) colors.accentSubtle else colors.surface)
+                            .hairlineBorder(
+                                shape = ZeroSmallShape,
+                                color = if (selected) colors.accent else colors.hairlineBorder
+                            )
+                            .clickable { radiusMeters = preset }
+                            .padding(vertical = 7.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "${preset}m",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = if (selected) colors.accent else colors.textSecondary
+                        )
+                    }
+                }
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .clip(ZeroSmallShape)
+                        .hairlineBorder(shape = ZeroSmallShape)
+                        .clickable(onClick = onDismiss)
+                        .padding(horizontal = 14.dp, vertical = 9.dp)
+                ) {
+                    Text(
+                        text = stringResource(R.string.action_cancel),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = colors.textSecondary
+                    )
+                }
+                Box(
+                    modifier = Modifier
+                        .clip(ZeroSmallShape)
+                        .background(if (trimmed.isNotEmpty()) colors.accent else colors.surface)
+                        .hairlineBorder(
+                            shape = ZeroSmallShape,
+                            color = if (trimmed.isNotEmpty()) colors.accent else colors.hairlineBorder
+                        )
+                        .clickable(enabled = trimmed.isNotEmpty()) {
+                            onSave(trimmed, radiusMeters)
+                        }
+                        .padding(horizontal = 16.dp, vertical = 9.dp)
+                ) {
+                    Text(
+                        text = stringResource(R.string.action_save),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = if (trimmed.isNotEmpty()) colors.onAccent else colors.textMuted
+                    )
+                }
+            }
+        }
+    }
 }
 
 @Composable
@@ -788,6 +1028,7 @@ private fun SavedPlaceRow(
     place: TagPlace,
     onToggleEnabled: () -> Unit,
     onCycleRadius: () -> Unit,
+    onEdit: () -> Unit,
     onTestAlert: () -> Unit,
     onDelete: () -> Unit
 ) {
@@ -854,6 +1095,14 @@ private fun SavedPlaceRow(
                 text = "${place.radiusMeters}m",
                 style = MaterialTheme.typography.labelSmall,
                 color = colors.textSecondary
+            )
+        }
+        IconButton(onClick = onEdit, modifier = Modifier.size(32.dp)) {
+            Icon(
+                imageVector = Icons.Rounded.Edit,
+                contentDescription = stringResource(R.string.place_edit_action),
+                tint = colors.textSecondary,
+                modifier = Modifier.size(16.dp)
             )
         }
         IconButton(onClick = onTestAlert, modifier = Modifier.size(32.dp)) {

@@ -8,7 +8,9 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.Path
+import android.graphics.RadialGradient
 import android.graphics.RectF
+import android.graphics.Shader
 import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
@@ -137,13 +139,12 @@ import com.google.android.gms.maps.MapsInitializer
 import com.google.android.gms.maps.model.BitmapDescriptor
 import com.google.android.gms.maps.model.BitmapDescriptorFactory
 import com.google.android.gms.maps.model.CameraPosition
-import com.google.android.gms.maps.model.CircleOptions
+import com.google.android.gms.maps.model.GroundOverlay
+import com.google.android.gms.maps.model.GroundOverlayOptions
 import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.MapStyleOptions
 import com.google.android.gms.maps.model.Marker
 import com.google.android.gms.maps.model.MarkerOptions
-import com.google.android.gms.maps.model.Polygon
-import com.google.android.gms.maps.model.PolygonOptions
 import com.zero.todo.R
 import com.zero.todo.core.designsystem.ZeroCapsuleShape
 import com.zero.todo.core.designsystem.ZeroSmallShape
@@ -156,7 +157,9 @@ import com.zero.todo.domain.model.TaskPriority
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.abs
+import kotlin.math.atan2
 import kotlin.math.hypot
+import kotlin.math.pow
 
 private const val PLAYER_MARKER_TAG = "__zero_player__"
 
@@ -209,7 +212,7 @@ fun AtlasThemeView(
     var googleMapRef by remember { mutableStateOf<GoogleMap?>(null) }
     var hasInitialCameraCentered by remember { mutableStateOf(false) }
     var playerMarkerRef by remember { mutableStateOf<Marker?>(null) }
-    var headingConesRef by remember { mutableStateOf<List<Polygon>>(emptyList()) }
+    var headingOverlayRef by remember { mutableStateOf<GroundOverlay?>(null) }
     var cameraMoveTick by remember { mutableLongStateOf(0L) }
 
     // 60fps Organic Breathing & Spatial Choreography states
@@ -533,37 +536,62 @@ fun AtlasThemeView(
     val accentArgb = colors.accent.toArgb()
     val urgentArgb = colors.priorityUrgent.toArgb()
 
-    // Effect 1: Borderless feathered geofence light pools & floating architectural pill pins
+    // Cached pixel-smooth Gaussian glow bitmaps created only after GoogleMap initializes
+    val geofenceBitmaps = remember(googleMapRef, accentArgb, urgentArgb, isMapDark) {
+        if (googleMapRef == null) {
+            null
+        } else {
+            val insideAlpha = if (isMapDark) 152 else 138
+            val selectedAlpha = if (isMapDark) 132 else 118
+            val normalAlpha = if (isMapDark) 68 else 58
+            mapOf(
+                (accentArgb to 2) to createFeatheredGeofenceBitmap(accentArgb, insideAlpha),
+                (accentArgb to 1) to createFeatheredGeofenceBitmap(accentArgb, selectedAlpha),
+                (accentArgb to 0) to createFeatheredGeofenceBitmap(accentArgb, normalAlpha),
+                (urgentArgb to 2) to createFeatheredGeofenceBitmap(urgentArgb, insideAlpha),
+                (urgentArgb to 1) to createFeatheredGeofenceBitmap(urgentArgb, selectedAlpha),
+                (urgentArgb to 0) to createFeatheredGeofenceBitmap(urgentArgb, normalAlpha)
+            )
+        }
+    }
+    val headingSpotlightBitmap = remember(googleMapRef, accentArgb, isMapDark) {
+        if (googleMapRef == null) {
+            null
+        } else {
+            createFeatheredHeadingBitmap(accentArgb, if (isMapDark) 104 else 86)
+        }
+    }
+
+    // Effect 1: Seamless continuous-gradient 3D geofence GroundOverlays & architectural pins
     LaunchedEffect(
         googleMapRef,
         snapshot,
         selectedMarker?.place?.id,
         isMapDark,
-        accentArgb
+        accentArgb,
+        geofenceBitmaps
     ) {
         val gMap = googleMapRef ?: return@LaunchedEffect
+        val bitmapCache = geofenceBitmaps ?: return@LaunchedEffect
         gMap.clear()
         playerMarkerRef = null
-        headingConesRef = emptyList()
+        headingOverlayRef = null
 
         snapshot.markers.forEach { qMarker ->
             val isSelected = qMarker.place.id == selectedMarker?.place?.id
             val center = LatLng(qMarker.place.latitude, qMarker.place.longitude)
             val baseColor = if (qMarker.highestPriority == TaskPriority.URGENT) urgentArgb else accentArgb
-
-            val ringLayers = when {
-                qMarker.isInsideGeofence -> listOf(1.0 to 26, 0.78 to 26, 0.56 to 28, 0.34 to 34)
-                isSelected -> listOf(1.0 to 20, 0.78 to 20, 0.56 to 22, 0.34 to 26)
-                else -> listOf(1.0 to 10, 0.72 to 10, 0.45 to 12)
+            val tier = when {
+                qMarker.isInsideGeofence -> 2
+                isSelected -> 1
+                else -> 0
             }
-            ringLayers.forEach { (ratio, alpha) ->
-                gMap.addCircle(
-                    CircleOptions()
-                        .center(center)
-                        .radius((qMarker.place.radiusMeters * ratio).coerceAtLeast(8.0))
-                        .strokeWidth(0f)
-                        .strokeColor(0)
-                        .fillColor(ColorUtils.setAlphaComponent(baseColor, alpha))
+            bitmapCache[baseColor to tier]?.let { glowDesc ->
+                val diameterMeters = (qMarker.place.radiusMeters * 2f).coerceAtLeast(36f)
+                gMap.addGroundOverlay(
+                    GroundOverlayOptions()
+                        .position(center, diameterMeters)
+                        .image(glowDesc)
                         .zIndex(1f)
                 )
             }
@@ -592,7 +620,7 @@ fun AtlasThemeView(
         cameraMoveTick++
     }
 
-    // Effect 2: In-place Player Dot & subtle directional sector (no marker flicker)
+    // Effect 2: In-place Player Dot & pixel-smooth 3D directional spotlight GroundOverlay
     LaunchedEffect(
         googleMapRef,
         userLat,
@@ -600,6 +628,7 @@ fun AtlasThemeView(
         compassBearing,
         isMapDark,
         accentArgb,
+        headingSpotlightBitmap,
         snapshot,
         selectedMarker?.place?.id
     ) {
@@ -607,36 +636,22 @@ fun AtlasThemeView(
         val pLat = userLat ?: return@LaunchedEffect
         val pLng = userLng ?: return@LaunchedEffect
         val playerLatLng = LatLng(pLat, pLng)
-        val sectorSpec = listOf(
-            Triple(62.0, 30.0, if (isMapDark) 10 else 8),
-            Triple(45.0, 22.0, if (isMapDark) 16 else 13),
-            Triple(28.0, 14.0, if (isMapDark) 24 else 19)
-        )
-        val sectorPolygons = sectorSpec.map { (rangeM, halfAngle, alpha) ->
-            AtlasQuestBuilder.computeHeadingCone(
-                lat = pLat,
-                lng = pLng,
-                bearingDegrees = compassBearing,
-                rangeMeters = rangeM,
-                halfAngleDeg = halfAngle
-            ).map { LatLng(it.first, it.second) } to alpha
-        }
 
-        if (headingConesRef.size != sectorPolygons.size) {
-            headingConesRef.forEach { runCatching { it.remove() } }
-            headingConesRef = sectorPolygons.mapNotNull { (verts, alpha) ->
-                gMap.addPolygon(
-                    PolygonOptions()
-                        .addAll(verts)
-                        .strokeWidth(0f)
-                        .fillColor(ColorUtils.setAlphaComponent(accentArgb, alpha))
+        val spotlightDesc = headingSpotlightBitmap
+        if (spotlightDesc != null) {
+            val existingSpotlight = headingOverlayRef
+            if (existingSpotlight == null) {
+                headingOverlayRef = gMap.addGroundOverlay(
+                    GroundOverlayOptions()
+                        .position(playerLatLng, 130f)
+                        .anchor(0.5f, 0.5f)
+                        .bearing(compassBearing)
+                        .image(spotlightDesc)
                         .zIndex(4f)
                 )
-            }
-        } else {
-            headingConesRef.zip(sectorPolygons).forEach { (poly, pair) ->
-                poly.points = pair.first
-                poly.fillColor = ColorUtils.setAlphaComponent(accentArgb, pair.second)
+            } else {
+                existingSpotlight.setPosition(playerLatLng)
+                existingSpotlight.bearing = compassBearing
             }
         }
 
@@ -1210,15 +1225,16 @@ private fun AtlasSpatialMotionOverlay(
             }
         }
 
-        // Helper for truly borderless, feathered multi-stop radial luminescence
+        // Helper for truly borderless, pixel-smooth Gaussian radial luminescence
         fun drawFeatheredGlow(center: Offset, radiusPx: Float, peakAlpha: Float) {
             if (radiusPx <= 1f || peakAlpha <= 0.005f) return
             val p = peakAlpha.coerceIn(0f, 1f)
             drawCircle(
                 brush = Brush.radialGradient(
                     0.00f to accentColor.copy(alpha = p),
-                    0.35f to accentColor.copy(alpha = p * 0.52f),
-                    0.70f to accentColor.copy(alpha = p * 0.14f),
+                    0.24f to accentColor.copy(alpha = p * 0.68f),
+                    0.50f to accentColor.copy(alpha = p * 0.30f),
+                    0.76f to accentColor.copy(alpha = p * 0.08f),
                     1.00f to Color.Transparent,
                     center = center,
                     radius = radiusPx
@@ -1928,5 +1944,69 @@ private fun createQuestPinIcon(
         canvas.drawText(shortTitle, textX, textY, titlePaint)
     }
 
+    return BitmapDescriptorFactory.fromBitmap(bmp)
+}
+
+/**
+ * Generates a high-resolution, zero-banding 3D GroundOverlay radial gradient glow texture.
+ */
+private fun createFeatheredGeofenceBitmap(accentColor: Int, peakAlpha: Int): BitmapDescriptor {
+    val size = 256
+    val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+    val canvas = Canvas(bmp)
+    val c = size / 2f
+    val radius = size * 0.49f
+
+    val stops = floatArrayOf(0.00f, 0.14f, 0.30f, 0.46f, 0.62f, 0.76f, 0.88f, 0.96f, 1.00f)
+    val factors = floatArrayOf(1.00f, 0.88f, 0.70f, 0.50f, 0.32f, 0.17f, 0.07f, 0.02f, 0.00f)
+    val cols = IntArray(stops.size) { i ->
+        ColorUtils.setAlphaComponent(accentColor, (peakAlpha * factors[i]).toInt().coerceIn(0, 255))
+    }
+
+    val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.DITHER_FLAG).apply {
+        shader = RadialGradient(c, c, radius, cols, stops, Shader.TileMode.CLAMP)
+    }
+    canvas.drawCircle(c, c, radius, paint)
+    return BitmapDescriptorFactory.fromBitmap(bmp)
+}
+
+/**
+ * Generates a pixel-smooth North-facing radial x angular spotlight GroundOverlay texture
+ * anchored at the center so bearing updates rotate cleanly around the player dot.
+ */
+private fun createFeatheredHeadingBitmap(accentColor: Int, peakAlpha: Int): BitmapDescriptor {
+    val size = 256
+    val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+    val pixels = IntArray(size * size)
+    val half = size / 2f
+    val maxR = half - 4f
+    val maxHalfAngleRad = Math.toRadians(40.0)
+    val baseRgb = accentColor and 0x00FFFFFF
+
+    for (y in 0 until size) {
+        val dy = half - y // Positive upward (North = 0 deg)
+        for (x in 0 until size) {
+            if (dy <= 0f) continue
+            val dx = x - half
+            val r = hypot(dx.toDouble(), dy.toDouble())
+            if (r >= maxR) continue
+
+            val angle = abs(atan2(dx.toDouble(), dy.toDouble()))
+            if (angle >= maxHalfAngleRad) continue
+
+            val tAngle = 1.0 - (angle / maxHalfAngleRad)
+            val angFalloff = (tAngle * tAngle * (3.0 - 2.0 * tAngle)).toFloat()
+
+            val normR = (r / maxR).toFloat()
+            val tRad = (1f - normR).coerceIn(0f, 1f)
+            val radFalloff = tRad.pow(1.65f)
+
+            val alpha = (peakAlpha * angFalloff * radFalloff).toInt().coerceIn(0, 255)
+            if (alpha > 0) {
+                pixels[y * size + x] = (alpha shl 24) or baseRgb
+            }
+        }
+    }
+    bmp.setPixels(pixels, 0, size, 0, 0, size, size)
     return BitmapDescriptorFactory.fromBitmap(bmp)
 }
