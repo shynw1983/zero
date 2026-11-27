@@ -153,9 +153,6 @@ fun ExecuteHostScreen(
 
     if (state.executeTheme == ExecuteTheme.ATLAS) {
         var showAtlasQuickInput by remember { mutableStateOf(false) }
-        val showCaptureDock = showAtlasQuickInput ||
-            state.quickInputText.isNotBlank() ||
-            state.undoBanner != null
         val activeAccent = colors.accent
         val atlasAccent = ZeroAccent.entries.firstOrNull {
             it.colorFor(isAtlasMapDark) == activeAccent
@@ -179,7 +176,7 @@ fun ExecuteHostScreen(
                 isMapDark = isAtlasMapDark,
                 onToggleMapDark = onToggleAtlasMapDark,
                 bottomModeBarHeight = atlasBottomModeBarHeight,
-                isQuickInputExpanded = showCaptureDock,
+                isQuickInputExpanded = showAtlasQuickInput,
                 onToggleQuickInput = { showAtlasQuickInput = !showAtlasQuickInput },
                 onOpenTriage = onOpenTriage,
                 onOpenThemePicker = { showThemePicker = true },
@@ -190,14 +187,38 @@ fun ExecuteHostScreen(
                 modifier = Modifier.fillMaxSize()
             )
 
-            // Layer 2: Collapsible Floating Quick Capture & Undo Dock (hidden by default for maximum map canvas)
+            // Layer 2: Collapsible Quick Capture & Standalone Undo Dock
             ZeroTheme(
                 darkTheme = isAtlasMapDark,
                 accent = atlasAccent,
                 accentOverride = null
             ) {
+                if (state.undoBanner != null && !showAtlasQuickInput) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .fillMaxWidth()
+                            .navigationBarsPadding()
+                            .padding(bottom = atlasBottomModeBarHeight + 8.dp)
+                            .padding(horizontal = 14.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .widthIn(max = 520.dp)
+                                .fillMaxWidth()
+                        ) {
+                            UndoCapsule(
+                                banner = state.undoBanner,
+                                onUndo = onUndo,
+                                onTimeout = onUndoTimeout
+                            )
+                        }
+                    }
+                }
+
                 AnimatedVisibility(
-                    visible = showCaptureDock,
+                    visible = showAtlasQuickInput,
                     enter = fadeIn(tween(180)) + slideInVertically(tween(200)) { it / 3 },
                     exit = fadeOut(tween(150)) + slideOutVertically(tween(160)) { it / 3 },
                     modifier = Modifier

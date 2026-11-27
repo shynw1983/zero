@@ -582,7 +582,7 @@ fun AtlasThemeView(
         val navBottomPx = WindowInsets.navigationBars.getBottom(density)
         val mapTopPadPx = with(density) { 58.dp.roundToPx() } + statusTopPx
         val mapBottomPadPx = with(density) {
-            (bottomModeBarHeight + if (isWideScreen) 10.dp else 108.dp).roundToPx()
+            (bottomModeBarHeight + 112.dp).roundToPx()
         } + navBottomPx
         LaunchedEffect(googleMapRef, mapTopPadPx, mapBottomPadPx) {
             googleMapRef?.setPadding(0, mapTopPadPx, 0, mapBottomPadPx)
@@ -883,7 +883,7 @@ fun AtlasThemeView(
         )
 
         // 4. Slim Responsive Quest Mission Card (Bottom-Start 312.dp on wide screens; compact centered on phones)
-        val showMissionCard = isWideScreen || !isQuickInputExpanded
+        val showMissionCard = !isQuickInputExpanded
         val cardAlignment = if (isWideScreen) Alignment.BottomStart else Alignment.BottomCenter
         val cardWidthMod = if (isWideScreen) {
             Modifier.width(312.dp)
