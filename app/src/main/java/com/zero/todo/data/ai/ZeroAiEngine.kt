@@ -109,7 +109,8 @@ object ZeroAiJsonParser {
                         estimatedMinutes = normalizeEffortMinutes(item.optIntOrNull("estimatedMinutes")),
                         firstStep = item.optNullableString("firstStep")?.take(36),
                         description = item.optNullableString("description").orEmpty(),
-                        subtasks = parseSubtasks(item.optJSONArray("subtasks"))
+                        subtasks = parseSubtasks(item.optJSONArray("subtasks")),
+                        checklistItems = item.optJSONArray("checklistItems").toCleanChecklist()
                     )
                 )
             }
@@ -137,7 +138,8 @@ object ZeroAiJsonParser {
                     if (leafMatches.size == 1) leafMatches.first() else null
                 }
             }
-            draft.copy(folderPath = resolvedFolder)
+            val effectiveFirstStep = if (draft.subtasks.isNotEmpty()) null else draft.firstStep
+            draft.copy(folderPath = resolvedFolder, firstStep = effectiveFirstStep)
         }
     }
 
@@ -152,26 +154,11 @@ object ZeroAiJsonParser {
             else error("Model did not return valid JSON object")
         }
         val obj = JSONObject(jsonStr)
-        val checklistArr = obj.optJSONArray("checklistItems")
-        val checklist = buildList {
-            if (checklistArr != null) {
-                for (i in 0 until checklistArr.length()) {
-                    val rawLine = checklistArr.optNullableString(i) ?: continue
-                    val line = rawLine
-                        .removePrefix("- [ ]")
-                        .removePrefix("- ")
-                        .trim()
-                        .let(::sanitizeNullableString)
-                        ?: continue
-                    add(line)
-                }
-            }
-        }
         return AiBreakdownDraft(
             firstStep = obj.optNullableString("firstStep")?.take(36),
             estimatedMinutes = normalizeEffortMinutes(obj.optIntOrNull("estimatedMinutes")),
             subtasks = parseSubtasks(obj.optJSONArray("subtasks")),
-            checklistItems = checklist
+            checklistItems = obj.optJSONArray("checklistItems").toCleanChecklist()
         )
     }
 
@@ -231,6 +218,24 @@ object ZeroAiJsonParser {
                 val raw = optNullableString(i) ?: continue
                 val t = raw.removePrefix("#").trim().let(::sanitizeNullableString) ?: continue
                 if (!contains(t)) add(t)
+            }
+        }
+    }
+
+    private fun JSONArray?.toCleanChecklist(): List<String> {
+        if (this == null) return emptyList()
+        return buildList {
+            for (i in 0 until length()) {
+                val rawLine = optNullableString(i) ?: continue
+                val clean = rawLine
+                    .removePrefix("- [ ]")
+                    .removePrefix("- ")
+                    .removePrefix("• ")
+                    .removePrefix("☐ ")
+                    .trim()
+                    .let(::sanitizeNullableString)
+                    ?: continue
+                if (!contains(clean)) add(clean)
             }
         }
     }
@@ -471,17 +476,20 @@ $header
 {
   "tasks": [
     {
-      "title": "concise newspaper-headline task title in target UI language",
+      "title": "ultra-short headline title in target UI language (<=12 chars CJK / 2-5 words EN; NEVER cram event + prep into one long sentence)",
       "folderPath": "EXACT path from Existing folders if clearly matched, otherwise JSON null (NEVER invent a new folder name; unmatched tasks default to Inbox)",
       "tags": ["existing tag path (exact spelling) or concise scene tag without # in target UI language"],
       "dueDate": "YYYY-MM-DD" or "YYYY-MM-DD HH:mm", or JSON null if no date is mentioned,
       "priority": 1|2|3|4 (1=urgent, 2=high, 3=medium, 4=lowest/normal; default to 4 when urgency is unknown),
       "estimatedMinutes": 5|25|60|null,
-      "firstStep": "JSON null for simple/obvious/physical tasks; ONLY populate a <=20 char starter action when the task is complex, ambiguous, or procrastination-prone",
+      "firstStep": "JSON null for simple/obvious/physical tasks (or when subtasks non-empty); ONLY populate a <=20 char starter action when a standalone leaf task is complex, ambiguous, or procrastination-prone",
       "description": "concise reference details or key numbers in target UI language, empty string if none",
+      "checklistItems": [
+        "short parallel item/document/material checked off in the SAME sitting (0-5 items; [] if none)"
+      ],
       "subtasks": [
         {
-          "title": "predecessor step requiring a DIFFERENT location/time/prep in target UI language (NOT repeating main final action)",
+          "title": "short predecessor step requiring a DIFFERENT location/time/prep in target UI language (NOT repeating main final action)",
           "tags": ["scene tag if distinct"],
           "dueDate": null or "YYYY-MM-DD",
           "estimatedMinutes": 5|25|60|null
@@ -496,7 +504,10 @@ ${buildLanguageStyleDirective(context.languageTag)}$customSection
 - Existing folders: ${context.folderPaths.take(40).joinToString(", ").ifBlank { "(none)" }}
 - Existing tags: ${context.tagPaths.take(40).joinToString(", ").ifBlank { "(none)" }}
 - Prefer reusing existing folderPaths and tags accurately.
-- FIRST STEP DISCIPLINE: Default "firstStep" to JSON null for straightforward, self-explanatory, or single-action physical tasks. ONLY set "firstStep" when a task is multi-step, cognitively heavy, or procrastination-prone AND the starter action genuinely lowers mental friction. NEVER output trivial tautologies that merely restate opening or starting the task's object.
+- SHORT HEADLINE TITLES: Keep every "title" and "subtask.title" ultra-short (<=12 chars CJK / 2-5 words EN). NEVER stitch "for event X, prepare Y" into a single long sentence; express that relationship via parent task + subtasks or checklistItems.
+- EVENT VS. PREPARATION SPLIT & ADVANCE DATES: When input describes an upcoming event, meeting, or deadline X AND preparation work Y needed before X, make X the parent task (dueDate = X's date) and put Y in "subtasks" scheduled EARLIER (for example today ${context.currentDateIso} when X is tomorrow, never after X) so preparation surfaces immediately in ZERO's Leaf-Only NOW runway.
+- SUBTASKS VS. CHECKLIST: Use "subtasks" for distinct prerequisite actions requiring a different time, location, or substantial prep step before completing the parent; use "checklistItems" for quick parallel items, materials, or sub-checks done in the SAME sitting (never list items inside a long title). Keep both empty for simple single-step tasks.
+- FIRST STEP DISCIPLINE: ALWAYS set parent "firstStep" to JSON null when "subtasks" is non-empty (ZERO's NOW runway only executes leaf subtasks, never parent containers). For standalone leaf tasks, default "firstStep" to JSON null for straightforward, self-explanatory, or single-action physical tasks; ONLY populate when genuinely heavy, ambiguous, or procrastination-prone with a concrete physical starter action (never abstract filler or tautologies).
 - Never include the final completion step itself as a subtask; if the task is small/single-sitting, keep subtasks empty.
         """.trimIndent()
     }

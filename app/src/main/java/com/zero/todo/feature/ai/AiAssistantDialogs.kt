@@ -62,6 +62,8 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -123,6 +125,8 @@ fun AiCaptureDialog(
     val tabular = ZeroTheme.tabularTypography
     val haptics = rememberZeroHaptics()
     val context = LocalContext.current
+    val focusManager = LocalFocusManager.current
+    val keyboardController = LocalSoftwareKeyboardController.current
     val scope = rememberCoroutineScope()
     val permissionDeniedText = stringResource(R.string.ai_voice_permission_denied)
     val recordingFailedText = stringResource(R.string.ai_voice_recording_failed)
@@ -195,6 +199,12 @@ fun AiCaptureDialog(
     val draftEdits = remember(state.results) {
         mutableStateListOf<AiCapturedTaskDraft>().apply {
             addAll(state.results)
+        }
+    }
+    LaunchedEffect(state.results) {
+        if (state.results.isNotEmpty()) {
+            focusManager.clearFocus()
+            keyboardController?.hide()
         }
     }
     val selectedTaskIndices = remember(state.results) {
@@ -682,6 +692,8 @@ fun AiCaptureDialog(
                             )
                             .clickable(enabled = canAnalyze) {
                                 haptics.heavyClick()
+                                focusManager.clearFocus()
+                                keyboardController?.hide()
                                 onAnalyze(inputText, attachedImagePayload, null)
                             },
                         contentAlignment = Alignment.Center
@@ -1116,8 +1128,50 @@ private fun AiCapturedTaskPreviewCard(
                     val tagSuffix = if (sub.tags.isNotEmpty()) {
                         "  " + sub.tags.joinToString(" ") { "#$it" }
                     } else ""
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Text(
+                            text = "↳ ${sub.title}$tagSuffix",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = colors.textSecondary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f)
+                        )
+                        sub.dueDateIso?.let { subDue ->
+                            Text(
+                                text = subDue,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = colors.accent,
+                                modifier = Modifier
+                                    .clip(ZeroSmallShape)
+                                    .background(colors.background)
+                                    .padding(horizontal = 5.dp, vertical = 1.dp)
+                            )
+                        }
+                        sub.estimatedMinutes?.let { mins ->
+                            Text(
+                                text = "${mins}m",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = colors.textMuted
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        if (draft.checklistItems.isNotEmpty()) {
+            Column(
+                modifier = Modifier.padding(start = 26.dp),
+                verticalArrangement = Arrangement.spacedBy(2.dp)
+            ) {
+                draft.checklistItems.forEach { item ->
                     Text(
-                        text = "↳ ${sub.title}$tagSuffix",
+                        text = "☐ $item",
                         style = MaterialTheme.typography.bodySmall,
                         color = colors.textSecondary,
                         maxLines = 1,

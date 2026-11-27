@@ -93,7 +93,8 @@ data class AiCapturedTaskDraft(
     val estimatedMinutes: Int? = null,
     val firstStep: String? = null,
     val description: String = "",
-    val subtasks: List<AiSubtaskDraft> = emptyList()
+    val subtasks: List<AiSubtaskDraft> = emptyList(),
+    val checklistItems: List<String> = emptyList()
 )
 
 data class AiBreakdownDraft(

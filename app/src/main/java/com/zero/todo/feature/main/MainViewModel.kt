@@ -1834,16 +1834,33 @@ class MainViewModel @Inject constructor(
                 val resolvedDueMillis = parsedDue?.first ?: if (fallbackDest == NavigationDestination.Today) todayStart else null
                 val resolvedAllDay = parsedDue?.second ?: true
                 val resolvedReminder = if (resolvedDueMillis != null && !resolvedAllDay) resolvedDueMillis else null
+                val checklistBlock = draft.checklistItems
+                    .map {
+                        it.trim()
+                            .removePrefix("- [ ]")
+                            .removePrefix("- ")
+                            .removePrefix("• ")
+                            .removePrefix("☐ ")
+                            .trim()
+                    }
+                    .filter { it.isNotEmpty() }
+                    .joinToString("\n") { "- [ ] $it" }
+                val mergedDescription = when {
+                    checklistBlock.isEmpty() -> draft.description
+                    draft.description.isBlank() -> checklistBlock
+                    else -> "${draft.description.trimEnd()}\n$checklistBlock"
+                }
+                val effectiveFirstStep = if (draft.subtasks.isNotEmpty()) null else draft.firstStep
 
                 val createdParent = taskRepository.createTask(
                     title = cleanTitle,
                     folderId = resolvedFolderId,
-                    description = draft.description,
+                    description = mergedDescription,
                     priority = draft.priority,
                     dueDate = resolvedDueMillis,
                     isAllDay = resolvedAllDay,
                     reminderAt = resolvedReminder,
-                    firstStep = draft.firstStep,
+                    firstStep = effectiveFirstStep,
                     estimatedMinutes = draft.estimatedMinutes
                 )
                 syncTaskReminder(createdParent)

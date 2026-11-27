@@ -13,6 +13,7 @@ import com.zero.todo.feature.ai.nextPreviewPriority
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -503,5 +504,75 @@ class ZeroAiEngineTest {
             reasoningEffort = AiReasoningEffort.NONE
         )
         assertFalse(proReq.getJSONObject("generationConfig").has("thinkingConfig"))
+    }
+
+    @Test
+    fun parsesCaptureChecklistItemsEnforcesLeafOnlyFirstStepAndEmbedsStructuringRules() {
+        val raw = """
+            {
+              "tasks": [
+                {
+                  "title": "税理士打ち合わせ",
+                  "folderPath": "丸九/経理",
+                  "dueDate": "2026-11-28",
+                  "priority": 3,
+                  "estimatedMinutes": 60,
+                  "firstStep": "Should be stripped because parent has subtasks",
+                  "checklistItems": [
+                    "- [ ] 会計資料",
+                    "- 賃貸契約書",
+                    "• 領収書ファイル",
+                    "null"
+                  ],
+                  "subtasks": [
+                    {
+                      "title": "資料整理",
+                      "dueDate": "2026-11-27",
+                      "tags": ["#書類"],
+                      "estimatedMinutes": 25
+                    }
+                  ]
+                },
+                {
+                  "title": "年次決算申告",
+                  "dueDate": "2026-12-10",
+                  "firstStep": "会計ソフトを開く",
+                  "checklistItems": ["☐ 試算表確認"],
+                  "subtasks": []
+                }
+              ]
+            }
+        """.trimIndent()
+
+        val parsed = ZeroAiJsonParser.parseCapturedTasks(raw)
+        assertEquals(2, parsed.size)
+        assertEquals(listOf("会計資料", "賃貸契約書", "領収書ファイル"), parsed[0].checklistItems)
+        assertEquals("2026-11-27", parsed[0].subtasks.first().dueDateIso)
+        assertEquals(listOf("試算表確認"), parsed[1].checklistItems)
+
+        val sanitized = ZeroAiJsonParser.sanitizeCapturedDrafts(
+            drafts = parsed,
+            existingFolderPaths = listOf("丸九/経理")
+        )
+        assertNull(sanitized[0].firstStep)
+        assertEquals("会計ソフトを開く", sanitized[1].firstStep)
+
+        val prompt = ZeroAiJsonParser.buildCaptureSystemPrompt(
+            AiWorkspaceContext(
+                currentDateIso = "2026-11-27",
+                currentWeekday = "Friday",
+                languageTag = "ja-JP",
+                folderPaths = listOf("丸九/経理"),
+                tagPaths = listOf("書類")
+            )
+        )
+        assertTrue(prompt.contains("\"checklistItems\""))
+        assertTrue(prompt.contains("SHORT HEADLINE TITLES"))
+        assertTrue(prompt.contains("EVENT VS. PREPARATION"))
+        assertTrue(prompt.contains("SUBTASKS VS. CHECKLIST"))
+        assertTrue(prompt.contains("ALWAYS set parent \"firstStep\" to JSON null"))
+        assertFalse(prompt.contains("煤炉"))
+        assertFalse(prompt.contains("后备箱"))
+        assertFalse(prompt.contains("トランク"))
     }
 }
