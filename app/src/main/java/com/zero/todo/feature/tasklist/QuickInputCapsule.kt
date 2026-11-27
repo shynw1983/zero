@@ -145,6 +145,7 @@ fun QuickInputCapsule(
                 voiceStatusNotice = null
                 haptics.confirm()
                 onVoiceInputRecognized(spoken)
+                runCatching { focusRequester.requestFocus() }
             }
         }
     }

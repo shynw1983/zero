@@ -213,6 +213,7 @@ data class ZeroShellCallbacks(
     val onCloseTaskParentPicker: () -> Unit = {},
     val onAddTag: (taskId: String, tagName: String) -> Unit = { _, _ -> },
     val onRemoveTag: (taskId: String, tagId: String) -> Unit = { _, _ -> },
+    val onUpdateTaskPlaceTriggerOverride: (task: TaskItem, triggerMode: PlaceTriggerMode?) -> Unit = { _, _ -> },
     val onDeleteTask: (TaskItem) -> Unit = {},
     val onRestoreDeletedTask: (String) -> Unit = {},
     val onPermanentlyDeleteTask: (String) -> Unit = {},
@@ -1268,6 +1269,7 @@ private fun BoundTaskDetailPane(
         onOpenRelatedTask = callbacks.onSelectTask,
         onAddTag = callbacks.onAddTag,
         onRemoveTag = callbacks.onRemoveTag,
+        onUpdatePlaceTriggerOverride = callbacks.onUpdateTaskPlaceTriggerOverride,
         onSelectTag = { tagId ->
             callbacks.onSelectDestination(NavigationDestination.TagView(tagId))
             onNavigateBack()

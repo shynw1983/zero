@@ -42,6 +42,7 @@ import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Folder
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
+import androidx.compose.material.icons.rounded.LocationOn
 import androidx.compose.material.icons.rounded.MoreHoriz
 import androidx.compose.material.icons.rounded.NotificationsActive
 import androidx.compose.material.icons.rounded.PlayArrow
@@ -97,7 +98,9 @@ import com.zero.todo.domain.model.EffortTier
 import com.zero.todo.domain.model.FocusMode
 import com.zero.todo.domain.model.FolderBadgeDisplay
 import com.zero.todo.domain.model.FolderNode
+import com.zero.todo.domain.model.PlaceTriggerMode
 import com.zero.todo.domain.model.TagItem
+import com.zero.todo.domain.model.TagTreeBuilder
 import com.zero.todo.domain.model.TaskItem
 import com.zero.todo.domain.model.TaskPriority
 import com.zero.todo.feature.calendar.ZeroMiniCalendar
@@ -167,6 +170,7 @@ fun TaskDetailPane(
     onOpenRelatedTask: (String) -> Unit,
     onAddTag: (taskId: String, tagName: String) -> Unit,
     onRemoveTag: (taskId: String, tagId: String) -> Unit,
+    onUpdatePlaceTriggerOverride: (task: TaskItem, triggerMode: PlaceTriggerMode?) -> Unit = { _, _ -> },
     onSelectTag: (tagId: String) -> Unit,
     onDeleteTask: (TaskItem) -> Unit,
     onOpenAiBreakdown: (TaskItem) -> Unit = {},
@@ -1344,6 +1348,107 @@ fun TaskDetailPane(
                                     color = if (isFromParent) colors.accent else colors.textSecondary,
                                     maxLines = 1
                                 )
+                            }
+                        }
+                    }
+                }
+
+                // Per-Task Place Trigger Timing Override (shown whenever task belongs to any Place Tag)
+                val allTagsById = remember(allTags) { allTags.associateBy { it.id } }
+                val attachedPlaceTags = remember(task.tags, allTagsById) {
+                    val found = LinkedHashMap<String, TagItem>()
+                    task.tags.forEach { attached ->
+                        var cursor: TagItem? = allTagsById[attached.id] ?: attached
+                        val visited = HashSet<String>()
+                        while (cursor != null && visited.add(cursor.id)) {
+                            if (cursor.isPlaceTag) {
+                                found.putIfAbsent(cursor.id, cursor)
+                            }
+                            cursor = cursor.parentId?.let { allTagsById[it] }
+                        }
+                    }
+                    found.values.toList()
+                }
+                if (attachedPlaceTags.isNotEmpty()) {
+                    val primaryPlaceTag = attachedPlaceTags.first()
+                    val defaultModeTextRes = when (primaryPlaceTag.placeTriggerMode) {
+                        PlaceTriggerMode.ENTER -> R.string.place_trigger_enter
+                        PlaceTriggerMode.EXIT -> R.string.place_trigger_exit
+                        PlaceTriggerMode.BOTH -> R.string.place_trigger_both
+                    }
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 6.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(5.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.LocationOn,
+                                    contentDescription = null,
+                                    tint = colors.accent,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Text(
+                                    text = stringResource(R.string.detail_place_trigger_label),
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = colors.textMuted
+                                )
+                            }
+                            Text(
+                                text = "#${tagPathById[primaryPlaceTag.id] ?: primaryPlaceTag.name} · ${stringResource(defaultModeTextRes)}",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = colors.textMuted,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            val timingOptions: List<Pair<PlaceTriggerMode?, Int>> = listOf(
+                                null to R.string.place_trigger_follow_tag,
+                                PlaceTriggerMode.ENTER to R.string.place_trigger_enter,
+                                PlaceTriggerMode.EXIT to R.string.place_trigger_exit,
+                                PlaceTriggerMode.BOTH to R.string.place_trigger_both
+                            )
+                            timingOptions.forEach { (mode, labelRes) ->
+                                val selected = task.placeTriggerOverride == mode
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(34.dp)
+                                        .clip(ZeroSmallShape)
+                                        .background(if (selected) colors.accentSubtle else colors.surface)
+                                        .hairlineBorder(
+                                            shape = ZeroSmallShape,
+                                            color = if (selected) colors.accent else colors.hairlineBorder
+                                        )
+                                        .clickable {
+                                            haptics.reorderTick()
+                                            onUpdatePlaceTriggerOverride(task, mode)
+                                        }
+                                        .padding(horizontal = 4.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = stringResource(labelRes),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = if (selected) colors.accent else colors.textSecondary,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
                             }
                         }
                     }

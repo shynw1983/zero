@@ -43,10 +43,40 @@ object GeofenceEvaluator {
         }
     }
 
+    fun effectiveTriggerMode(
+        tagDefaultMode: PlaceTriggerMode,
+        taskOverride: PlaceTriggerMode?
+    ): PlaceTriggerMode = taskOverride ?: tagDefaultMode
+
     fun shouldTrigger(triggerMode: PlaceTriggerMode, isEnter: Boolean): Boolean = when (triggerMode) {
         PlaceTriggerMode.ENTER -> isEnter
         PlaceTriggerMode.EXIT -> !isEnter
         PlaceTriggerMode.BOTH -> true
+    }
+
+    fun shouldTriggerTask(
+        tagDefaultMode: PlaceTriggerMode,
+        taskOverride: PlaceTriggerMode?,
+        isEnter: Boolean
+    ): Boolean = shouldTrigger(effectiveTriggerMode(tagDefaultMode, taskOverride), isEnter)
+
+    fun aggregateModeForGeofence(
+        tagDefaultMode: PlaceTriggerMode,
+        taskOverrides: List<PlaceTriggerMode?>
+    ): PlaceTriggerMode {
+        var needsEnter = shouldTrigger(tagDefaultMode, isEnter = true)
+        var needsExit = shouldTrigger(tagDefaultMode, isEnter = false)
+        for (override in taskOverrides) {
+            if (override == null) continue
+            if (shouldTrigger(override, isEnter = true)) needsEnter = true
+            if (shouldTrigger(override, isEnter = false)) needsExit = true
+            if (needsEnter && needsExit) break
+        }
+        return when {
+            needsEnter && needsExit -> PlaceTriggerMode.BOTH
+            needsExit -> PlaceTriggerMode.EXIT
+            else -> PlaceTriggerMode.ENTER
+        }
     }
 
     fun isWithinCooldown(
@@ -143,8 +173,20 @@ class AndroidGeofenceSyncController @Inject constructor(
             if (activePlaces.isEmpty()) return@withContext 0
 
             val bounded = activePlaces.take(MAX_GEOFENCES)
+            val overridesByTagId = bounded
+                .map { it.tagId }
+                .distinct()
+                .associateWith { tagId ->
+                    tagDao.getActiveIncompleteTasksForTagTree(tagId).map {
+                        PlaceTriggerMode.fromStorageOrNull(it.placeTriggerOverride)
+                    }
+                }
             val geofences = bounded.map { place ->
-                val mode = PlaceTriggerMode.fromStorage(tagsById[place.tagId]?.placeTriggerMode)
+                val tagDefault = PlaceTriggerMode.fromStorage(tagsById[place.tagId]?.placeTriggerMode)
+                val mode = GeofenceEvaluator.aggregateModeForGeofence(
+                    tagDefaultMode = tagDefault,
+                    taskOverrides = overridesByTagId[place.tagId].orEmpty()
+                )
                 val transitionMask = when (mode) {
                     PlaceTriggerMode.ENTER -> Geofence.GEOFENCE_TRANSITION_ENTER
                     PlaceTriggerMode.EXIT -> Geofence.GEOFENCE_TRANSITION_EXIT

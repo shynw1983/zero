@@ -409,6 +409,7 @@ class ZeroBackupManager @Inject constructor(
         put("createdAt", createdAt)
         put("updatedAt", updatedAt)
         put("isDeleted", isDeleted)
+        put("placeTriggerOverride", placeTriggerOverride ?: JSONObject.NULL)
     }
 
     private fun JSONObject.toTaskEntity(): TaskEntity = TaskEntity(
@@ -430,7 +431,8 @@ class ZeroBackupManager @Inject constructor(
         sortOrder = optDouble("sortOrder", 0.0),
         createdAt = optLong("createdAt", System.currentTimeMillis()),
         updatedAt = optLong("updatedAt", System.currentTimeMillis()),
-        isDeleted = optBoolean("isDeleted", false)
+        isDeleted = optBoolean("isDeleted", false),
+        placeTriggerOverride = optNullableString("placeTriggerOverride")
     )
 
     private fun TagEntity.toJson(): JSONObject = JSONObject().apply {
@@ -530,6 +532,6 @@ class ZeroBackupManager @Inject constructor(
         if (isNull(key) || !has(key)) null else optInt(key)
 
     companion object {
-        const val CURRENT_SCHEMA_VERSION = 3
+        const val CURRENT_SCHEMA_VERSION = 4
     }
 }

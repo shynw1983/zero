@@ -9,6 +9,7 @@ import com.zero.todo.data.local.dao.FolderDao
 import com.zero.todo.data.local.dao.TaskDao
 import com.zero.todo.data.local.entity.TaskEntity
 import com.zero.todo.data.local.entity.TaskTagCrossRef
+import com.zero.todo.domain.model.PlaceTriggerMode
 import com.zero.todo.domain.model.TaskItem
 import com.zero.todo.domain.model.TaskPlacement
 import com.zero.todo.domain.model.TaskPlacementChange
@@ -94,7 +95,8 @@ class TaskRepositoryImpl @Inject constructor(
         reminderAt: Long?,
         recurrenceRule: String?,
         firstStep: String?,
-        estimatedMinutes: Int?
+        estimatedMinutes: Int?,
+        placeTriggerOverride: PlaceTriggerMode?
     ): TaskItem {
         val trimmedTitle = title.trim()
         require(trimmedTitle.isNotEmpty()) { "Task title must not be blank" }
@@ -135,7 +137,8 @@ class TaskRepositoryImpl @Inject constructor(
                 sortOrder = sortOrder,
                 createdAt = now,
                 updatedAt = now,
-                isDeleted = false
+                isDeleted = false,
+                placeTriggerOverride = placeTriggerOverride?.storageValue
             )
             taskDao.upsertTask(entity)
             entity.toDomain()
@@ -204,7 +207,8 @@ class TaskRepositoryImpl @Inject constructor(
                     reminderAt = reminder,
                     recurrenceRule = source.recurrenceRule,
                     firstStep = source.firstStep,
-                    estimatedMinutes = source.estimatedMinutes
+                    estimatedMinutes = source.estimatedMinutes,
+                    placeTriggerOverride = source.placeTriggerOverride
                 )
                 source.tags.forEach { tag -> tagDao.attachTagToTask(TaskTagCrossRef(copy.id, tag.id)) }
                 clonedIds[source.id] = copy.id

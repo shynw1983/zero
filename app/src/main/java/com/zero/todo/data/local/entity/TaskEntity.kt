@@ -43,5 +43,6 @@ data class TaskEntity(
     val sortOrder: Double = 0.0,
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis(),
-    val isDeleted: Boolean = false
+    val isDeleted: Boolean = false,
+    val placeTriggerOverride: String? = null
 )

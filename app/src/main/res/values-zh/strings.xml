@@ -520,7 +520,7 @@
     <string name="place_tag_dialog_title">场所围栏 · %1$s</string>
     <string name="place_tag_enable_label">设为场所标签</string>
     <string name="place_tag_enable_desc">靠近或离开任一绑定地址时自动推送未完成待办</string>
-    <string name="place_trigger_mode_label">触发时机</string>
+    <string name="place_trigger_mode_label">默认通知时机</string>
     <string name="place_trigger_enter">靠近时</string>
     <string name="place_trigger_exit">离开时</string>
     <string name="place_trigger_both">靠近和离开</string>
@@ -549,6 +549,12 @@
     <string name="place_edit_action">编辑地点</string>
     <string name="place_edit_dialog_title">编辑地点名称</string>
     <string name="place_confirm_add_title">确认并命名地点</string>
+    <string name="detail_place_trigger_label">场所提醒时机</string>
+    <string name="place_trigger_follow_tag">跟随标签</string>
+    <string name="ai_capture_edit_draft_title">编辑任务草稿</string>
+    <string name="ai_capture_draft_title_hint">任务标题</string>
+    <string name="ai_capture_draft_desc_hint">备注 / 详情（选填）</string>
+    <string name="ai_capture_draft_tags_hint">标签（如 #家 #工作）</string>
 
     <!-- v2.13.0: ATLAS 3D 谷歌任务地图主题 -->
     <string name="execute_theme_atlas_title">ATLAS · 3D 任务地图</string>

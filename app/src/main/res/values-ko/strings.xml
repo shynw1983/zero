@@ -520,7 +520,7 @@
     <string name="place_tag_dialog_title">장소 설정 · %1$s</string>
     <string name="place_tag_enable_label">장소 태그로 사용</string>
     <string name="place_tag_enable_desc">연결된 위치에 접근하거나 떠날 때 미완료 할 일 알림</string>
-    <string name="place_trigger_mode_label">알림 조건</string>
+    <string name="place_trigger_mode_label">기본 알림 시점</string>
     <string name="place_trigger_enter">도착 시</string>
     <string name="place_trigger_exit">출발 시</string>
     <string name="place_trigger_both">도착 · 출발</string>
@@ -549,6 +549,12 @@
     <string name="place_edit_action">장소 편집</string>
     <string name="place_edit_dialog_title">장소 이름 편집</string>
     <string name="place_confirm_add_title">장소 이름 확인 및 편집</string>
+    <string name="detail_place_trigger_label">장소 알림 시점</string>
+    <string name="place_trigger_follow_tag">태그 기본값</string>
+    <string name="ai_capture_edit_draft_title">할 일 초안 편집</string>
+    <string name="ai_capture_draft_title_hint">할 일 제목</string>
+    <string name="ai_capture_draft_desc_hint">메모 / 상세 (선택)</string>
+    <string name="ai_capture_draft_tags_hint">태그 (예: #집 #업무)</string>
 
     <!-- v2.13.0: ATLAS 3D Google 지도 퀘스트 테마 -->
     <string name="execute_theme_atlas_title">ATLAS · 3D 퀘스트 지도</string>

@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.zero.todo.core.common.ZeroDateFormatter
 import com.zero.todo.core.designsystem.ZeroAccent
+import com.zero.todo.core.geofence.GeofenceEvaluator
 import com.zero.todo.core.geofence.GeofencePermissionState
 import com.zero.todo.core.geofence.GeofenceSyncController
 import com.zero.todo.core.nlp.ParsedQuickInput
@@ -1131,21 +1132,39 @@ class MainViewModel @Inject constructor(
     }
 
     fun testPlaceReminder(tag: TagItem, place: TagPlace) {
-        val isEnter = tag.placeTriggerMode != PlaceTriggerMode.EXIT
         val matchingIds = TagTreeBuilder.collectDescendantIds(
             rootTagId = tag.id,
             tags = uiState.value.tagsWithCounts.map { it.tag }
         ) + tag.id
-        val titles = uiState.value.allActiveTasks
+        val openTasks = uiState.value.allActiveTasks
             .filter { task -> !task.isCompleted && task.tags.any { it.id in matchingIds } }
+        if (openTasks.isEmpty()) return
+
+        var isEnter = tag.placeTriggerMode != PlaceTriggerMode.EXIT
+        var titles = openTasks
+            .filter { GeofenceEvaluator.shouldTriggerTask(tag.placeTriggerMode, it.placeTriggerOverride, isEnter) }
             .map { it.title }
+        if (titles.isEmpty()) {
+            isEnter = !isEnter
+            titles = openTasks
+                .filter { GeofenceEvaluator.shouldTriggerTask(tag.placeTriggerMode, it.placeTriggerOverride, isEnter) }
+                .map { it.title }
+        }
         if (titles.isEmpty()) return
+
         geofenceController.triggerTestNotification(
             tag = tag,
             place = place,
             isEnter = isEnter,
             taskTitles = titles
         )
+    }
+
+    fun updateTaskPlaceTriggerOverride(task: TaskItem, triggerMode: PlaceTriggerMode?) {
+        viewModelScope.launch {
+            taskRepository.updateTask(task.id) { it.copy(placeTriggerOverride = triggerMode) }
+            geofenceController.syncAllGeofences()
+        }
     }
 
     fun geofencePermissionState(): GeofencePermissionState =
@@ -1258,10 +1277,13 @@ class MainViewModel @Inject constructor(
     override fun submitVoiceInput(spokenText: String) {
         val trimmed = spokenText.trim()
         if (trimmed.isEmpty()) return
-        viewModelScope.launch {
-            createStructuredTaskFromText(trimmed)
-            widgetRefresher.refreshAll()
+        val existing = savedStateHandle.get<String>(KEY_QUICK_INPUT).orEmpty()
+        val combined = if (existing.isBlank()) {
+            trimmed
+        } else {
+            "${existing.trimEnd()} $trimmed"
         }
+        savedStateHandle[KEY_QUICK_INPUT] = combined
     }
 
     fun createFolder(name: String, parentId: String?, colorHex: String? = null) {
@@ -1560,12 +1582,14 @@ class MainViewModel @Inject constructor(
         viewModelScope.launch {
             val tag = tagRepository.getOrCreateTag(clean)
             tagRepository.attachTagToTask(taskId, tag.id)
+            geofenceController.syncAllGeofences()
         }
     }
 
     fun removeTagFromTask(taskId: String, tagId: String) {
         viewModelScope.launch {
             tagRepository.detachTagFromTask(taskId, tagId)
+            geofenceController.syncAllGeofences()
         }
     }
 

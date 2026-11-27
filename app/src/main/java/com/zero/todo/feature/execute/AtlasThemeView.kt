@@ -536,18 +536,19 @@ fun AtlasThemeView(
     val accentArgb = colors.accent.toArgb()
     val urgentArgb = colors.priorityUrgent.toArgb()
 
-    // Cached pixel-smooth Gaussian glow bitmaps created only after GoogleMap initializes
+    // Cached pixel-smooth deeper Gaussian glow bitmaps created only after GoogleMap initializes
+    val deepGlowArgb = 0xFFE54300.toInt()
     val geofenceBitmaps = remember(googleMapRef, accentArgb, urgentArgb, isMapDark) {
         if (googleMapRef == null) {
             null
         } else {
-            val insideAlpha = if (isMapDark) 152 else 138
-            val selectedAlpha = if (isMapDark) 132 else 118
-            val normalAlpha = if (isMapDark) 68 else 58
+            val insideAlpha = if (isMapDark) 192 else 174
+            val selectedAlpha = if (isMapDark) 168 else 152
+            val normalAlpha = if (isMapDark) 92 else 78
             mapOf(
-                (accentArgb to 2) to createFeatheredGeofenceBitmap(accentArgb, insideAlpha),
-                (accentArgb to 1) to createFeatheredGeofenceBitmap(accentArgb, selectedAlpha),
-                (accentArgb to 0) to createFeatheredGeofenceBitmap(accentArgb, normalAlpha),
+                (accentArgb to 2) to createFeatheredGeofenceBitmap(deepGlowArgb, insideAlpha),
+                (accentArgb to 1) to createFeatheredGeofenceBitmap(deepGlowArgb, selectedAlpha),
+                (accentArgb to 0) to createFeatheredGeofenceBitmap(deepGlowArgb, normalAlpha),
                 (urgentArgb to 2) to createFeatheredGeofenceBitmap(urgentArgb, insideAlpha),
                 (urgentArgb to 1) to createFeatheredGeofenceBitmap(urgentArgb, selectedAlpha),
                 (urgentArgb to 0) to createFeatheredGeofenceBitmap(urgentArgb, normalAlpha)
@@ -558,7 +559,7 @@ fun AtlasThemeView(
         if (googleMapRef == null) {
             null
         } else {
-            createFeatheredHeadingBitmap(accentArgb, if (isMapDark) 104 else 86)
+            createFeatheredHeadingBitmap(deepGlowArgb, if (isMapDark) 132 else 110)
         }
     }
 
@@ -1181,10 +1182,10 @@ private fun AtlasSpatialMotionOverlay(
                 if (totalLen > 12f) {
                     val waveCenter = -0.35f + streamPhase * 1.70f
                     var accumDist = 0f
-                    val outerBase = if (isMapDark) 0.11f else 0.08f
-                    val outerPeak = if (isMapDark) 0.24f else 0.20f
-                    val coreBase = if (isMapDark) 0.34f else 0.28f
-                    val corePeak = if (isMapDark) 0.58f else 0.56f
+                    val outerBase = if (isMapDark) 0.14f else 0.11f
+                    val outerPeak = if (isMapDark) 0.28f else 0.24f
+                    val coreBase = if (isMapDark) 0.42f else 0.35f
+                    val corePeak = if (isMapDark) 0.56f else 0.58f
 
                     for (i in segLens.indices) {
                         val a = screenPts[i]
@@ -1248,7 +1249,7 @@ private fun AtlasSpatialMotionOverlay(
         if (userLat != null && userLng != null) {
             project(userLat, userLng)?.let { playerPt ->
                 val radiusPx = (24f + breathePhase * 12f).dp.toPx()
-                val peakAlpha = (if (isMapDark) 0.36f else 0.28f) + breathePhase * 0.20f
+                val peakAlpha = (if (isMapDark) 0.46f else 0.38f) + breathePhase * 0.24f
                 drawFeatheredGlow(center = playerPt, radiusPx = radiusPx, peakAlpha = peakAlpha)
             }
         }
@@ -1258,10 +1259,10 @@ private fun AtlasSpatialMotionOverlay(
             project(sel.place.latitude, sel.place.longitude)?.let { tgtPt ->
                 val holdBoost = holdProgress.coerceIn(0f, 1f)
                 val radiusPx = (26f + breathePhase * 12f + holdBoost * 36f).dp.toPx()
-                val baseGlow = (if (isMapDark) 0.34f else 0.26f) +
+                val baseGlow = (if (isMapDark) 0.44f else 0.36f) +
                     (if (sel.isInsideGeofence) 0.12f else 0f) +
-                    breathePhase * 0.16f +
-                    holdBoost * 0.36f
+                    breathePhase * 0.18f +
+                    holdBoost * 0.34f
                 drawFeatheredGlow(center = tgtPt, radiusPx = radiusPx, peakAlpha = baseGlow)
             }
         }
@@ -1958,7 +1959,7 @@ private fun createFeatheredGeofenceBitmap(accentColor: Int, peakAlpha: Int): Bit
     val radius = size * 0.49f
 
     val stops = floatArrayOf(0.00f, 0.14f, 0.30f, 0.46f, 0.62f, 0.76f, 0.88f, 0.96f, 1.00f)
-    val factors = floatArrayOf(1.00f, 0.88f, 0.70f, 0.50f, 0.32f, 0.17f, 0.07f, 0.02f, 0.00f)
+    val factors = floatArrayOf(1.00f, 0.92f, 0.78f, 0.58f, 0.39f, 0.22f, 0.10f, 0.03f, 0.00f)
     val cols = IntArray(stops.size) { i ->
         ColorUtils.setAlphaComponent(accentColor, (peakAlpha * factors[i]).toInt().coerceIn(0, 255))
     }

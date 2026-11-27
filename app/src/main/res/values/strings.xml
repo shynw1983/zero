@@ -520,7 +520,7 @@
     <string name="place_tag_dialog_title">Place &amp; Geofence · %1$s</string>
     <string name="place_tag_enable_label">Enable as Place Tag</string>
     <string name="place_tag_enable_desc">Push reminders when entering or leaving any linked address</string>
-    <string name="place_trigger_mode_label">Trigger When</string>
+    <string name="place_trigger_mode_label">Default Alert Timing</string>
     <string name="place_trigger_enter">Arrive</string>
     <string name="place_trigger_exit">Leave</string>
     <string name="place_trigger_both">Arrive &amp; Leave</string>
@@ -549,6 +549,12 @@
     <string name="place_edit_action">Edit location</string>
     <string name="place_edit_dialog_title">Edit Location</string>
     <string name="place_confirm_add_title">Confirm &amp; Name Location</string>
+    <string name="detail_place_trigger_label">Location Alert Timing</string>
+    <string name="place_trigger_follow_tag">Tag Default</string>
+    <string name="ai_capture_edit_draft_title">Edit Task Draft</string>
+    <string name="ai_capture_draft_title_hint">Task title</string>
+    <string name="ai_capture_draft_desc_hint">Notes / details (optional)</string>
+    <string name="ai_capture_draft_tags_hint">Tags (e.g. #Home #Work)</string>
 
     <!-- v2.13.0: ATLAS 3D Google Maps Quest NOW Theme -->
     <string name="execute_theme_atlas_title">ATLAS · 3D Quest Map</string>

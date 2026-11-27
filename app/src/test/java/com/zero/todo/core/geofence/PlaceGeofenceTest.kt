@@ -347,4 +347,67 @@ class PlaceGeofenceTest {
         assertEquals(PlaceTriggerMode.BOTH, restoredHome.placeTriggerMode)
         assertEquals(1, restoredHome.places.size)
     }
+
+    @Test
+    fun `per-task place trigger override aggregates geofence transitions, filters alerts, and survives Room plus backup v4`() = runTest {
+        // #家 defaults to ENTER; "收衣服" follows tag default (null), "出门倒垃圾" overrides to EXIT
+        assertEquals(
+            PlaceTriggerMode.ENTER,
+            GeofenceEvaluator.effectiveTriggerMode(PlaceTriggerMode.ENTER, null)
+        )
+        assertEquals(
+            PlaceTriggerMode.EXIT,
+            GeofenceEvaluator.effectiveTriggerMode(PlaceTriggerMode.ENTER, PlaceTriggerMode.EXIT)
+        )
+        assertEquals(
+            PlaceTriggerMode.BOTH,
+            GeofenceEvaluator.aggregateModeForGeofence(
+                tagDefaultMode = PlaceTriggerMode.ENTER,
+                taskOverrides = listOf(null, PlaceTriggerMode.EXIT)
+            )
+        )
+        // Arriving home: triggers "收衣服", does NOT trigger "出门倒垃圾"
+        assertTrue(GeofenceEvaluator.shouldTriggerTask(PlaceTriggerMode.ENTER, null, isEnter = true))
+        assertFalse(GeofenceEvaluator.shouldTriggerTask(PlaceTriggerMode.ENTER, PlaceTriggerMode.EXIT, isEnter = true))
+        // Leaving home: does NOT trigger "收衣服", triggers "出门倒垃圾"
+        assertFalse(GeofenceEvaluator.shouldTriggerTask(PlaceTriggerMode.ENTER, null, isEnter = false))
+        assertTrue(GeofenceEvaluator.shouldTriggerTask(PlaceTriggerMode.ENTER, PlaceTriggerMode.EXIT, isEnter = false))
+
+        val homeTag = tagRepository.createTag("家")
+        tagRepository.updateTagPlaceConfig(homeTag.id, isPlaceTag = true, triggerMode = PlaceTriggerMode.ENTER)
+        tagRepository.addTagPlace(
+            tagId = homeTag.id,
+            label = "我家",
+            address = "中央区 1-1",
+            latitude = 33.5900,
+            longitude = 130.4017,
+            radiusMeters = 150
+        )
+
+        val arriveTask = taskRepository.createTask("到家收衣服")
+        val leaveTask = taskRepository.createTask("出门带垃圾", placeTriggerOverride = PlaceTriggerMode.EXIT)
+        tagRepository.attachTagToTask(arriveTask.id, homeTag.id)
+        tagRepository.attachTagToTask(leaveTask.id, homeTag.id)
+
+        val loadedLeave = taskRepository.getTaskById(leaveTask.id)
+        assertEquals(PlaceTriggerMode.EXIT, loadedLeave?.placeTriggerOverride)
+
+        val json = backupManager.exportJson()
+        assertEquals(4, JSONObject(json).getInt("schemaVersion"))
+        backupManager.importJson(json, replaceExisting = true)
+
+        assertNull(taskRepository.getTaskById(arriveTask.id)?.placeTriggerOverride)
+        assertEquals(PlaceTriggerMode.EXIT, taskRepository.getTaskById(leaveTask.id)?.placeTriggerOverride)
+
+        // Legacy v3 backup without placeTriggerOverride still imports cleanly as null
+        val legacyRoot = JSONObject(json).apply {
+            put("schemaVersion", 3)
+            val tasksArr = getJSONArray("tasks")
+            for (i in 0 until tasksArr.length()) {
+                tasksArr.getJSONObject(i).remove("placeTriggerOverride")
+            }
+        }
+        backupManager.importJson(legacyRoot.toString(), replaceExisting = true)
+        assertNull(taskRepository.getTaskById(leaveTask.id)?.placeTriggerOverride)
+    }
 }

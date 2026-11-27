@@ -28,7 +28,8 @@ object DatabaseModule {
             .addMigrations(
                 ZeroDatabase.MIGRATION_1_2,
                 ZeroDatabase.MIGRATION_2_3,
-                ZeroDatabase.MIGRATION_3_4
+                ZeroDatabase.MIGRATION_3_4,
+                ZeroDatabase.MIGRATION_4_5
             )
             .build()
 

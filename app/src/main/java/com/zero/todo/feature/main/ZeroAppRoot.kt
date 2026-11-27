@@ -239,6 +239,7 @@ fun ZeroAppRoot(
             onCloseTaskParentPicker = viewModel::closeTaskParentPicker,
             onAddTag = viewModel::addTagToTask,
             onRemoveTag = viewModel::removeTagFromTask,
+            onUpdateTaskPlaceTriggerOverride = viewModel::updateTaskPlaceTriggerOverride,
             onDeleteTask = viewModel::deleteTask,
             onRestoreDeletedTask = viewModel::restoreDeletedTask,
             onPermanentlyDeleteTask = viewModel::permanentlyDeleteTask,

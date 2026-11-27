@@ -63,8 +63,16 @@ class ZeroGeofenceReceiver : BroadcastReceiver() {
                     val tag = tagDao.getTagById(place.tagId) ?: continue
                     if (tag.isDeleted || !tag.isPlaceTag) continue
 
-                    val mode = PlaceTriggerMode.fromStorage(tag.placeTriggerMode)
-                    if (!GeofenceEvaluator.shouldTrigger(mode, isEnter)) continue
+                    val tagDefaultMode = PlaceTriggerMode.fromStorage(tag.placeTriggerMode)
+                    val tasks = tagDao.getActiveIncompleteTasksForTagTree(tag.id)
+                    val matchingTasks = tasks.filter { task ->
+                        GeofenceEvaluator.shouldTriggerTask(
+                            tagDefaultMode = tagDefaultMode,
+                            taskOverride = PlaceTriggerMode.fromStorageOrNull(task.placeTriggerOverride),
+                            isEnter = isEnter
+                        )
+                    }
+                    if (matchingTasks.isEmpty()) continue
 
                     // Avoid duplicate notifications if two branches of the same tag are nearby
                     val tagEventKey = "${tag.id}:$isEnter"
@@ -74,9 +82,6 @@ class ZeroGeofenceReceiver : BroadcastReceiver() {
                     val lastFired = prefs.getLong(cooldownKey, 0L)
                     if (GeofenceEvaluator.isWithinCooldown(lastFired, now)) continue
 
-                    val tasks = tagDao.getActiveIncompleteTasksForTagTree(tag.id)
-                    if (tasks.isEmpty()) continue
-
                     prefs.edit().putLong(cooldownKey, now).apply()
                     ZeroNotificationHelper.showPlaceReminder(
                         context = context,
@@ -84,7 +89,7 @@ class ZeroGeofenceReceiver : BroadcastReceiver() {
                         tagName = tag.name,
                         placeLabel = place.label,
                         isEnter = isEnter,
-                        taskTitles = tasks.map { it.title }
+                        taskTitles = matchingTasks.map { it.title }
                     )
                 }
             } finally {

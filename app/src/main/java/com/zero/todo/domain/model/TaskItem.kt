@@ -32,6 +32,7 @@ data class TaskItem(
     val createdAt: Long = 0L,
     val updatedAt: Long = 0L,
     val isDeleted: Boolean = false,
+    val placeTriggerOverride: PlaceTriggerMode? = null,
     val tags: List<TagItem> = emptyList()
 )
 
@@ -43,6 +44,11 @@ enum class PlaceTriggerMode(val storageValue: String) {
     companion object {
         fun fromStorage(raw: String?): PlaceTriggerMode =
             entries.firstOrNull { it.storageValue.equals(raw, ignoreCase = true) } ?: ENTER
+
+        fun fromStorageOrNull(raw: String?): PlaceTriggerMode? =
+            raw?.trim()?.takeIf { it.isNotEmpty() }?.let { clean ->
+                entries.firstOrNull { it.storageValue.equals(clean, ignoreCase = true) }
+            }
     }
 }
 

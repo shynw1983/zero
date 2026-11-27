@@ -27,10 +27,13 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Flag
 import androidx.compose.material.icons.rounded.Folder
 import androidx.compose.material.icons.rounded.Image
@@ -58,6 +61,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
@@ -65,6 +70,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
@@ -214,6 +220,7 @@ fun AiCaptureDialog(
     }
     var editingFolderIndex by remember(state.results) { mutableStateOf<Int?>(null) }
     var editingDateIndex by remember(state.results) { mutableStateOf<Int?>(null) }
+    var editingDraftIndex by remember(state.results) { mutableStateOf<Int?>(null) }
 
     fun attachImageFromUri(uri: Uri, autoAnalyzeText: String? = null) {
         encodingImage = true
@@ -761,6 +768,15 @@ fun AiCaptureDialog(
                                             selectedTaskIndices[idx] = !selectedTaskIndices[idx]
                                         }
                                     },
+                                    onTitleChange = { updatedTitle ->
+                                        if (idx < draftEdits.size) {
+                                            draftEdits[idx] = draftEdits[idx].copy(title = updatedTitle)
+                                        }
+                                    },
+                                    onEditDetails = {
+                                        haptics.reorderTick()
+                                        editingDraftIndex = idx
+                                    },
                                     onEditFolder = {
                                         haptics.reorderTick()
                                         editingFolderIndex = idx
@@ -781,7 +797,9 @@ fun AiCaptureDialog(
                             }
                         }
 
-                        val chosen = draftEdits.filterIndexed { i, _ -> selectedTaskIndices.getOrElse(i) { false } }
+                        val chosen = draftEdits.filterIndexed { i, d ->
+                            selectedTaskIndices.getOrElse(i) { false } && d.title.trim().isNotEmpty()
+                        }
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -839,6 +857,220 @@ fun AiCaptureDialog(
             },
             onDismiss = { editingDateIndex = null }
         )
+    }
+
+    val draftTargetIdx = editingDraftIndex
+    if (draftTargetIdx != null && draftTargetIdx in draftEdits.indices) {
+        AiDraftTextEditDialog(
+            draft = draftEdits[draftTargetIdx],
+            onSave = { updated ->
+                draftEdits[draftTargetIdx] = updated
+                editingDraftIndex = null
+            },
+            onDismiss = { editingDraftIndex = null }
+        )
+    }
+}
+
+@Composable
+private fun AiDraftTextEditDialog(
+    draft: AiCapturedTaskDraft,
+    onSave: (AiCapturedTaskDraft) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val colors = ZeroTheme.colors
+    var titleText by remember(draft) { mutableStateOf(draft.title) }
+    var descText by remember(draft) { mutableStateOf(draft.description) }
+    var tagsText by remember(draft) {
+        mutableStateOf(draft.tags.joinToString(" ") { "#$it" })
+    }
+    val editableSubtasks = remember(draft) {
+        mutableStateListOf<AiSubtaskDraft>().apply { addAll(draft.subtasks) }
+    }
+    val titleFocusRequester = remember { FocusRequester() }
+    LaunchedEffect(draft) {
+        runCatching { titleFocusRequester.requestFocus() }
+    }
+    val trimmedTitle = titleText.trim()
+
+    Dialog(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(ZeroCardShape)
+                .background(colors.surfaceElevated)
+                .hairlineBorder(shape = ZeroCardShape)
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Text(
+                text = stringResource(R.string.ai_capture_edit_draft_title),
+                style = MaterialTheme.typography.titleMedium,
+                color = colors.textPrimary
+            )
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(ZeroSmallShape)
+                    .background(colors.surface)
+                    .hairlineBorder(shape = ZeroSmallShape, color = colors.accent.copy(alpha = 0.45f))
+                    .padding(horizontal = 10.dp, vertical = 9.dp)
+            ) {
+                if (titleText.isEmpty()) {
+                    Text(
+                        text = stringResource(R.string.ai_capture_draft_title_hint),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = colors.textMuted
+                    )
+                }
+                BasicTextField(
+                    value = titleText,
+                    onValueChange = { titleText = it },
+                    singleLine = true,
+                    textStyle = MaterialTheme.typography.bodyMedium.copy(color = colors.textPrimary),
+                    cursorBrush = SolidColor(colors.accent),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .focusRequester(titleFocusRequester)
+                )
+            }
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 56.dp, max = 110.dp)
+                    .clip(ZeroSmallShape)
+                    .background(colors.surface)
+                    .hairlineBorder(shape = ZeroSmallShape)
+                    .padding(horizontal = 10.dp, vertical = 8.dp)
+            ) {
+                if (descText.isEmpty()) {
+                    Text(
+                        text = stringResource(R.string.ai_capture_draft_desc_hint),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = colors.textMuted
+                    )
+                }
+                BasicTextField(
+                    value = descText,
+                    onValueChange = { descText = it },
+                    textStyle = MaterialTheme.typography.bodySmall.copy(color = colors.textPrimary),
+                    cursorBrush = SolidColor(colors.accent),
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(ZeroSmallShape)
+                    .background(colors.surface)
+                    .hairlineBorder(shape = ZeroSmallShape)
+                    .padding(horizontal = 10.dp, vertical = 8.dp)
+            ) {
+                if (tagsText.isEmpty()) {
+                    Text(
+                        text = stringResource(R.string.ai_capture_draft_tags_hint),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = colors.textMuted
+                    )
+                }
+                BasicTextField(
+                    value = tagsText,
+                    onValueChange = { tagsText = it },
+                    singleLine = true,
+                    textStyle = MaterialTheme.typography.bodySmall.copy(color = colors.accent),
+                    cursorBrush = SolidColor(colors.accent),
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+
+            if (editableSubtasks.isNotEmpty()) {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 150.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    itemsIndexed(editableSubtasks) { sIdx, sub ->
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(ZeroSmallShape)
+                                .background(colors.surface)
+                                .hairlineBorder(shape = ZeroSmallShape)
+                                .padding(horizontal = 10.dp, vertical = 7.dp)
+                        ) {
+                            BasicTextField(
+                                value = sub.title,
+                                onValueChange = { updatedSub ->
+                                    editableSubtasks[sIdx] = sub.copy(title = updatedSub)
+                                },
+                                singleLine = true,
+                                textStyle = MaterialTheme.typography.bodySmall.copy(color = colors.textPrimary),
+                                cursorBrush = SolidColor(colors.accent),
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+                    }
+                }
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .clip(ZeroSmallShape)
+                        .hairlineBorder(shape = ZeroSmallShape)
+                        .clickable(onClick = onDismiss)
+                        .padding(horizontal = 14.dp, vertical = 8.dp)
+                ) {
+                    Text(
+                        text = stringResource(R.string.action_cancel),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = colors.textSecondary
+                    )
+                }
+                Box(
+                    modifier = Modifier
+                        .clip(ZeroSmallShape)
+                        .background(if (trimmedTitle.isNotEmpty()) colors.accent else colors.surface)
+                        .hairlineBorder(
+                            shape = ZeroSmallShape,
+                            color = if (trimmedTitle.isNotEmpty()) colors.accent else colors.hairlineBorder
+                        )
+                        .clickable(enabled = trimmedTitle.isNotEmpty()) {
+                            val parsedTags = tagsText
+                                .split(Regex("""[\s,，、]+"""))
+                                .map { it.trim().removePrefix("#") }
+                                .filter { it.isNotEmpty() }
+                                .distinct()
+                            val cleanSubtasks = editableSubtasks.mapNotNull { sub ->
+                                val t = sub.title.trim()
+                                if (t.isEmpty()) null else sub.copy(title = t)
+                            }
+                            onSave(
+                                draft.copy(
+                                    title = trimmedTitle,
+                                    description = descText.trim(),
+                                    tags = parsedTags,
+                                    subtasks = cleanSubtasks
+                                )
+                            )
+                        }
+                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                ) {
+                    Text(
+                        text = stringResource(R.string.action_save),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = if (trimmedTitle.isNotEmpty()) colors.onAccent else colors.textMuted
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -977,6 +1209,8 @@ private fun AiCapturedTaskPreviewCard(
     draft: AiCapturedTaskDraft,
     checked: Boolean,
     onToggle: () -> Unit,
+    onTitleChange: (String) -> Unit,
+    onEditDetails: () -> Unit,
     onEditFolder: () -> Unit,
     onEditDate: () -> Unit,
     onCyclePriority: () -> Unit
@@ -991,7 +1225,6 @@ private fun AiCapturedTaskPreviewCard(
                 shape = ZeroSmallShape,
                 color = if (checked) colors.accent else colors.hairlineBorder
             )
-            .clickable(onClick = onToggle)
             .padding(10.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
@@ -999,15 +1232,46 @@ private fun AiCapturedTaskPreviewCard(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            AiCheckBox(checked = checked)
-            Text(
-                text = draft.title,
-                style = MaterialTheme.typography.bodyMedium,
-                color = colors.textPrimary,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f)
-            )
+            Box(
+                modifier = Modifier
+                    .clip(ZeroSmallShape)
+                    .clickable(onClick = onToggle)
+                    .padding(2.dp)
+            ) {
+                AiCheckBox(checked = checked)
+            }
+            Box(modifier = Modifier.weight(1f)) {
+                if (draft.title.isEmpty()) {
+                    Text(
+                        text = stringResource(R.string.ai_capture_draft_title_hint),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = colors.textMuted
+                    )
+                }
+                BasicTextField(
+                    value = draft.title,
+                    onValueChange = onTitleChange,
+                    maxLines = 2,
+                    textStyle = MaterialTheme.typography.bodyMedium.copy(color = colors.textPrimary),
+                    cursorBrush = SolidColor(colors.accent),
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+            Box(
+                modifier = Modifier
+                    .clip(ZeroSmallShape)
+                    .clickable(onClick = onEditDetails)
+                    .padding(4.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Edit,
+                    contentDescription = stringResource(R.string.ai_capture_edit_draft_title),
+                    tint = colors.textMuted,
+                    modifier = Modifier.size(14.dp)
+                )
+            }
             val pColor = when (draft.priority) {
                 TaskPriority.URGENT -> colors.priorityUrgent
                 TaskPriority.HIGH -> colors.priorityHigh
@@ -1219,6 +1483,17 @@ fun AiBreakdownDialog(
     val draft = state.draft
     var applyFirstStep by remember(draft) { mutableStateOf(draft?.firstStep != null) }
     var applyEffort by remember(draft) { mutableStateOf(draft?.estimatedMinutes != null) }
+    var editableFirstStep by remember(draft) { mutableStateOf(draft?.firstStep.orEmpty()) }
+    val editableSubtasks = remember(draft) {
+        mutableStateListOf<AiSubtaskDraft>().apply {
+            addAll(draft?.subtasks.orEmpty())
+        }
+    }
+    val editableChecklist = remember(draft) {
+        mutableStateListOf<String>().apply {
+            addAll(draft?.checklistItems.orEmpty())
+        }
+    }
     val selectedSubtasks = remember(draft) {
         mutableStateListOf<Boolean>().apply {
             repeat(draft?.subtasks?.size ?: 0) { add(true) }
@@ -1362,8 +1637,9 @@ fun AiBreakdownDialog(
                                         AiToggleOptionRow(
                                             checked = applyFirstStep,
                                             label = stringResource(R.string.now_first_step_label),
-                                            valueText = draft.firstStep,
-                                            onClick = { applyFirstStep = !applyFirstStep }
+                                            valueText = editableFirstStep,
+                                            onClick = { applyFirstStep = !applyFirstStep },
+                                            onTextChange = { editableFirstStep = it }
                                         )
                                     }
                                 }
@@ -1377,7 +1653,7 @@ fun AiBreakdownDialog(
                                         )
                                     }
                                 }
-                                if (draft.subtasks.isNotEmpty()) {
+                                if (editableSubtasks.isNotEmpty()) {
                                     item(key = "subtasks_hdr") {
                                         Text(
                                             text = stringResource(R.string.ai_breakdown_subtasks_label),
@@ -1386,7 +1662,7 @@ fun AiBreakdownDialog(
                                             modifier = Modifier.padding(top = 4.dp)
                                         )
                                     }
-                                    itemsIndexed(draft.subtasks) { i, sub ->
+                                    itemsIndexed(editableSubtasks) { i, sub ->
                                         val checked = selectedSubtasks.getOrElse(i) { true }
                                         val tagNote = if (sub.tags.isNotEmpty()) {
                                             sub.tags.joinToString(" ") { "#$it" }
@@ -1399,11 +1675,16 @@ fun AiBreakdownDialog(
                                                 if (i < selectedSubtasks.size) {
                                                     selectedSubtasks[i] = !selectedSubtasks[i]
                                                 }
+                                            },
+                                            onTextChange = { updatedTitle ->
+                                                if (i < editableSubtasks.size) {
+                                                    editableSubtasks[i] = editableSubtasks[i].copy(title = updatedTitle)
+                                                }
                                             }
                                         )
                                     }
                                 }
-                                if (draft.checklistItems.isNotEmpty()) {
+                                if (editableChecklist.isNotEmpty()) {
                                     item(key = "checklist_hdr") {
                                         Text(
                                             text = stringResource(R.string.ai_breakdown_checklist_label),
@@ -1412,15 +1693,21 @@ fun AiBreakdownDialog(
                                             modifier = Modifier.padding(top = 4.dp)
                                         )
                                     }
-                                    itemsIndexed(draft.checklistItems) { i, line ->
+                                    itemsIndexed(editableChecklist) { i, line ->
                                         val checked = selectedChecklist.getOrElse(i) { true }
                                         AiToggleOptionRow(
                                             checked = checked,
                                             label = null,
-                                            valueText = "- [ ] $line",
+                                            valueText = line,
+                                            prefixMarker = "- [ ] ",
                                             onClick = {
                                                 if (i < selectedChecklist.size) {
                                                     selectedChecklist[i] = !selectedChecklist[i]
+                                                }
+                                            },
+                                            onTextChange = { updatedLine ->
+                                                if (i < editableChecklist.size) {
+                                                    editableChecklist[i] = updatedLine
                                                 }
                                             }
                                         )
@@ -1457,10 +1744,14 @@ fun AiBreakdownDialog(
                                             haptics.confirm()
                                             onApply(
                                                 task,
-                                                if (applyFirstStep) draft.firstStep else null,
+                                                if (applyFirstStep) editableFirstStep.trim().takeIf { it.isNotEmpty() } else null,
                                                 if (applyEffort) draft.estimatedMinutes else null,
-                                                draft.subtasks.filterIndexed { i, _ -> selectedSubtasks.getOrElse(i) { false } },
-                                                draft.checklistItems.filterIndexed { i, _ -> selectedChecklist.getOrElse(i) { false } }
+                                                editableSubtasks.filterIndexed { i, sub ->
+                                                    selectedSubtasks.getOrElse(i) { false } && sub.title.trim().isNotEmpty()
+                                                }.map { it.copy(title = it.title.trim()) },
+                                                editableChecklist.filterIndexed { i, line ->
+                                                    selectedChecklist.getOrElse(i) { false } && line.trim().isNotEmpty()
+                                                }.map { it.trim() }
                                             )
                                         },
                                     contentAlignment = Alignment.Center
@@ -1540,7 +1831,9 @@ private fun AiToggleOptionRow(
     checked: Boolean,
     label: String?,
     valueText: String,
-    onClick: () -> Unit
+    prefixMarker: String = "",
+    onClick: () -> Unit,
+    onTextChange: ((String) -> Unit)? = null
 ) {
     val colors = ZeroTheme.colors
     Row(
@@ -1552,18 +1845,47 @@ private fun AiToggleOptionRow(
                 shape = ZeroSmallShape,
                 color = if (checked) colors.accent else colors.hairlineBorder
             )
-            .clickable(onClick = onClick)
+            .then(if (onTextChange == null) Modifier.clickable(onClick = onClick) else Modifier)
             .padding(10.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        AiCheckBox(checked = checked)
+        Box(
+            modifier = Modifier
+                .clip(ZeroSmallShape)
+                .clickable(onClick = onClick)
+                .padding(2.dp)
+        ) {
+            AiCheckBox(checked = checked)
+        }
         Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = valueText,
-                style = MaterialTheme.typography.bodySmall,
-                color = colors.textPrimary
-            )
+            if (onTextChange != null) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    if (prefixMarker.isNotEmpty()) {
+                        Text(
+                            text = prefixMarker,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = colors.textMuted
+                        )
+                    }
+                    BasicTextField(
+                        value = valueText,
+                        onValueChange = onTextChange,
+                        textStyle = MaterialTheme.typography.bodySmall.copy(color = colors.textPrimary),
+                        cursorBrush = SolidColor(colors.accent),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            } else {
+                Text(
+                    text = "$prefixMarker$valueText",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = colors.textPrimary
+                )
+            }
             if (!label.isNullOrBlank()) {
                 Text(
                     text = label,

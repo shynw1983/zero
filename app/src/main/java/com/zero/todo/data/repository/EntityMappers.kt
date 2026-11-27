@@ -101,6 +101,7 @@ fun TaskEntity.toDomain(tags: List<TagItem> = emptyList()): TaskItem = TaskItem(
     createdAt = createdAt,
     updatedAt = updatedAt,
     isDeleted = isDeleted,
+    placeTriggerOverride = com.zero.todo.domain.model.PlaceTriggerMode.fromStorageOrNull(placeTriggerOverride),
     tags = tags
 )
 
@@ -127,7 +128,8 @@ fun TaskItem.toEntity(): TaskEntity = TaskEntity(
     sortOrder = sortOrder,
     createdAt = createdAt,
     updatedAt = updatedAt,
-    isDeleted = isDeleted
+    isDeleted = isDeleted,
+    placeTriggerOverride = placeTriggerOverride?.storageValue
 )
 
 fun FocusSessionEntity.toDomain(): FocusSession = FocusSession(

@@ -520,7 +520,7 @@
     <string name="place_tag_dialog_title">場所設定 · %1$s</string>
     <string name="place_tag_enable_label">場所タグとして使う</string>
     <string name="place_tag_enable_desc">登録したいずれかの地点への接近・離脱で未完了タスクを通知</string>
-    <string name="place_trigger_mode_label">通知タイミング</string>
+    <string name="place_trigger_mode_label">デフォルト通知タイミング</string>
     <string name="place_trigger_enter">近づいた時</string>
     <string name="place_trigger_exit">離れた時</string>
     <string name="place_trigger_both">接近・離脱</string>
@@ -549,6 +549,12 @@
     <string name="place_edit_action">地点を編集</string>
     <string name="place_edit_dialog_title">地点名を編集</string>
     <string name="place_confirm_add_title">地点名を確認・編集</string>
+    <string name="detail_place_trigger_label">場所アラートのタイミング</string>
+    <string name="place_trigger_follow_tag">タグに従う</string>
+    <string name="ai_capture_edit_draft_title">タスク下書きを編集</string>
+    <string name="ai_capture_draft_title_hint">タスク名</string>
+    <string name="ai_capture_draft_desc_hint">メモ・詳細（任意）</string>
+    <string name="ai_capture_draft_tags_hint">タグ（例：#家 #仕事）</string>
 
     <!-- v2.13.0: ATLAS 3D Googleマップ・クエストテーマ -->
     <string name="execute_theme_atlas_title">ATLAS · 3D クエストマップ</string>

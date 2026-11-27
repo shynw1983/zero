@@ -1,5 +1,6 @@
 package com.zero.todo.data.repository
 
+import com.zero.todo.domain.model.PlaceTriggerMode
 import com.zero.todo.domain.model.TaskItem
 import com.zero.todo.domain.model.TaskPlacementChange
 import com.zero.todo.domain.model.TaskPriority
@@ -33,7 +34,8 @@ interface TaskRepository {
         reminderAt: Long? = null,
         recurrenceRule: String? = null,
         firstStep: String? = null,
-        estimatedMinutes: Int? = null
+        estimatedMinutes: Int? = null,
+        placeTriggerOverride: PlaceTriggerMode? = null
     ): TaskItem
 
     suspend fun updateTask(taskId: String, edit: (TaskItem) -> TaskItem): TaskItem?
