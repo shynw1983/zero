@@ -153,6 +153,97 @@ class PlaceGeofenceTest {
     }
 
     @Test
+    fun `place label resolver filters Japanese house numbers while preserving store names`() {
+        assertTrue(PlaceSearchEngine.isHouseNumberOrAddressCode("１８"))
+        assertTrue(PlaceSearchEngine.isHouseNumberOrAddressCode("18"))
+        assertTrue(PlaceSearchEngine.isHouseNumberOrAddressCode("1-18"))
+        assertTrue(PlaceSearchEngine.isHouseNumberOrAddressCode("１−１８"))
+        assertTrue(PlaceSearchEngine.isHouseNumberOrAddressCode("１丁目１−１８"))
+        assertTrue(PlaceSearchEngine.isHouseNumberOrAddressCode("3番地2号"))
+        assertTrue(PlaceSearchEngine.isHouseNumberOrAddressCode("〒815-0082"))
+        assertTrue(PlaceSearchEngine.isHouseNumberOrAddressCode("2F"))
+        assertTrue(PlaceSearchEngine.isHouseNumberOrAddressCode("B1F"))
+        assertTrue(PlaceSearchEngine.isHouseNumberOrAddressCode("No. 18"))
+        assertTrue(PlaceSearchEngine.isHouseNumberOrAddressCode(""))
+        assertTrue(PlaceSearchEngine.isHouseNumberOrAddressCode(null))
+
+        assertFalse(PlaceSearchEngine.isHouseNumberOrAddressCode("セブン-イレブン 福岡大楠１丁目店"))
+        assertFalse(PlaceSearchEngine.isHouseNumberOrAddressCode("7-Eleven"))
+        assertFalse(PlaceSearchEngine.isHouseNumberOrAddressCode("ローソンストア100"))
+        assertFalse(PlaceSearchEngine.isHouseNumberOrAddressCode("3COINS"))
+        assertFalse(PlaceSearchEngine.isHouseNumberOrAddressCode("大楠１丁目"))
+        assertFalse(PlaceSearchEngine.isHouseNumberOrAddressCode("博多駅前"))
+
+        // Forward search: featureName is "１８" -> preserve searched merchant name
+        assertEquals(
+            "セブン-イレブン 福岡大楠１丁目店",
+            PlaceSearchEngine.resolveGeocoderLabel(
+                featureName = "１８",
+                subThoroughfare = "１８",
+                thoroughfare = "１",
+                subLocality = "大楠１丁目",
+                locality = "福岡市",
+                postalCode = "815-0082",
+                fullAddress = "日本、〒815-0082 福岡県福岡市南区大楠１丁目１−１８",
+                fallbackQuery = "セブン-イレブン 福岡大楠１丁目店",
+                defaultFallback = "セブン-イレブン 福岡大楠１丁目店"
+            )
+        )
+
+        // Forward search: featureName is a genuine POI name -> keep distinct POI name
+        assertEquals(
+            "セブン-イレブン 福岡大楠１丁目店",
+            PlaceSearchEngine.resolveGeocoderLabel(
+                featureName = "セブン-イレブン 福岡大楠１丁目店",
+                subThoroughfare = "１８",
+                thoroughfare = "１",
+                subLocality = "大楠１丁目",
+                locality = "福岡市",
+                postalCode = "815-0082",
+                fullAddress = "日本、〒815-0082 福岡県福岡市南区大楠１丁目１−１８",
+                fallbackQuery = "セブンイレブン",
+                defaultFallback = "セブンイレブン"
+            )
+        )
+
+        // Reverse geocode: featureName is "１８" -> fall back to readable neighborhood ("大楠１丁目")
+        assertEquals(
+            "大楠１丁目",
+            PlaceSearchEngine.resolveGeocoderLabel(
+                featureName = "１８",
+                subThoroughfare = "１８",
+                thoroughfare = "１",
+                subLocality = "大楠１丁目",
+                locality = "福岡市",
+                postalCode = "815-0082",
+                fullAddress = "日本、〒815-0082 福岡県福岡市南区大楠１丁目１−１８",
+                fallbackQuery = null,
+                defaultFallback = "33.57500, 130.41200"
+            )
+        )
+
+        // Nominatim search JSON: ignore house-number-only "name": "18"
+        val nominatimHouseJson = """
+            [
+              {
+                "name": "18",
+                "display_name": "18, 大楠一丁目, 南区, 福岡市, 福岡県, 815-0082, 日本",
+                "lat": "33.5750",
+                "lon": "130.4120"
+              }
+            ]
+        """.trimIndent()
+        val parsed = PlaceSearchEngine.parseNominatimSearchJson(
+            rawJson = nominatimHouseJson,
+            biasLat = 33.5750,
+            biasLng = 130.4120,
+            fallbackQuery = "セブン-イレブン 福岡大楠１丁目店"
+        )
+        assertEquals(1, parsed.size)
+        assertEquals("大楠一丁目", parsed[0].label)
+    }
+
+    @Test
     fun `geofence evaluator handles request IDs, enter-exit modes, and cooldowns`() {
         val id = "place-uuid-42"
         val reqId = GeofenceEvaluator.requestIdFor(id)

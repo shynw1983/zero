@@ -22,6 +22,7 @@ import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
+import java.text.Normalizer
 import java.util.Locale
 import kotlin.coroutines.resume
 import kotlin.math.asin
@@ -41,6 +42,91 @@ data class PlaceSearchResult(
 object PlaceSearchEngine {
 
     private val COORD_REGEX = Regex("""(-?\d{1,3}(?:\.\d+)?)\s*,\s*(-?\d{1,3}(?:\.\d+)?)""")
+    private val ADDRESS_CODE_TOKEN_REGEX = Regex(
+        """(?i)(?:〒|\bno\.?\s*\d+|\b[bB]?\d+\s*[fF]\b|丁目|番地|番|号室|号|棟|階)"""
+    )
+    private val NON_MEANINGFUL_LABEL_CHARS_REGEX = Regex("""[\s\d\-−ー‐–—‐,./#()（）:：]+""")
+
+    /**
+     * Returns true when a raw geocoder label is blank or consists solely of digits,
+     * punctuation, postal markers, or Japanese/Chinese/English house/floor counters
+     * (e.g. "１８", "1-18", "１丁目１−１８", "3番地", "2F", "〒815-0082"), while keeping
+     * real place/brand names that happen to contain digits (e.g. "7-Eleven",
+     * "ローソンストア100", "セブン-イレブン 福岡大楠１丁目店", "大楠１丁目").
+     */
+    fun isHouseNumberOrAddressCode(raw: String?): Boolean {
+        val trimmed = raw?.trim().orEmpty()
+        if (trimmed.isEmpty()) return true
+        val normalized = Normalizer.normalize(trimmed, Normalizer.Form.NFKC)
+        val withoutTokens = ADDRESS_CODE_TOKEN_REGEX.replace(normalized, "")
+        val remaining = NON_MEANINGFUL_LABEL_CHARS_REGEX.replace(withoutTokens, "")
+        return remaining.isEmpty()
+    }
+
+    internal fun resolveGeocoderLabel(
+        featureName: String?,
+        subThoroughfare: String?,
+        thoroughfare: String?,
+        subLocality: String?,
+        locality: String?,
+        postalCode: String?,
+        fullAddress: String,
+        fallbackQuery: String? = null,
+        defaultFallback: String = ""
+    ): String {
+        val cleanedFeature = featureName?.trim()?.takeIf { candidate ->
+            candidate.isNotEmpty() &&
+                !candidate.equals(fullAddress, ignoreCase = true) &&
+                !candidate.equals(subThoroughfare?.trim(), ignoreCase = true) &&
+                !candidate.equals(postalCode?.trim(), ignoreCase = true) &&
+                !isHouseNumberOrAddressCode(candidate)
+        }
+
+        val cleanedQuery = fallbackQuery?.trim()?.takeIf { q ->
+            q.isNotEmpty() &&
+                parseCoordinateOrMapUrl(q) == null &&
+                !isHouseNumberOrAddressCode(q)
+        }
+
+        // Forward search: keep featureName only if it is a genuine distinct POI name
+        // (not merely a generic street/ward/city component); otherwise preserve the user's searched merchant name.
+        if (cleanedQuery != null) {
+            val isGenericAddressPart = cleanedFeature != null && (
+                cleanedFeature.equals(thoroughfare?.trim(), ignoreCase = true) ||
+                    cleanedFeature.equals(subLocality?.trim(), ignoreCase = true) ||
+                    cleanedFeature.equals(locality?.trim(), ignoreCase = true)
+                )
+            return if (cleanedFeature != null && !isGenericAddressPart) {
+                cleanedFeature
+            } else {
+                cleanedQuery
+            }
+        }
+
+        // Reverse geocode (current GPS / coordinate paste): pick best human-readable place label.
+        if (cleanedFeature != null) return cleanedFeature
+
+        val sub = subLocality?.trim()?.takeIf { it.isNotEmpty() && !isHouseNumberOrAddressCode(it) }
+        val road = thoroughfare?.trim()?.takeIf { it.isNotEmpty() && !isHouseNumberOrAddressCode(it) }
+        if (sub != null && road != null) {
+            return when {
+                sub.contains(road, ignoreCase = true) -> sub
+                road.contains(sub, ignoreCase = true) -> road
+                else -> "$sub $road"
+            }
+        }
+        if (road != null) return road
+        if (sub != null) return sub
+
+        val city = locality?.trim()?.takeIf { it.isNotEmpty() && !isHouseNumberOrAddressCode(it) }
+        if (city != null) return city
+
+        val firstSegment = fullAddress.substringBefore(',').trim()
+        if (firstSegment.isNotEmpty() && !isHouseNumberOrAddressCode(firstSegment)) {
+            return firstSegment
+        }
+        return fullAddress.trim().ifBlank { defaultFallback }
+    }
 
     /**
      * Parses raw latitude/longitude pairs (`35.6595, 139.7004`), `geo:lat,lng`, or Google Maps URLs
@@ -69,18 +155,29 @@ object PlaceSearchEngine {
     fun parseNominatimSearchJson(
         rawJson: String,
         biasLat: Double? = null,
-        biasLng: Double? = null
+        biasLng: Double? = null,
+        fallbackQuery: String? = null
     ): List<PlaceSearchResult> {
         val array = runCatching { JSONArray(rawJson) }.getOrNull() ?: return emptyList()
+        val cleanedQuery = fallbackQuery?.trim()?.takeIf { q ->
+            q.isNotEmpty() &&
+                parseCoordinateOrMapUrl(q) == null &&
+                !isHouseNumberOrAddressCode(q)
+        }
         return buildList {
             for (i in 0 until array.length()) {
                 val obj = array.optJSONObject(i) ?: continue
                 val lat = obj.optString("lat").toDoubleOrNull() ?: continue
                 val lng = obj.optString("lon").toDoubleOrNull() ?: continue
                 val displayName = obj.optString("display_name").trim()
-                val shortName = obj.optString("name").trim()
-                    .ifBlank { displayName.substringBefore(',').trim() }
-                    .ifBlank { "%.5f, %.5f".format(Locale.US, lat, lng) }
+                val rawName = obj.optString("name").trim().takeUnless { isHouseNumberOrAddressCode(it) }
+                val firstReadableSegment = displayName.split(',')
+                    .map { it.trim() }
+                    .firstOrNull { it.isNotEmpty() && !isHouseNumberOrAddressCode(it) }
+                val shortName = rawName
+                    ?: firstReadableSegment
+                    ?: cleanedQuery
+                    ?: displayName.substringBefore(',').trim().ifBlank { "%.5f, %.5f".format(Locale.US, lat, lng) }
                 val dist = if (biasLat != null && biasLng != null) {
                     haversineDistanceMeters(biasLat, biasLng, lat, lng)
                 } else {
@@ -220,11 +317,17 @@ object PlaceSearchEngine {
                 val full = (0..addr.maxAddressLineIndex)
                     .mapNotNull { idx -> addr.getAddressLine(idx)?.trim()?.takeIf { it.isNotEmpty() } }
                     .joinToString(", ")
-                val name = addr.featureName?.takeIf { it.isNotBlank() && !it.equals(full, ignoreCase = true) }
-                    ?: addr.thoroughfare?.takeIf { it.isNotBlank() }
-                    ?: addr.subLocality?.takeIf { it.isNotBlank() }
-                    ?: addr.locality?.takeIf { it.isNotBlank() }
-                    ?: full.substringBefore(',').trim().ifBlank { coordLabel }
+                val name = resolveGeocoderLabel(
+                    featureName = addr.featureName,
+                    subThoroughfare = addr.subThoroughfare,
+                    thoroughfare = addr.thoroughfare,
+                    subLocality = addr.subLocality,
+                    locality = addr.locality,
+                    postalCode = addr.postalCode,
+                    fullAddress = full,
+                    fallbackQuery = null,
+                    defaultFallback = coordLabel
+                )
                 name to full.ifBlank { coordLabel }
             } else {
                 null
@@ -237,9 +340,13 @@ object PlaceSearchEngine {
             val body = httpGet(url)
             val obj = JSONObject(body)
             val displayName = obj.optString("display_name").trim()
-            val name = obj.optString("name").trim()
-                .ifBlank { displayName.substringBefore(',').trim() }
-                .ifBlank { coordLabel }
+            val rawName = obj.optString("name").trim().takeUnless { isHouseNumberOrAddressCode(it) }
+            val firstReadableSegment = displayName.split(',')
+                .map { it.trim() }
+                .firstOrNull { it.isNotEmpty() && !isHouseNumberOrAddressCode(it) }
+            val name = rawName
+                ?: firstReadableSegment
+                ?: displayName.substringBefore(',').trim().ifBlank { coordLabel }
             name to displayName.ifBlank { coordLabel }
         }.getOrNull()
 
@@ -327,7 +434,7 @@ object PlaceSearchEngine {
         }
         val url = "https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=$limit&q=$encoded$viewboxParam"
         val body = httpGet(url)
-        val results = parseNominatimSearchJson(body, biasLat, biasLng)
+        val results = parseNominatimSearchJson(body, biasLat, biasLng, fallbackQuery = query)
         return if (biasLat != null && biasLng != null) {
             results.sortedBy { it.distanceMeters ?: Int.MAX_VALUE }
         } else {
@@ -360,7 +467,17 @@ object PlaceSearchEngine {
             val full = (0..addr.maxAddressLineIndex)
                 .mapNotNull { idx -> addr.getAddressLine(idx)?.trim()?.takeIf { it.isNotEmpty() } }
                 .joinToString(", ")
-            val label = addr.featureName?.takeIf { it.isNotBlank() } ?: query
+            val label = resolveGeocoderLabel(
+                featureName = addr.featureName,
+                subThoroughfare = addr.subThoroughfare,
+                thoroughfare = addr.thoroughfare,
+                subLocality = addr.subLocality,
+                locality = addr.locality,
+                postalCode = addr.postalCode,
+                fullAddress = full,
+                fallbackQuery = query,
+                defaultFallback = query
+            )
             val dist = if (biasLat != null && biasLng != null) {
                 haversineDistanceMeters(biasLat, biasLng, addr.latitude, addr.longitude)
             } else {
