@@ -24,6 +24,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
@@ -103,10 +104,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.pointerInput
@@ -156,9 +156,7 @@ import com.zero.todo.domain.model.TaskPriority
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.abs
-import kotlin.math.cos
 import kotlin.math.hypot
-import kotlin.math.sin
 
 private const val PLAYER_MARKER_TAG = "__zero_player__"
 
@@ -211,10 +209,10 @@ fun AtlasThemeView(
     var googleMapRef by remember { mutableStateOf<GoogleMap?>(null) }
     var hasInitialCameraCentered by remember { mutableStateOf(false) }
     var playerMarkerRef by remember { mutableStateOf<Marker?>(null) }
-    var headingConeRef by remember { mutableStateOf<Polygon?>(null) }
+    var headingConesRef by remember { mutableStateOf<List<Polygon>>(emptyList()) }
     var cameraMoveTick by remember { mutableLongStateOf(0L) }
 
-    // 60fps Spatial Motion & HUD Choreography states
+    // 60fps Organic Breathing & Spatial Choreography states
     var chromeEntered by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { chromeEntered = true }
     val chromeMotion by animateFloatAsState(
@@ -228,18 +226,19 @@ fun AtlasThemeView(
     LaunchedEffect(shockwaveEvent?.id) {
         if (shockwaveEvent != null) {
             shockwaveProgress.snapTo(0f)
-            shockwaveProgress.animateTo(1f, tween(durationMillis = 720, easing = FastOutSlowInEasing))
+            shockwaveProgress.animateTo(1f, tween(durationMillis = 880, easing = FastOutSlowInEasing))
             shockwaveEvent = null
         }
     }
 
+    val sineEase = remember { CubicBezierEasing(0.37f, 0f, 0.63f, 1f) }
     val motionTransition = rememberInfiniteTransition(label = "atlas_spatial_motion")
     val breathePhase by motionTransition.animateFloat(
         initialValue = 0f,
         targetValue = 1f,
         animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 2800, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Restart
+            animation = tween(durationMillis = 2800, easing = sineEase),
+            repeatMode = RepeatMode.Reverse
         ),
         label = "atlas_breathe_phase"
     )
@@ -247,7 +246,7 @@ fun AtlasThemeView(
         initialValue = 0f,
         targetValue = 1f,
         animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 2100, easing = LinearEasing),
+            animation = tween(durationMillis = 3200, easing = LinearEasing),
             repeatMode = RepeatMode.Restart
         ),
         label = "atlas_stream_phase"
@@ -534,7 +533,7 @@ fun AtlasThemeView(
     val accentArgb = colors.accent.toArgb()
     val urgentArgb = colors.priorityUrgent.toArgb()
 
-    // Effect 1: Clean geofence circles & floating architectural pill pins (routes handled by 60fps overlay)
+    // Effect 1: Borderless feathered geofence light pools & floating architectural pill pins
     LaunchedEffect(
         googleMapRef,
         snapshot,
@@ -545,32 +544,29 @@ fun AtlasThemeView(
         val gMap = googleMapRef ?: return@LaunchedEffect
         gMap.clear()
         playerMarkerRef = null
-        headingConeRef = null
+        headingConesRef = emptyList()
 
         snapshot.markers.forEach { qMarker ->
             val isSelected = qMarker.place.id == selectedMarker?.place?.id
             val center = LatLng(qMarker.place.latitude, qMarker.place.longitude)
             val baseColor = if (qMarker.highestPriority == TaskPriority.URGENT) urgentArgb else accentArgb
 
-            val strokeAlpha = when {
-                qMarker.isInsideGeofence -> 165
-                isSelected -> 125
-                else -> 50
+            val ringLayers = when {
+                qMarker.isInsideGeofence -> listOf(1.0 to 26, 0.78 to 26, 0.56 to 28, 0.34 to 34)
+                isSelected -> listOf(1.0 to 20, 0.78 to 20, 0.56 to 22, 0.34 to 26)
+                else -> listOf(1.0 to 10, 0.72 to 10, 0.45 to 12)
             }
-            val fillAlpha = when {
-                qMarker.isInsideGeofence -> 28
-                isSelected -> 14
-                else -> 5
+            ringLayers.forEach { (ratio, alpha) ->
+                gMap.addCircle(
+                    CircleOptions()
+                        .center(center)
+                        .radius((qMarker.place.radiusMeters * ratio).coerceAtLeast(8.0))
+                        .strokeWidth(0f)
+                        .strokeColor(0)
+                        .fillColor(ColorUtils.setAlphaComponent(baseColor, alpha))
+                        .zIndex(1f)
+                )
             }
-            gMap.addCircle(
-                CircleOptions()
-                    .center(center)
-                    .radius(qMarker.place.radiusMeters.toDouble())
-                    .strokeWidth(2.2f)
-                    .strokeColor(ColorUtils.setAlphaComponent(baseColor, strokeAlpha))
-                    .fillColor(ColorUtils.setAlphaComponent(baseColor, fillAlpha))
-                    .zIndex(1f)
-            )
 
             val pinIcon = createQuestPinIcon(
                 density = context.resources.displayMetrics.density,
@@ -611,27 +607,37 @@ fun AtlasThemeView(
         val pLat = userLat ?: return@LaunchedEffect
         val pLng = userLng ?: return@LaunchedEffect
         val playerLatLng = LatLng(pLat, pLng)
-        val coneVertices = AtlasQuestBuilder.computeHeadingCone(
-            lat = pLat,
-            lng = pLng,
-            bearingDegrees = compassBearing,
-            rangeMeters = 55.0,
-            halfAngleDeg = 24.0
-        ).map { LatLng(it.first, it.second) }
+        val sectorSpec = listOf(
+            Triple(62.0, 30.0, if (isMapDark) 10 else 8),
+            Triple(45.0, 22.0, if (isMapDark) 16 else 13),
+            Triple(28.0, 14.0, if (isMapDark) 24 else 19)
+        )
+        val sectorPolygons = sectorSpec.map { (rangeM, halfAngle, alpha) ->
+            AtlasQuestBuilder.computeHeadingCone(
+                lat = pLat,
+                lng = pLng,
+                bearingDegrees = compassBearing,
+                rangeMeters = rangeM,
+                halfAngleDeg = halfAngle
+            ).map { LatLng(it.first, it.second) } to alpha
+        }
 
-        val sectorAlpha = if (isMapDark) 34 else 26
-        val existingCone = headingConeRef
-        if (existingCone == null) {
-            headingConeRef = gMap.addPolygon(
-                PolygonOptions()
-                    .addAll(coneVertices)
-                    .strokeWidth(0f)
-                    .fillColor(ColorUtils.setAlphaComponent(accentArgb, sectorAlpha))
-                    .zIndex(4f)
-            )
+        if (headingConesRef.size != sectorPolygons.size) {
+            headingConesRef.forEach { runCatching { it.remove() } }
+            headingConesRef = sectorPolygons.mapNotNull { (verts, alpha) ->
+                gMap.addPolygon(
+                    PolygonOptions()
+                        .addAll(verts)
+                        .strokeWidth(0f)
+                        .fillColor(ColorUtils.setAlphaComponent(accentArgb, alpha))
+                        .zIndex(4f)
+                )
+            }
         } else {
-            existingCone.points = coneVertices
-            existingCone.fillColor = ColorUtils.setAlphaComponent(accentArgb, sectorAlpha)
+            headingConesRef.zip(sectorPolygons).forEach { (poly, pair) ->
+                poly.points = pair.first
+                poly.fillColor = ColorUtils.setAlphaComponent(accentArgb, pair.second)
+            }
         }
 
         val playerIcon = createPlayerDotIcon(
@@ -710,7 +716,7 @@ fun AtlasThemeView(
             modifier = Modifier.fillMaxSize()
         )
 
-        // 2. 60fps GPU Spatial Motion Layer (Energy Stream Route, Player Breathe Halo, Hold Ring & Shockwave)
+        // 2. 60fps GPU Spatial Motion Layer (Continuous Luminous Ribbon + Borderless Breathing Glows)
         AtlasSpatialMotionOverlay(
             googleMap = googleMapRef,
             cameraMoveTick = cameraMoveTick,
@@ -724,6 +730,7 @@ fun AtlasThemeView(
             holdProgress = activeHoldProgress,
             shockwave = shockwaveEvent,
             shockwaveProgress = shockwaveProgress.value,
+            isMapDark = isMapDark,
             accentColor = colors.accent,
             modifier = Modifier.fillMaxSize()
         )
@@ -1101,8 +1108,8 @@ fun AtlasThemeView(
 
 /**
  * High-precision 60fps Compose Canvas overlay synced directly to GoogleMap [Projection].
- * Renders flowing energy pulses along routes, soft Apple-style breathing locator halo,
- * live hold-to-complete charging reticle, and architectural completion shockwaves.
+ * Renders one continuous silk-smooth luminous ribbon route, deeper borderless radial breathing
+ * glows (zero hard strokes), warm hold-to-complete bloom, and feathered completion mist.
  */
 @Composable
 private fun AtlasSpatialMotionOverlay(
@@ -1118,12 +1125,12 @@ private fun AtlasSpatialMotionOverlay(
     holdProgress: Float,
     shockwave: AtlasShockwave?,
     shockwaveProgress: Float,
+    isMapDark: Boolean,
     accentColor: Color,
     modifier: Modifier = Modifier
 ) {
     Canvas(modifier = modifier) {
         if (googleMap == null) return@Canvas
-        // Read cameraMoveTick so pan/zoom/tilt/fly anims invalidate projection cleanly at 60fps
         @Suppress("UNUSED_VARIABLE")
         val tick = cameraMoveTick
         val projection = runCatching { googleMap.projection }.getOrNull() ?: return@Canvas
@@ -1133,7 +1140,15 @@ private fun AtlasSpatialMotionOverlay(
             Offset(pt.x.toFloat(), pt.y.toFloat())
         }.getOrNull()
 
-        // 1. Subtle Route Track + 60fps Flowing SignalOrange Comet Pulses
+        // Smooth bell wave function [0..1] peaking at traveling crest across a continuous route
+        fun crestWeight(t: Float, center: Float, halfWidth: Float = 0.34f): Float {
+            val d = abs(t - center) / halfWidth
+            if (d >= 1f) return 0f
+            val u = 1f - d
+            return u * u * (3f - 2f * u)
+        }
+
+        // 1. Continuous Fluid Luminous Ribbon (zero "bullet" dots, continuous shader glow)
         if (showQuestRoute && routeWaypoints.size >= 2) {
             val screenPts = routeWaypoints.mapNotNull { project(it.first, it.second) }
             if (screenPts.size >= 2) {
@@ -1146,143 +1161,117 @@ private fun AtlasSpatialMotionOverlay(
                     ).toFloat()
                     segLens[i] = segLen
                     totalLen += segLen
-                    drawLine(
-                        color = accentColor.copy(alpha = 0.28f),
-                        start = screenPts[i],
-                        end = screenPts[i + 1],
-                        strokeWidth = 1.8.dp.toPx(),
-                        cap = StrokeCap.Round
-                    )
                 }
 
                 if (totalLen > 12f) {
-                    fun sampleAt(distAlong: Float): Offset {
-                        var rem = distAlong.coerceIn(0f, totalLen)
-                        for (i in segLens.indices) {
-                            val len = segLens[i]
-                            if (rem <= len || i == segLens.lastIndex) {
-                                val t = if (len > 0f) (rem / len).coerceIn(0f, 1f) else 0f
-                                val a = screenPts[i]
-                                val b = screenPts[i + 1]
-                                return Offset(a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t)
-                            }
-                            rem -= len
-                        }
-                        return screenPts.last()
-                    }
+                    val waveCenter = -0.35f + streamPhase * 1.70f
+                    var accumDist = 0f
+                    val outerBase = if (isMapDark) 0.11f else 0.08f
+                    val outerPeak = if (isMapDark) 0.24f else 0.20f
+                    val coreBase = if (isMapDark) 0.34f else 0.28f
+                    val corePeak = if (isMapDark) 0.58f else 0.56f
 
-                    // Draw 2 staggered luminous stream pulses gliding toward target buildings
-                    val tailSpan = (totalLen * 0.14f).coerceIn(22.dp.toPx(), 64.dp.toPx())
-                    for (pulseIdx in 0..1) {
-                        val p = (streamPhase + pulseIdx * 0.5f) % 1f
-                        val headDist = p * totalLen
-                        val steps = 8
-                        for (s in 0 until steps) {
-                            val fracA = s.toFloat() / steps
-                            val fracB = (s + 1).toFloat() / steps
-                            val dA = (headDist - tailSpan * (1f - fracA)).coerceAtLeast(0f)
-                            val dB = (headDist - tailSpan * (1f - fracB)).coerceAtLeast(0f)
-                            if (dB > dA) {
-                                drawLine(
-                                    color = accentColor.copy(alpha = fracB * 0.85f),
-                                    start = sampleAt(dA),
-                                    end = sampleAt(dB),
-                                    strokeWidth = (1.6f + fracB * 2.2f).dp.toPx(),
-                                    cap = StrokeCap.Round
-                                )
-                            }
+                    for (i in segLens.indices) {
+                        val a = screenPts[i]
+                        val b = screenPts[i + 1]
+                        val segLen = segLens[i]
+                        val tStart = accumDist / totalLen
+                        val tEnd = (accumDist + segLen) / totalLen
+                        accumDist += segLen
+                        if (segLen <= 1.5f) continue
+
+                        val outerStops = Array(7) { s ->
+                            val frac = s / 6f
+                            val w = crestWeight(tStart + frac * (tEnd - tStart), waveCenter)
+                            frac to accentColor.copy(alpha = outerBase + w * outerPeak)
                         }
-                        val headPos = sampleAt(headDist)
-                        drawCircle(
-                            color = accentColor.copy(alpha = 0.32f),
-                            radius = 5.5.dp.toPx(),
-                            center = headPos
+                        drawLine(
+                            brush = Brush.linearGradient(*outerStops, start = a, end = b),
+                            start = a,
+                            end = b,
+                            strokeWidth = 7.5.dp.toPx(),
+                            cap = StrokeCap.Round
                         )
-                        drawCircle(
-                            color = Color.White,
-                            radius = 2.dp.toPx(),
-                            center = headPos
+
+                        val coreStops = Array(7) { s ->
+                            val frac = s / 6f
+                            val w = crestWeight(tStart + frac * (tEnd - tStart), waveCenter)
+                            frac to accentColor.copy(alpha = coreBase + w * corePeak)
+                        }
+                        drawLine(
+                            brush = Brush.linearGradient(*coreStops, start = a, end = b),
+                            start = a,
+                            end = b,
+                            strokeWidth = 2.4.dp.toPx(),
+                            cap = StrokeCap.Round
                         )
                     }
                 }
             }
         }
 
-        // 2. Soft Apple-Style Breathing Halo around Player Locator
+        // Helper for truly borderless, feathered multi-stop radial luminescence
+        fun drawFeatheredGlow(center: Offset, radiusPx: Float, peakAlpha: Float) {
+            if (radiusPx <= 1f || peakAlpha <= 0.005f) return
+            val p = peakAlpha.coerceIn(0f, 1f)
+            drawCircle(
+                brush = Brush.radialGradient(
+                    0.00f to accentColor.copy(alpha = p),
+                    0.35f to accentColor.copy(alpha = p * 0.52f),
+                    0.70f to accentColor.copy(alpha = p * 0.14f),
+                    1.00f to Color.Transparent,
+                    center = center,
+                    radius = radiusPx
+                ),
+                radius = radiusPx,
+                center = center
+            )
+        }
+
+        // 2. Player Deeper Borderless Sinusoidal Breathing Glow
         if (userLat != null && userLng != null) {
             project(userLat, userLng)?.let { playerPt ->
-                val radiusPx = (10f + breathePhase * 22f).dp.toPx()
-                val fade = (1f - breathePhase).coerceIn(0f, 1f)
-                drawCircle(
-                    color = accentColor.copy(alpha = fade * 0.34f),
-                    radius = radiusPx,
-                    center = playerPt,
-                    style = Stroke(width = 1.4.dp.toPx())
-                )
+                val radiusPx = (24f + breathePhase * 12f).dp.toPx()
+                val peakAlpha = (if (isMapDark) 0.36f else 0.28f) + breathePhase * 0.20f
+                drawFeatheredGlow(center = playerPt, radiusPx = radiusPx, peakAlpha = peakAlpha)
             }
         }
 
-        // 3. Active Geofence Breathing Rim + Hold-to-Complete Tightening Reticle
+        // 3. Target Building Breathing Ember & Warm Hold-to-Complete Bloom
         selectedMarker?.let { sel ->
             project(sel.place.latitude, sel.place.longitude)?.let { tgtPt ->
-                if (sel.isInsideGeofence && holdProgress <= 0.01f) {
-                    val rPx = (14f + breathePhase * 24f).dp.toPx()
-                    val fade = (1f - breathePhase).coerceIn(0f, 1f)
-                    drawCircle(
-                        color = accentColor.copy(alpha = fade * 0.42f),
-                        radius = rPx,
-                        center = tgtPt,
-                        style = Stroke(width = 1.6.dp.toPx())
-                    )
-                }
-
-                if (holdProgress > 0.01f) {
-                    val ringRadius = (42f - holdProgress * 24f).dp.toPx()
-                    drawCircle(
-                        color = accentColor.copy(alpha = 0.25f + holdProgress * 0.45f),
-                        radius = ringRadius,
-                        center = tgtPt,
-                        style = Stroke(width = 2.dp.toPx())
-                    )
-                    drawArc(
-                        color = accentColor,
-                        startAngle = -90f,
-                        sweepAngle = 360f * holdProgress,
-                        useCenter = false,
-                        topLeft = Offset(tgtPt.x - ringRadius, tgtPt.y - ringRadius),
-                        size = Size(ringRadius * 2f, ringRadius * 2f),
-                        style = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round)
-                    )
-                }
+                val holdBoost = holdProgress.coerceIn(0f, 1f)
+                val radiusPx = (26f + breathePhase * 12f + holdBoost * 36f).dp.toPx()
+                val baseGlow = (if (isMapDark) 0.34f else 0.26f) +
+                    (if (sel.isInsideGeofence) 0.12f else 0f) +
+                    breathePhase * 0.16f +
+                    holdBoost * 0.36f
+                drawFeatheredGlow(center = tgtPt, radiusPx = radiusPx, peakAlpha = baseGlow)
             }
         }
 
-        // 4. Completion Architectural Shockwave & 8 Radial Sparks
+        // 4. Completion Borderless Expanding Light Mist (zero hard edges or sticks)
         if (shockwave != null && shockwaveProgress < 1f) {
             project(shockwave.lat, shockwave.lng)?.let { swPt ->
                 val fade = (1f - shockwaveProgress).coerceIn(0f, 1f)
-                val swRadius = (10f + shockwaveProgress * 94f).dp.toPx()
-                val strokeW = (3.2f - shockwaveProgress * 2.5f).coerceAtLeast(0.6f).dp.toPx()
+                val outerR = (18f + shockwaveProgress * 92f).dp.toPx()
+                val peakStop = (0.34f + shockwaveProgress * 0.36f).coerceIn(0.18f, 0.76f)
+                val innerFadeStop = (peakStop - 0.24f).coerceAtLeast(0.02f)
+                val outerFadeStop = (peakStop + 0.18f).coerceAtMost(0.96f)
+                val mistAlpha = fade * (if (isMapDark) 0.62f else 0.52f)
                 drawCircle(
-                    color = accentColor.copy(alpha = fade * 0.92f),
-                    radius = swRadius,
-                    center = swPt,
-                    style = Stroke(width = strokeW)
+                    brush = Brush.radialGradient(
+                        0.00f to Color.Transparent,
+                        innerFadeStop to Color.Transparent,
+                        peakStop to accentColor.copy(alpha = mistAlpha),
+                        outerFadeStop to accentColor.copy(alpha = mistAlpha * 0.28f),
+                        1.00f to Color.Transparent,
+                        center = swPt,
+                        radius = outerR
+                    ),
+                    radius = outerR,
+                    center = swPt
                 )
-                val sparkInner = (14f + shockwaveProgress * 64f).dp.toPx()
-                val sparkOuter = sparkInner + (10f * fade).dp.toPx()
-                for (i in 0 until 8) {
-                    val rad = Math.toRadians(i * 45.0)
-                    val cx = cos(rad).toFloat()
-                    val sy = sin(rad).toFloat()
-                    drawLine(
-                        color = accentColor.copy(alpha = fade * 0.85f),
-                        start = Offset(swPt.x + cx * sparkInner, swPt.y + sy * sparkInner),
-                        end = Offset(swPt.x + cx * sparkOuter, swPt.y + sy * sparkOuter),
-                        strokeWidth = 1.8.dp.toPx(),
-                        cap = StrokeCap.Round
-                    )
-                }
             }
         }
     }
