@@ -82,6 +82,10 @@ interface ExecuteViewModel {
     fun submitVoiceInput(spokenText: String)
     fun performUndo(banner: UndoBannerState)
     fun dismissUndoBanner(bannerId: Long)
-    fun openAiCapture(initialText: String = "", autoLaunchCamera: Boolean = false)
+    fun openAiCapture(
+        initialText: String = "",
+        autoLaunchCamera: Boolean = false,
+        autoAnalyze: Boolean = false
+    )
     fun openAiBreakdown(task: TaskItem, languageTag: String)
 }

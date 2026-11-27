@@ -223,7 +223,7 @@ data class ZeroShellCallbacks(
     val onUpdateNotificationPreferences: (NotificationPreferences) -> Unit = {},
     val onUpdateAiConfig: (AiConfig) -> Unit = {},
     val onTestAiConnection: () -> Unit = {},
-    val onOpenAiCapture: (initialText: String, autoLaunchCamera: Boolean) -> Unit = { _, _ -> },
+    val onOpenAiCapture: (initialText: String, autoLaunchCamera: Boolean, autoAnalyze: Boolean) -> Unit = { _, _, _ -> },
     val onCloseAiCapture: () -> Unit = {},
     val onAnalyzeAiCapture: (text: String, image: AiImagePayload?) -> Unit = { _, _ -> },
     val onApplyAiCapturedTasks: (List<AiCapturedTaskDraft>) -> Unit = {},
@@ -675,9 +675,13 @@ fun ZeroAdaptiveShell(
         }
     }
 
+    val availableFolderPaths = remember(uiState.folderFullPathById) {
+        uiState.folderFullPathById.values.sorted()
+    }
     AiCaptureDialog(
         state = aiCaptureState,
         aiConfig = uiState.aiConfig,
+        availableFolderPaths = availableFolderPaths,
         onDismiss = callbacks.onCloseAiCapture,
         onOpenSettings = callbacks.onOpenSettings,
         onAnalyze = callbacks.onAnalyzeAiCapture,

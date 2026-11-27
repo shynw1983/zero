@@ -492,4 +492,10 @@
     <string name="ai_breakdown_subtasks_label">並行して進める前提サブタスク</string>
     <string name="ai_breakdown_checklist_label">一度で片付くチェックリスト</string>
     <string name="ai_breakdown_apply_btn">選択項目を適用</string>
+    <string name="share_to_zero_ai_label">ZERO · AI 抽出</string>
+    <string name="ai_capture_voice_btn">音声入力</string>
+    <string name="ai_capture_voice_prompt">言語を問わず話してください（AI が見出し風に翻訳・要約します）</string>
+    <string name="ai_capture_add_date">+ 日付</string>
+    <string name="ai_capture_pick_folder_title">フォルダを選択</string>
+    <string name="action_clear_date">日付をクリア</string>
 </resources>

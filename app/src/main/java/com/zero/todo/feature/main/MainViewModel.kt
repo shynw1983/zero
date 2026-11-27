@@ -1739,11 +1739,24 @@ class MainViewModel @Inject constructor(
         }
     }
 
-    override fun openAiCapture(initialText: String, autoLaunchCamera: Boolean) {
+    override fun openAiCapture(initialText: String, autoLaunchCamera: Boolean, autoAnalyze: Boolean) {
         _aiCaptureState.value = AiCaptureDialogState(
+            sessionId = System.nanoTime(),
             isOpen = true,
             initialText = initialText,
-            autoLaunchCamera = autoLaunchCamera
+            autoLaunchCamera = autoLaunchCamera,
+            autoAnalyzeOnOpen = autoAnalyze
+        )
+    }
+
+    fun openAiCaptureFromShare(sharedText: String, sharedImageUri: String?) {
+        _aiCaptureState.value = AiCaptureDialogState(
+            sessionId = System.nanoTime(),
+            isOpen = true,
+            initialText = sharedText,
+            initialImageUri = sharedImageUri,
+            autoLaunchCamera = false,
+            autoAnalyzeOnOpen = true
         )
     }
 

@@ -1,7 +1,10 @@
 package com.zero.todo.feature.ai
 
+import android.app.Activity
+import android.content.Intent
 import android.graphics.BitmapFactory
 import android.net.Uri
+import android.speech.RecognizerIntent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
@@ -28,8 +31,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Flag
 import androidx.compose.material.icons.rounded.Folder
 import androidx.compose.material.icons.rounded.Image
+import androidx.compose.material.icons.rounded.KeyboardArrowDown
+import androidx.compose.material.icons.rounded.Mic
 import androidx.compose.material.icons.rounded.PhotoCamera
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material3.CircularProgressIndicator
@@ -73,16 +79,30 @@ import com.zero.todo.data.ai.AiConfig
 import com.zero.todo.data.ai.AiImagePayload
 import com.zero.todo.data.ai.AiProvider
 import com.zero.todo.data.ai.AiSubtaskDraft
+import com.zero.todo.data.ai.ZeroAiJsonParser
 import com.zero.todo.domain.model.TaskItem
 import com.zero.todo.domain.model.TaskPriority
+import com.zero.todo.feature.calendar.ZeroMiniCalendarDialog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+
+internal fun nextPreviewPriority(current: TaskPriority): TaskPriority = when (current) {
+    TaskPriority.NONE -> TaskPriority.MEDIUM
+    TaskPriority.MEDIUM -> TaskPriority.HIGH
+    TaskPriority.HIGH -> TaskPriority.URGENT
+    TaskPriority.URGENT -> TaskPriority.NONE
+}
 
 @Composable
 fun AiCaptureDialog(
     state: AiCaptureDialogState,
     aiConfig: AiConfig,
+    availableFolderPaths: List<String> = emptyList(),
     onDismiss: () -> Unit,
     onOpenSettings: () -> Unit,
     onAnalyze: (text: String, image: AiImagePayload?) -> Unit,
@@ -95,20 +115,28 @@ fun AiCaptureDialog(
     val haptics = rememberZeroHaptics()
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val voicePromptText = stringResource(R.string.ai_capture_voice_prompt)
 
-    var inputText by remember(state.initialText, state.isOpen) { mutableStateOf(state.initialText) }
-    var attachedImagePayload by remember(state.isOpen) { mutableStateOf<AiImagePayload?>(null) }
-    var attachedPreviewBitmap by remember(state.isOpen) { mutableStateOf<android.graphics.Bitmap?>(null) }
-    var encodingImage by remember(state.isOpen) { mutableStateOf(false) }
+    var inputText by remember(state.sessionId, state.isOpen) { mutableStateOf(state.initialText) }
+    var attachedImagePayload by remember(state.sessionId, state.isOpen) { mutableStateOf<AiImagePayload?>(null) }
+    var attachedPreviewBitmap by remember(state.sessionId, state.isOpen) { mutableStateOf<android.graphics.Bitmap?>(null) }
+    var encodingImage by remember(state.sessionId, state.isOpen) { mutableStateOf(false) }
     var pendingCameraUri by remember { mutableStateOf<Uri?>(null) }
 
+    val draftEdits = remember(state.results) {
+        mutableStateListOf<AiCapturedTaskDraft>().apply {
+            addAll(state.results)
+        }
+    }
     val selectedTaskIndices = remember(state.results) {
         mutableStateListOf<Boolean>().apply {
             repeat(state.results.size) { add(true) }
         }
     }
+    var editingFolderIndex by remember(state.results) { mutableStateOf<Int?>(null) }
+    var editingDateIndex by remember(state.results) { mutableStateOf<Int?>(null) }
 
-    fun attachImageFromUri(uri: Uri) {
+    fun attachImageFromUri(uri: Uri, autoAnalyzeText: String? = null) {
         encodingImage = true
         scope.launch {
             val payload = AiImageEncoder.encodeUriToJpegPayload(context, uri)
@@ -123,8 +151,8 @@ fun AiCaptureDialog(
             attachedImagePayload = payload
             attachedPreviewBitmap = thumb
             encodingImage = false
-            if (payload != null && aiConfig.isConfigured && inputText.isBlank()) {
-                onAnalyze(inputText, payload)
+            if (payload != null && aiConfig.isConfigured && (autoAnalyzeText != null || inputText.isBlank())) {
+                onAnalyze(autoAnalyzeText ?: inputText, payload)
             }
         }
     }
@@ -146,6 +174,23 @@ fun AiCaptureDialog(
         }
     }
 
+    val voiceLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            val matches = result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
+            val spoken = matches?.firstOrNull()?.trim()
+            if (!spoken.isNullOrEmpty()) {
+                haptics.confirm()
+                val updated = if (inputText.isBlank()) spoken else "${inputText.trimEnd()}\n$spoken"
+                inputText = updated
+                if (aiConfig.isConfigured) {
+                    onAnalyze(updated, attachedImagePayload)
+                }
+            }
+        }
+    }
+
     fun launchCamera() {
         runCatching {
             val uri = AiImageEncoder.createTempCaptureUri(context)
@@ -154,9 +199,35 @@ fun AiCaptureDialog(
         }
     }
 
-    LaunchedEffect(state.isOpen, state.autoLaunchCamera, aiConfig.isConfigured) {
-        if (state.isOpen && state.autoLaunchCamera && aiConfig.isConfigured) {
-            launchCamera()
+    fun launchVoiceToAi() {
+        runCatching {
+            val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                putExtra(RecognizerIntent.EXTRA_PROMPT, voicePromptText)
+            }
+            voiceLauncher.launch(intent)
+        }
+    }
+
+    LaunchedEffect(state.sessionId, state.isOpen, aiConfig.isConfigured) {
+        if (!state.isOpen || !aiConfig.isConfigured) return@LaunchedEffect
+        val sharedImg = state.initialImageUri
+        when {
+            !sharedImg.isNullOrBlank() -> {
+                val parsedUri = runCatching { Uri.parse(sharedImg) }.getOrNull()
+                if (parsedUri != null) {
+                    attachImageFromUri(
+                        uri = parsedUri,
+                        autoAnalyzeText = if (state.autoAnalyzeOnOpen) state.initialText else null
+                    )
+                }
+            }
+            state.autoAnalyzeOnOpen && state.initialText.isNotBlank() -> {
+                onAnalyze(state.initialText, null)
+            }
+            state.autoLaunchCamera -> {
+                launchCamera()
+            }
         }
     }
 
@@ -239,9 +310,11 @@ fun AiCaptureDialog(
                         .padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    // Camera + Gallery + Thumbnail Row
+                    // Camera + Gallery + Voice + Loading Row
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -294,6 +367,33 @@ fun AiCaptureDialog(
                             )
                             Text(
                                 text = stringResource(R.string.ai_capture_gallery_btn),
+                                style = MaterialTheme.typography.labelMedium,
+                                color = colors.textPrimary
+                            )
+                        }
+
+                        Row(
+                            modifier = Modifier
+                                .height(38.dp)
+                                .clip(ZeroSmallShape)
+                                .background(colors.surface)
+                                .hairlineBorder(shape = ZeroSmallShape)
+                                .clickable {
+                                    haptics.reorderTick()
+                                    launchVoiceToAi()
+                                }
+                                .padding(horizontal = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Mic,
+                                contentDescription = null,
+                                tint = colors.accent,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Text(
+                                text = stringResource(R.string.ai_capture_voice_btn),
                                 style = MaterialTheme.typography.labelMedium,
                                 color = colors.textPrimary
                             )
@@ -438,14 +538,14 @@ fun AiCaptureDialog(
                         )
                     }
 
-                    if (state.results.isNotEmpty()) {
+                    if (draftEdits.isNotEmpty()) {
                         LazyColumn(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .heightIn(max = 260.dp),
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            itemsIndexed(state.results) { idx, draft ->
+                            itemsIndexed(draftEdits) { idx, draft ->
                                 val checked = selectedTaskIndices.getOrElse(idx) { true }
                                 AiCapturedTaskPreviewCard(
                                     draft = draft,
@@ -454,12 +554,28 @@ fun AiCaptureDialog(
                                         if (idx < selectedTaskIndices.size) {
                                             selectedTaskIndices[idx] = !selectedTaskIndices[idx]
                                         }
+                                    },
+                                    onEditFolder = {
+                                        haptics.reorderTick()
+                                        editingFolderIndex = idx
+                                    },
+                                    onEditDate = {
+                                        haptics.reorderTick()
+                                        editingDateIndex = idx
+                                    },
+                                    onCyclePriority = {
+                                        haptics.reorderTick()
+                                        if (idx < draftEdits.size) {
+                                            draftEdits[idx] = draftEdits[idx].copy(
+                                                priority = nextPreviewPriority(draftEdits[idx].priority)
+                                            )
+                                        }
                                     }
                                 )
                             }
                         }
 
-                        val chosen = state.results.filterIndexed { i, _ -> selectedTaskIndices.getOrElse(i) { false } }
+                        val chosen = draftEdits.filterIndexed { i, _ -> selectedTaskIndices.getOrElse(i) { false } }
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -483,16 +599,183 @@ fun AiCaptureDialog(
             }
         }
     }
+
+    val folderTargetIdx = editingFolderIndex
+    if (folderTargetIdx != null && folderTargetIdx in draftEdits.indices) {
+        AiDraftFolderPickerDialog(
+            currentFolderPath = draftEdits[folderTargetIdx].folderPath,
+            availableFolderPaths = availableFolderPaths,
+            onSelectFolder = { selectedPath ->
+                draftEdits[folderTargetIdx] = draftEdits[folderTargetIdx].copy(folderPath = selectedPath)
+                editingFolderIndex = null
+            },
+            onDismiss = { editingFolderIndex = null }
+        )
+    }
+
+    val dateTargetIdx = editingDateIndex
+    if (dateTargetIdx != null && dateTargetIdx in draftEdits.indices) {
+        val currentIso = draftEdits[dateTargetIdx].dueDateIso
+        val parsedLocalDate = remember(currentIso) {
+            ZeroAiJsonParser.parseIsoDueDate(currentIso, ZoneId.systemDefault())?.let { (millis, _) ->
+                Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()).toLocalDate()
+            }
+        }
+        ZeroMiniCalendarDialog(
+            selectedDate = parsedLocalDate,
+            onSelectDate = { picked: LocalDate ->
+                draftEdits[dateTargetIdx] = draftEdits[dateTargetIdx].copy(
+                    dueDateIso = picked.format(DateTimeFormatter.ISO_LOCAL_DATE)
+                )
+            },
+            onClearDate = {
+                draftEdits[dateTargetIdx] = draftEdits[dateTargetIdx].copy(dueDateIso = null)
+            },
+            onDismiss = { editingDateIndex = null }
+        )
+    }
+}
+
+@Composable
+private fun AiDraftFolderPickerDialog(
+    currentFolderPath: String?,
+    availableFolderPaths: List<String>,
+    onSelectFolder: (String?) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val colors = ZeroTheme.colors
+    val haptics = rememberZeroHaptics()
+    Dialog(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(ZeroCardShape)
+                .background(colors.surfaceElevated)
+                .hairlineBorder(shape = ZeroCardShape)
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Text(
+                text = stringResource(R.string.ai_capture_pick_folder_title),
+                style = MaterialTheme.typography.titleMedium,
+                color = colors.textPrimary
+            )
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 300.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                item {
+                    val isInbox = currentFolderPath == null
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(ZeroSmallShape)
+                            .background(if (isInbox) colors.accentSubtle else colors.surface)
+                            .hairlineBorder(
+                                shape = ZeroSmallShape,
+                                color = if (isInbox) colors.accent else colors.hairlineBorder
+                            )
+                            .clickable {
+                                haptics.reorderTick()
+                                onSelectFolder(null)
+                            }
+                            .padding(horizontal = 12.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = stringResource(R.string.nav_inbox),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = if (isInbox) colors.accent else colors.textPrimary
+                        )
+                        if (isInbox) {
+                            Icon(
+                                imageVector = Icons.Rounded.Check,
+                                contentDescription = null,
+                                tint = colors.accent,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    }
+                }
+                itemsIndexed(availableFolderPaths) { _, path ->
+                    val selected = currentFolderPath.equals(path, ignoreCase = true)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(ZeroSmallShape)
+                            .background(if (selected) colors.accentSubtle else colors.surface)
+                            .hairlineBorder(
+                                shape = ZeroSmallShape,
+                                color = if (selected) colors.accent else colors.hairlineBorder
+                            )
+                            .clickable {
+                                haptics.reorderTick()
+                                onSelectFolder(path)
+                            }
+                            .padding(horizontal = 12.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Folder,
+                            contentDescription = null,
+                            tint = if (selected) colors.accent else colors.textMuted,
+                            modifier = Modifier.size(15.dp)
+                        )
+                        Text(
+                            text = "/$path",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = if (selected) colors.accent else colors.textPrimary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f)
+                        )
+                        if (selected) {
+                            Icon(
+                                imageVector = Icons.Rounded.Check,
+                                contentDescription = null,
+                                tint = colors.accent,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    }
+                }
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End
+            ) {
+                Box(
+                    modifier = Modifier
+                        .clip(ZeroSmallShape)
+                        .hairlineBorder(shape = ZeroSmallShape)
+                        .clickable(onClick = onDismiss)
+                        .padding(horizontal = 14.dp, vertical = 7.dp)
+                ) {
+                    Text(
+                        text = stringResource(R.string.action_cancel),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = colors.textSecondary
+                    )
+                }
+            }
+        }
+    }
 }
 
 @Composable
 private fun AiCapturedTaskPreviewCard(
     draft: AiCapturedTaskDraft,
     checked: Boolean,
-    onToggle: () -> Unit
+    onToggle: () -> Unit,
+    onEditFolder: () -> Unit,
+    onEditDate: () -> Unit,
+    onCyclePriority: () -> Unit
 ) {
     val colors = ZeroTheme.colors
-    val tabular = ZeroTheme.tabularTypography
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -525,37 +808,101 @@ private fun AiCapturedTaskPreviewCard(
                 TaskPriority.MEDIUM -> colors.priorityMedium
                 TaskPriority.NONE -> colors.textMuted
             }
-            ZeroPriorityBadge(
-                priority = draft.priority,
-                color = pColor
-            )
+            Box(
+                modifier = Modifier
+                    .clip(ZeroSmallShape)
+                    .clickable(onClick = onCyclePriority)
+                    .padding(horizontal = 6.dp, vertical = 4.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                if (draft.priority != TaskPriority.NONE) {
+                    ZeroPriorityBadge(
+                        priority = draft.priority,
+                        color = pColor
+                    )
+                } else {
+                    Icon(
+                        imageVector = Icons.Rounded.Flag,
+                        contentDescription = null,
+                        tint = colors.textMuted.copy(alpha = 0.45f),
+                        modifier = Modifier.size(13.dp)
+                    )
+                }
+            }
         }
 
         val inboxLabel = stringResource(R.string.nav_inbox)
-        val metaParts = buildList {
-            add(draft.folderPath?.let { "/$it" } ?: inboxLabel)
-            draft.dueDateIso?.let { add(it) }
-            draft.estimatedMinutes?.let { add("${it}m") }
-            draft.tags.forEach { add("#$it") }
-        }
-        if (metaParts.isNotEmpty()) {
+        Row(
+            modifier = Modifier
+                .padding(start = 26.dp)
+                .horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Editable Folder / Inbox Chip
             Row(
                 modifier = Modifier
-                    .padding(start = 26.dp)
-                    .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                metaParts.forEach { chip ->
-                    Text(
-                        text = chip,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = colors.textMuted,
-                        modifier = Modifier
-                            .clip(ZeroSmallShape)
-                            .background(colors.background)
-                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                    .clip(ZeroSmallShape)
+                    .background(colors.background)
+                    .hairlineBorder(
+                        shape = ZeroSmallShape,
+                        color = if (draft.folderPath != null) colors.accent.copy(alpha = 0.45f) else colors.hairlineBorder
                     )
-                }
+                    .clickable(onClick = onEditFolder)
+                    .padding(horizontal = 6.dp, vertical = 2.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(2.dp)
+            ) {
+                Text(
+                    text = draft.folderPath?.let { "/$it" } ?: inboxLabel,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = if (draft.folderPath != null) colors.textPrimary else colors.textSecondary
+                )
+                Icon(
+                    imageVector = Icons.Rounded.KeyboardArrowDown,
+                    contentDescription = null,
+                    tint = colors.textMuted,
+                    modifier = Modifier.size(12.dp)
+                )
+            }
+
+            // Editable Date Chip
+            Text(
+                text = draft.dueDateIso ?: stringResource(R.string.ai_capture_add_date),
+                style = MaterialTheme.typography.labelSmall,
+                color = if (draft.dueDateIso != null) colors.accent else colors.textMuted,
+                modifier = Modifier
+                    .clip(ZeroSmallShape)
+                    .background(colors.background)
+                    .hairlineBorder(
+                        shape = ZeroSmallShape,
+                        color = if (draft.dueDateIso != null) colors.accent.copy(alpha = 0.45f) else colors.hairlineBorder
+                    )
+                    .clickable(onClick = onEditDate)
+                    .padding(horizontal = 6.dp, vertical = 2.dp)
+            )
+
+            draft.estimatedMinutes?.let { mins ->
+                Text(
+                    text = "${mins}m",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = colors.textMuted,
+                    modifier = Modifier
+                        .clip(ZeroSmallShape)
+                        .background(colors.background)
+                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                )
+            }
+            draft.tags.forEach { tag ->
+                Text(
+                    text = "#$tag",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = colors.textMuted,
+                    modifier = Modifier
+                        .clip(ZeroSmallShape)
+                        .background(colors.background)
+                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                )
             }
         }
 

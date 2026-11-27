@@ -52,6 +52,7 @@ data class WidgetLaunchArgs(
 @Composable
 fun ZeroAppRoot(
     widgetLaunchArgs: WidgetLaunchArgs? = null,
+    sharedCapturePayload: com.zero.todo.core.common.SharedCapturePayload? = null,
     viewModel: MainViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -116,6 +117,15 @@ fun ZeroAppRoot(
                 destinationKey = widgetLaunchArgs.destinationKey,
                 taskId = widgetLaunchArgs.taskId,
                 launchQuickInput = widgetLaunchArgs.launchQuickInput
+            )
+        }
+    }
+
+    LaunchedEffect(sharedCapturePayload?.id) {
+        if (sharedCapturePayload != null && sharedCapturePayload.id > 0L) {
+            viewModel.openAiCaptureFromShare(
+                sharedText = sharedCapturePayload.text,
+                sharedImageUri = sharedCapturePayload.imageUri
             )
         }
     }

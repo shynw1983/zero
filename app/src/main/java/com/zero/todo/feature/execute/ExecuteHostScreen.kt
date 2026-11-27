@@ -103,7 +103,7 @@ fun ExecuteHostScreen(
     onQuickInputSubmit: () -> Unit,
     onToggleContinuousEntry: () -> Unit,
     onVoiceInputRecognized: (String) -> Unit,
-    onOpenAiCapture: (initialText: String, autoLaunchCamera: Boolean) -> Unit = { _, _ -> },
+    onOpenAiCapture: (initialText: String, autoLaunchCamera: Boolean, autoAnalyze: Boolean) -> Unit = { _, _, _ -> },
     onOpenAiBreakdown: (TaskItem) -> Unit = {},
     onUndo: (UndoBannerState) -> Unit,
     onUndoTimeout: (Long) -> Unit,

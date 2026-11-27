@@ -139,7 +139,7 @@ fun TaskListPane(
     onToggleContinuousEntry: () -> Unit,
     onVoiceInputRecognized: (String) -> Unit,
     aiConfigured: Boolean = false,
-    onOpenAiCapture: (initialText: String, autoLaunchCamera: Boolean) -> Unit = { _, _ -> },
+    onOpenAiCapture: (initialText: String, autoLaunchCamera: Boolean, autoAnalyze: Boolean) -> Unit = { _, _, _ -> },
     onUndo: (UndoBannerState) -> Unit,
     onUndoTimeout: (Long) -> Unit,
     modifier: Modifier = Modifier

@@ -492,4 +492,10 @@
     <string name="ai_breakdown_subtasks_label">Parallel Prerequisite Subtasks</string>
     <string name="ai_breakdown_checklist_label">Same-Sitting Checklist</string>
     <string name="ai_breakdown_apply_btn">Apply Selected</string>
+    <string name="share_to_zero_ai_label">ZERO · AI Capture</string>
+    <string name="ai_capture_voice_btn">Voice</string>
+    <string name="ai_capture_voice_prompt">Speak freely in any language — AI will summarize &amp; translate into headline tasks</string>
+    <string name="ai_capture_add_date">+ Date</string>
+    <string name="ai_capture_pick_folder_title">Assign Folder</string>
+    <string name="action_clear_date">Clear Date</string>
 </resources>

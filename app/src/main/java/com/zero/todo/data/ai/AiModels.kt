@@ -90,9 +90,12 @@ sealed interface AiTestStatus {
 }
 
 data class AiCaptureDialogState(
+    val sessionId: Long = 0L,
     val isOpen: Boolean = false,
     val initialText: String = "",
+    val initialImageUri: String? = null,
     val autoLaunchCamera: Boolean = false,
+    val autoAnalyzeOnOpen: Boolean = false,
     val isAnalyzing: Boolean = false,
     val results: List<AiCapturedTaskDraft> = emptyList(),
     val errorMessage: String? = null

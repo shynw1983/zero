@@ -1,9 +1,13 @@
 package com.zero.todo.data.ai
 
+import android.content.Intent
+import android.net.Uri
 import androidx.test.core.app.ApplicationProvider
+import com.zero.todo.core.common.ZeroShareIntentParser
 import com.zero.todo.data.preferences.SharedPrefsUserPreferencesRepository
 import com.zero.todo.domain.model.PriorityDisplayStyle
 import com.zero.todo.domain.model.TaskPriority
+import com.zero.todo.feature.ai.nextPreviewPriority
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -158,6 +162,8 @@ class ZeroAiEngineTest {
         val jaDirective = ZeroAiJsonParser.buildLanguageStyleDirective("ja-JP")
         assertTrue(jaDirective.contains("Japanese"))
         assertTrue(jaDirective.contains("新聞見出し・体言止め"))
+        assertTrue(jaDirective.contains("偽日本語禁止"))
+        assertTrue(jaDirective.contains("トランク"))
         assertTrue(jaDirective.contains("敬語・丁寧語禁止"))
         assertTrue(jaDirective.contains("してください"))
 
@@ -193,11 +199,14 @@ class ZeroAiEngineTest {
         assertTrue(capturePrompt.contains("丸九/経理"))
         assertTrue(capturePrompt.contains("外出/コンビニ"))
         assertTrue(capturePrompt.contains("do NOT translate existing folderPath or existing tag paths"))
+        assertTrue(capturePrompt.contains("FIRST STEP DISCIPLINE"))
+        assertTrue(capturePrompt.contains("JSON null for simple/obvious/physical tasks"))
 
         val breakdownPrompt = ZeroAiJsonParser.buildBreakdownSystemPrompt(ctx)
         assertTrue(breakdownPrompt.contains("新聞見出し・体言止め"))
         assertTrue(breakdownPrompt.contains("敬語・丁寧語禁止"))
         assertTrue(breakdownPrompt.contains("外出/コンビニ"))
+        assertTrue(breakdownPrompt.contains("Avoid obvious tautologies in firstStep"))
     }
 
     @Test
@@ -284,5 +293,41 @@ class ZeroAiEngineTest {
         assertEquals(PriorityDisplayStyle.MARKS, SharedPrefsUserPreferencesRepository(ctx).preferences.value.priorityDisplayStyle)
 
         assertEquals(PriorityDisplayStyle.DOTS, PriorityDisplayStyle.fromStorage("unknown"))
+    }
+
+    @Test
+    fun shareIntentParserExtractsTextSubjectAndImageStreamsSafely() {
+        val textIntent = Intent(Intent.ACTION_SEND).apply {
+            type = "text/plain"
+            putExtra(Intent.EXTRA_SUBJECT, "Tax Docs")
+            putExtra(Intent.EXTRA_TEXT, "Mail to accountant before Friday")
+        }
+        val textPayload = ZeroShareIntentParser.extract(textIntent)
+        assertNotNull(textPayload)
+        assertEquals("Tax Docs\nMail to accountant before Friday", textPayload!!.text)
+        assertEquals(null, textPayload.imageUri)
+
+        val imageIntent = Intent(Intent.ACTION_SEND).apply {
+            type = "image/*"
+            putExtra(Intent.EXTRA_STREAM, Uri.parse("content://media/external/images/media/42"))
+        }
+        val imagePayload = ZeroShareIntentParser.extract(imageIntent)
+        assertNotNull(imagePayload)
+        assertEquals("", imagePayload!!.text)
+        assertEquals("content://media/external/images/media/42", imagePayload.imageUri)
+
+        val nonSend = Intent(Intent.ACTION_VIEW).apply {
+            putExtra(Intent.EXTRA_TEXT, "Ignored")
+        }
+        assertEquals(null, ZeroShareIntentParser.extract(nonSend))
+        assertEquals(null, ZeroShareIntentParser.extract(Intent(Intent.ACTION_SEND)))
+    }
+
+    @Test
+    fun nextPreviewPriorityCyclesThroughAllUrgencyLevelsCleanly() {
+        assertEquals(TaskPriority.MEDIUM, nextPreviewPriority(TaskPriority.NONE))
+        assertEquals(TaskPriority.HIGH, nextPreviewPriority(TaskPriority.MEDIUM))
+        assertEquals(TaskPriority.URGENT, nextPreviewPriority(TaskPriority.HIGH))
+        assertEquals(TaskPriority.NONE, nextPreviewPriority(TaskPriority.URGENT))
     }
 }

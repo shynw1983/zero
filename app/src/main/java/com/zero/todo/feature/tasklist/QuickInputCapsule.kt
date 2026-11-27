@@ -109,7 +109,7 @@ fun QuickInputCapsule(
     onToggleContinuousEntry: () -> Unit,
     onVoiceInputRecognized: (String) -> Unit,
     aiConfigured: Boolean = false,
-    onOpenAiCapture: (initialText: String, autoLaunchCamera: Boolean) -> Unit = { _, _ -> },
+    onOpenAiCapture: (initialText: String, autoLaunchCamera: Boolean, autoAnalyze: Boolean) -> Unit = { _, _, _ -> },
     currentDate: LocalDate = LocalDate.now(),
     modifier: Modifier = Modifier
 ) {
@@ -120,6 +120,7 @@ fun QuickInputCapsule(
     val activeLocale = LocalConfiguration.current.locales[0]
     val focusManager = LocalFocusManager.current
     val voicePromptText = stringResource(R.string.quick_input_voice_prompt)
+    val aiVoicePromptText = stringResource(R.string.ai_capture_voice_prompt)
     val voiceUnavailableText = stringResource(R.string.quick_input_voice_unavailable)
 
     var isFocused by remember { mutableStateOf(false) }
@@ -142,6 +143,34 @@ fun QuickInputCapsule(
                 haptics.confirm()
                 onVoiceInputRecognized(spoken)
             }
+        }
+    }
+
+    val aiSpeechLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            val matches = result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
+            val spoken = matches?.firstOrNull()?.trim()
+            if (!spoken.isNullOrEmpty()) {
+                voiceStatusNotice = null
+                haptics.confirm()
+                onOpenAiCapture(spoken, false, true)
+            }
+        }
+    }
+
+    fun launchAiVoiceInput() {
+        haptics.heavyClick()
+        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            putExtra(RecognizerIntent.EXTRA_PROMPT, aiVoicePromptText)
+        }
+        if (intent.resolveActivity(context.packageManager) != null) {
+            voiceStatusNotice = null
+            aiSpeechLauncher.launch(intent)
+        } else {
+            voiceStatusNotice = voiceUnavailableText
         }
     }
 
@@ -317,7 +346,7 @@ fun QuickInputCapsule(
 
                 Spacer(modifier = Modifier.width(6.dp))
 
-                // AI Camera OCR + AI Quick Capture
+                // AI Camera OCR + AI Quick Capture (tap = open dialog, long-press = voice to AI summarize)
                 Box(
                     modifier = Modifier
                         .size(32.dp)
@@ -326,7 +355,7 @@ fun QuickInputCapsule(
                         .hairlineBorder(shape = ZeroCapsuleShape)
                         .clickable {
                             haptics.reorderTick()
-                            onOpenAiCapture(text, true)
+                            onOpenAiCapture(text, true, false)
                         },
                     contentAlignment = Alignment.Center
                 ) {
@@ -349,10 +378,13 @@ fun QuickInputCapsule(
                             shape = ZeroCapsuleShape,
                             color = if (aiConfigured) colors.accent.copy(alpha = 0.55f) else colors.hairlineBorder
                         )
-                        .clickable {
-                            haptics.reorderTick()
-                            onOpenAiCapture(text, false)
-                        },
+                        .combinedClickable(
+                            onClick = {
+                                haptics.reorderTick()
+                                onOpenAiCapture(text, false, false)
+                            },
+                            onLongClick = { launchAiVoiceInput() }
+                        ),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(

@@ -13,6 +13,8 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import com.zero.todo.core.common.SharedCapturePayload
+import com.zero.todo.core.common.ZeroShareIntentParser
 import com.zero.todo.data.preferences.SharedPrefsUserPreferencesRepository
 import com.zero.todo.domain.model.AppLanguage
 import com.zero.todo.feature.main.WidgetLaunchArgs
@@ -25,6 +27,7 @@ import java.util.Locale
 class MainActivity : ComponentActivity() {
 
     private var widgetLaunchArgs by mutableStateOf<WidgetLaunchArgs?>(null)
+    private var sharedCapturePayload by mutableStateOf<SharedCapturePayload?>(null)
 
     override fun attachBaseContext(newBase: Context) {
         val prefs = newBase.getSharedPreferences(
@@ -57,7 +60,10 @@ class MainActivity : ComponentActivity() {
         )
         handleIntent(intent)
         setContent {
-            ZeroAppRoot(widgetLaunchArgs = widgetLaunchArgs)
+            ZeroAppRoot(
+                widgetLaunchArgs = widgetLaunchArgs,
+                sharedCapturePayload = sharedCapturePayload
+            )
         }
     }
 
@@ -79,6 +85,9 @@ class MainActivity : ComponentActivity() {
                 taskId = taskId,
                 launchQuickInput = quickInput
             )
+        }
+        ZeroShareIntentParser.extract(intent)?.let { shared ->
+            sharedCapturePayload = shared
         }
     }
 }

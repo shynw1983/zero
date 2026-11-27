@@ -217,7 +217,8 @@ fun ZeroMiniCalendar(
 fun ZeroMiniCalendarDialog(
     selectedDate: LocalDate?,
     onSelectDate: (LocalDate) -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    onClearDate: (() -> Unit)? = null
 ) {
     val colors = ZeroTheme.colors
     Dialog(onDismissRequest = onDismiss) {
@@ -245,8 +246,26 @@ fun ZeroMiniCalendarDialog(
             Spacer(modifier = Modifier.height(2.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End
+                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)
             ) {
+                if (onClearDate != null && selectedDate != null) {
+                    Box(
+                        modifier = Modifier
+                            .clip(ZeroSmallShape)
+                            .hairlineBorder(shape = ZeroSmallShape)
+                            .clickable {
+                                onClearDate()
+                                onDismiss()
+                            }
+                            .padding(horizontal = 12.dp, vertical = 7.dp)
+                    ) {
+                        Text(
+                            text = stringResource(R.string.action_clear_date),
+                            style = MaterialTheme.typography.labelLarge,
+                            color = colors.priorityUrgent
+                        )
+                    }
+                }
                 Box(
                     modifier = Modifier
                         .clip(ZeroSmallShape)

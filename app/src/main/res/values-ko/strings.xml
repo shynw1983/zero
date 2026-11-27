@@ -492,4 +492,10 @@
     <string name="ai_breakdown_subtasks_label">병렬 진행 사전 하위 작업</string>
     <string name="ai_breakdown_checklist_label">한 번에 처리할 체크리스트</string>
     <string name="ai_breakdown_apply_btn">선택 항목 적용</string>
+    <string name="share_to_zero_ai_label">ZERO · AI 추출</string>
+    <string name="ai_capture_voice_btn">음성 입력</string>
+    <string name="ai_capture_voice_prompt">언어에 상관없이 말씀하세요 (AI가 헤드라인 스타일로 번역·요약합니다)</string>
+    <string name="ai_capture_add_date">+ 날짜</string>
+    <string name="ai_capture_pick_folder_title">폴더 지정</string>
+    <string name="action_clear_date">날짜 지우기</string>
 </resources>

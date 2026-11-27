@@ -492,4 +492,10 @@
     <string name="ai_breakdown_subtasks_label">跨场景并行前置子任务</string>
     <string name="ai_breakdown_checklist_label">单次完成检查清单（Checklist）</string>
     <string name="ai_breakdown_apply_btn">应用勾选项</string>
+    <string name="share_to_zero_ai_label">ZERO · AI 提取</string>
+    <string name="ai_capture_voice_btn">语音输入</string>
+    <string name="ai_capture_voice_prompt">请直接说待办内容（支持任意语种，AI 将自动精简翻译）</string>
+    <string name="ai_capture_add_date">+ 日期</string>
+    <string name="ai_capture_pick_folder_title">选择归属目录</string>
+    <string name="action_clear_date">清除日期</string>
 </resources>

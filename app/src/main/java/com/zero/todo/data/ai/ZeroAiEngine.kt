@@ -353,6 +353,7 @@ object ZeroAiJsonParser {
                 - TARGET OUTPUT LANGUAGE: Japanese (日本語) [locale=$languageTag].
                 - STRICT TRANSLATION: Regardless of whether the user's voice transcript, pasted note, or image is in Chinese, English, Korean, or mixed languages, translate and summarize EVERY generated text field (`title`, `firstStep`, `description`, `subtasks[].title`, `checklistItems[]`) into natural, concise Japanese.
                 - STYLE (新聞見出し・体言止め・常体): Write like Japanese newspaper headlines or telegraphic action labels—ultra-concise, noun-ended or plain-form, action-first, zero fluff.
+                - IDIOMATIC JAPANESE ONLY (中国語語彙の直訳・偽日本語禁止): Always translate concepts into everyday natural Japanese used in Japan (prefer standard Katakana/native words over literal Chinese-to-Kanji conversion). Examples: 后备箱→トランク (NEVER 後備箱), 手机→スマホ (NEVER 手機), 快递→宅配便/荷物 (NEVER 快逓), 电脑→PC (NEVER 電脳), 物业→管理会社.
                 - STRICTLY FORBIDDEN (敬語・丁寧語禁止): NEVER use polite forms, honorifics, or soft endings (`です`, `ます`, `してください`, `しましょう`, `お願いします`, `確認が必要です`, `〜すること`).
                 - Examples -> title: "仕訳資料送付", "レターパック購入", "11月分領収書照合", "税理士へ連絡" (NEVER "仕訳資料を税理士に送付してください"); firstStep: "領収書フォルダを開く"; checklist: "枚数確認", "切手代確認".
             """.trimIndent()
@@ -400,7 +401,7 @@ Always reply strictly with JSON matching:
       "dueDate": "YYYY-MM-DD" or "YYYY-MM-DD HH:mm", or JSON null if no date is mentioned,
       "priority": 1|2|3|4 (1=urgent, 2=high, 3=medium, 4=lowest/normal; default to 4 when urgency is unknown),
       "estimatedMinutes": 5|25|60|null,
-      "firstStep": "one tiny <=20 char starter action in target UI language or null",
+      "firstStep": "JSON null for simple/obvious/physical tasks; ONLY populate a <=20 char starter action when the task is complex, ambiguous, or procrastination-prone",
       "description": "concise reference details or key numbers in target UI language, empty string if none",
       "subtasks": [
         {
@@ -419,6 +420,7 @@ ${buildLanguageStyleDirective(context.languageTag)}
 - Existing folders: ${context.folderPaths.take(40).joinToString(", ").ifBlank { "(none)" }}
 - Existing tags: ${context.tagPaths.take(40).joinToString(", ").ifBlank { "(none)" }}
 - Prefer reusing existing folderPaths and tags accurately.
+- FIRST STEP DISCIPLINE: Default "firstStep" to JSON null for straightforward or single-action physical tasks (e.g., "トランク整理", "ゴミ出し", "牛乳購入", "薬を飲む"). ONLY set "firstStep" when the task is heavy/multi-step/vague AND the starter action genuinely lowers mental friction (e.g., "確定申告" → "領収書フォルダを開く"). NEVER output obvious tautologies like "トランクを開く" for "トランク整理" or "電話を取る" for "電話する".
 - Never include the final completion step itself as a subtask; if the task is small/single-sitting, keep subtasks empty.
     """.trimIndent()
 
@@ -444,6 +446,7 @@ ${buildLanguageStyleDirective(context.languageTag)}
 - Context date: ${context.currentDateIso}.
 - Existing tags: ${context.tagPaths.take(40).joinToString(", ").ifBlank { "(none)" }}
 - Keep subtasks focused (0-4 items) ONLY for genuine separate prerequisites; put quick in-sitting verification steps into checklistItems (0-5 items).
+- Avoid obvious tautologies in firstStep (never output trivial restatements of the task title like "トランクを開く" for "トランク整理").
     """.trimIndent()
 }
 
