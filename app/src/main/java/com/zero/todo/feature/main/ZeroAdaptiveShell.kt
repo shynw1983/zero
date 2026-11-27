@@ -474,7 +474,7 @@ fun ZeroAdaptiveShell(
                 ZeroTheme(
                     darkTheme = isAtlasMapDark,
                     accent = uiState.activeAccent,
-                    accentOverride = null,
+                    accentOverride = SignalOrange,
                     hapticsEnabled = uiState.hapticsEnabled
                 ) {
                     ExecuteHostScreen(
@@ -518,7 +518,7 @@ fun ZeroAdaptiveShell(
                 ZeroTheme(
                     darkTheme = isAtlasMapDark,
                     accent = uiState.activeAccent,
-                    accentOverride = null,
+                    accentOverride = SignalOrange,
                     hapticsEnabled = uiState.hapticsEnabled
                 ) {
                     DualStateModeBar(

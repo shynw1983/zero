@@ -191,7 +191,7 @@ fun ExecuteHostScreen(
             ZeroTheme(
                 darkTheme = isAtlasMapDark,
                 accent = atlasAccent,
-                accentOverride = null
+                accentOverride = SignalOrange
             ) {
                 if (state.undoBanner != null && !showAtlasQuickInput) {
                     Box(
@@ -575,7 +575,7 @@ private fun ExecuteThemePickerSheet(
 
             ExecuteTheme.entries.forEach { theme ->
                 val selected = theme == activeTheme
-                val activeHighlight = if (theme == ExecuteTheme.ATLAS) colors.accent else SignalOrange
+                val activeHighlight = SignalOrange
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -593,7 +593,7 @@ private fun ExecuteThemePickerSheet(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
-                    ExecuteThemeSwatch(theme = theme, atlasAccent = colors.accent)
+                    ExecuteThemeSwatch(theme = theme, atlasAccent = SignalOrange)
 
                     Column(
                         modifier = Modifier.weight(1f),

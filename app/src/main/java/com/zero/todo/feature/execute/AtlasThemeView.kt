@@ -21,11 +21,24 @@ import android.os.Bundle
 import android.os.Looper
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -60,7 +73,6 @@ import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.DarkMode
-import androidx.compose.material.icons.rounded.Explore
 import androidx.compose.material.icons.rounded.Layers
 import androidx.compose.material.icons.rounded.LightMode
 import androidx.compose.material.icons.rounded.MyLocation
@@ -81,6 +93,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -89,7 +102,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
@@ -120,17 +138,12 @@ import com.google.android.gms.maps.model.BitmapDescriptor
 import com.google.android.gms.maps.model.BitmapDescriptorFactory
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.CircleOptions
-import com.google.android.gms.maps.model.Dash
-import com.google.android.gms.maps.model.Gap
-import com.google.android.gms.maps.model.JointType
 import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.MapStyleOptions
 import com.google.android.gms.maps.model.Marker
 import com.google.android.gms.maps.model.MarkerOptions
 import com.google.android.gms.maps.model.Polygon
 import com.google.android.gms.maps.model.PolygonOptions
-import com.google.android.gms.maps.model.PolylineOptions
-import com.google.android.gms.maps.model.RoundCap
 import com.zero.todo.R
 import com.zero.todo.core.designsystem.ZeroCapsuleShape
 import com.zero.todo.core.designsystem.ZeroSmallShape
@@ -143,8 +156,17 @@ import com.zero.todo.domain.model.TaskPriority
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.abs
+import kotlin.math.cos
+import kotlin.math.hypot
+import kotlin.math.sin
 
 private const val PLAYER_MARKER_TAG = "__zero_player__"
+
+private data class AtlasShockwave(
+    val id: Long,
+    val lat: Double,
+    val lng: Double
+)
 
 @Composable
 fun AtlasThemeView(
@@ -190,6 +212,55 @@ fun AtlasThemeView(
     var hasInitialCameraCentered by remember { mutableStateOf(false) }
     var playerMarkerRef by remember { mutableStateOf<Marker?>(null) }
     var headingConeRef by remember { mutableStateOf<Polygon?>(null) }
+    var cameraMoveTick by remember { mutableLongStateOf(0L) }
+
+    // 60fps Spatial Motion & HUD Choreography states
+    var chromeEntered by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { chromeEntered = true }
+    val chromeMotion by animateFloatAsState(
+        targetValue = if (chromeEntered) 1f else 0f,
+        animationSpec = spring(dampingRatio = 0.80f, stiffness = 360f),
+        label = "atlas_chrome_spring"
+    )
+    var activeHoldProgress by remember { mutableFloatStateOf(0f) }
+    var shockwaveEvent by remember { mutableStateOf<AtlasShockwave?>(null) }
+    val shockwaveProgress = remember { Animatable(0f) }
+    LaunchedEffect(shockwaveEvent?.id) {
+        if (shockwaveEvent != null) {
+            shockwaveProgress.snapTo(0f)
+            shockwaveProgress.animateTo(1f, tween(durationMillis = 720, easing = FastOutSlowInEasing))
+            shockwaveEvent = null
+        }
+    }
+
+    val motionTransition = rememberInfiniteTransition(label = "atlas_spatial_motion")
+    val breathePhase by motionTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 2800, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "atlas_breathe_phase"
+    )
+    val streamPhase by motionTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 2100, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "atlas_stream_phase"
+    )
+    val statusDotPulse by motionTransition.animateFloat(
+        initialValue = 0.45f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 1600, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "atlas_status_dot"
+    )
 
     val locationPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions()
@@ -198,7 +269,7 @@ fun AtlasThemeView(
             grants[Manifest.permission.ACCESS_COARSE_LOCATION] == true
     }
 
-    // Live GPS updates (GMS FusedLocation + Android LocationManager fallback)
+    // Live GPS updates
     @SuppressLint("MissingPermission")
     DisposableEffect(hasLocationPermission) {
         if (!hasLocationPermission) return@DisposableEffect onDispose {}
@@ -265,7 +336,7 @@ fun AtlasThemeView(
         }
     }
 
-    // Smooth azimuth compass for subtle directional wedge
+    // Smooth azimuth compass for directional sector
     DisposableEffect(Unit) {
         val sensorManager = context.getSystemService(SensorManager::class.java)
         val rotationSensor = sensorManager?.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR)
@@ -390,57 +461,85 @@ fun AtlasThemeView(
         runCatching { gMap.setMapStyle(MapStyleOptions(json)) }
     }
 
-    fun animateCameraTo(lat: Double, lng: Double, zoom: Float? = null) {
+    fun animateCameraTo(
+        lat: Double,
+        lng: Double,
+        zoom: Float? = null,
+        orbitParallax: Boolean = false
+    ) {
         val gMap = googleMapRef ?: return
-        val targetZoom = zoom ?: if (is3DMode) 17.1f else 15.2f
+        val targetZoom = zoom ?: if (is3DMode) 17.2f else 15.2f
+        val curBearing = gMap.cameraPosition.bearing
+        val targetBearing = when {
+            !is3DMode -> 0f
+            orbitParallax -> (curBearing + 14f) % 360f
+            else -> 22f
+        }
         val cam = CameraPosition.Builder()
             .target(LatLng(lat, lng))
             .zoom(targetZoom)
-            .tilt(if (is3DMode) 60f else 0f)
-            .bearing(if (is3DMode) 20f else 0f)
+            .tilt(if (is3DMode) 62f else 0f)
+            .bearing(targetBearing)
             .build()
-        gMap.animateCamera(CameraUpdateFactory.newCameraPosition(cam), 420, null)
+        gMap.animateCamera(CameraUpdateFactory.newCameraPosition(cam), if (orbitParallax) 650 else 480, null)
     }
 
+    // Cinematic 3D fly-in swoop on first entry
     LaunchedEffect(googleMapRef, userLat, userLng, snapshot.markers.firstOrNull()?.place?.id) {
         val gMap = googleMapRef ?: return@LaunchedEffect
         if (hasInitialCameraCentered) return@LaunchedEffect
+        val hasFix = userLat != null || snapshot.markers.isNotEmpty()
         val lat = userLat ?: snapshot.markers.firstOrNull()?.place?.latitude ?: 35.6812
         val lng = userLng ?: snapshot.markers.firstOrNull()?.place?.longitude ?: 139.7671
-        val zoom = if (userLat != null || snapshot.markers.isNotEmpty()) 17.1f else 12.8f
-        val cam = CameraPosition.Builder()
-            .target(LatLng(lat, lng))
-            .zoom(zoom)
-            .tilt(if (is3DMode) 60f else 0f)
-            .bearing(if (is3DMode) 20f else 0f)
-            .build()
-        gMap.moveCamera(CameraUpdateFactory.newCameraPosition(cam))
-        if (userLat != null || snapshot.markers.isNotEmpty()) {
-            hasInitialCameraCentered = true
+        if (!hasFix) {
+            val overview = CameraPosition.Builder()
+                .target(LatLng(lat, lng))
+                .zoom(13.2f)
+                .tilt(24f)
+                .bearing(0f)
+                .build()
+            gMap.moveCamera(CameraUpdateFactory.newCameraPosition(overview))
+            return@LaunchedEffect
         }
+
+        val startCam = CameraPosition.Builder()
+            .target(LatLng(lat, lng))
+            .zoom(14.8f)
+            .tilt(22f)
+            .bearing(0f)
+            .build()
+        gMap.moveCamera(CameraUpdateFactory.newCameraPosition(startCam))
+        delay(60L)
+        val landCam = CameraPosition.Builder()
+            .target(LatLng(lat, lng))
+            .zoom(if (is3DMode) 17.2f else 15.2f)
+            .tilt(if (is3DMode) 62f else 0f)
+            .bearing(if (is3DMode) 22f else 0f)
+            .build()
+        gMap.animateCamera(CameraUpdateFactory.newCameraPosition(landCam), 1050, null)
+        hasInitialCameraCentered = true
     }
 
     LaunchedEffect(googleMapRef, is3DMode) {
         val gMap = googleMapRef ?: return@LaunchedEffect
         val cur = gMap.cameraPosition
         val updated = CameraPosition.Builder(cur)
-            .tilt(if (is3DMode) 60f else 0f)
-            .bearing(if (is3DMode && cur.bearing == 0f) 20f else if (!is3DMode) 0f else cur.bearing)
+            .tilt(if (is3DMode) 62f else 0f)
+            .bearing(if (is3DMode && cur.bearing == 0f) 22f else if (!is3DMode) 0f else cur.bearing)
             .zoom(if (is3DMode) cur.zoom.coerceAtLeast(16.7f) else cur.zoom.coerceAtMost(15.6f))
             .build()
-        gMap.animateCamera(CameraUpdateFactory.newCameraPosition(updated), 360, null)
+        gMap.animateCamera(CameraUpdateFactory.newCameraPosition(updated), 420, null)
     }
 
     val accentArgb = colors.accent.toArgb()
     val urgentArgb = colors.priorityUrgent.toArgb()
 
-    // Effect 1: Whisper-clean route, geofence circles & floating architectural pill pins
+    // Effect 1: Clean geofence circles & floating architectural pill pins (routes handled by 60fps overlay)
     LaunchedEffect(
         googleMapRef,
         snapshot,
         selectedMarker?.place?.id,
         isMapDark,
-        showQuestRoute,
         accentArgb
     ) {
         val gMap = googleMapRef ?: return@LaunchedEffect
@@ -448,40 +547,26 @@ fun AtlasThemeView(
         playerMarkerRef = null
         headingConeRef = null
 
-        if (showQuestRoute && snapshot.routeWaypoints.size >= 2) {
-            gMap.addPolyline(
-                PolylineOptions()
-                    .addAll(snapshot.routeWaypoints.map { LatLng(it.first, it.second) })
-                    .width(4.5f)
-                    .color(ColorUtils.setAlphaComponent(accentArgb, if (isMapDark) 170 else 155))
-                    .pattern(listOf(Dash(14f), Gap(12f)))
-                    .startCap(RoundCap())
-                    .endCap(RoundCap())
-                    .jointType(JointType.ROUND)
-                    .zIndex(2f)
-            )
-        }
-
         snapshot.markers.forEach { qMarker ->
             val isSelected = qMarker.place.id == selectedMarker?.place?.id
             val center = LatLng(qMarker.place.latitude, qMarker.place.longitude)
             val baseColor = if (qMarker.highestPriority == TaskPriority.URGENT) urgentArgb else accentArgb
 
             val strokeAlpha = when {
-                qMarker.isInsideGeofence -> 150
-                isSelected -> 115
+                qMarker.isInsideGeofence -> 165
+                isSelected -> 125
                 else -> 50
             }
             val fillAlpha = when {
-                qMarker.isInsideGeofence -> 24
-                isSelected -> 12
+                qMarker.isInsideGeofence -> 28
+                isSelected -> 14
                 else -> 5
             }
             gMap.addCircle(
                 CircleOptions()
                     .center(center)
                     .radius(qMarker.place.radiusMeters.toDouble())
-                    .strokeWidth(2f)
+                    .strokeWidth(2.2f)
                     .strokeColor(ColorUtils.setAlphaComponent(baseColor, strokeAlpha))
                     .fillColor(ColorUtils.setAlphaComponent(baseColor, fillAlpha))
                     .zIndex(1f)
@@ -502,15 +587,16 @@ fun AtlasThemeView(
                     .position(center)
                     .icon(pinIcon)
                     .anchor(0.5f, 1.0f)
-                    .alpha(if (isSelected || qMarker.isNearestBranchForTag || qMarker.isInsideGeofence) 1f else 0.82f)
+                    .alpha(if (isSelected || qMarker.isNearestBranchForTag || qMarker.isInsideGeofence) 1f else 0.84f)
                     .zIndex(if (isSelected) 5f else 3f)
             )?.apply {
                 tag = qMarker.place.id
             }
         }
+        cameraMoveTick++
     }
 
-    // Effect 2: In-place Player Dot & subtle directional sector (no flicker)
+    // Effect 2: In-place Player Dot & subtle directional sector (no marker flicker)
     LaunchedEffect(
         googleMapRef,
         userLat,
@@ -519,8 +605,7 @@ fun AtlasThemeView(
         isMapDark,
         accentArgb,
         snapshot,
-        selectedMarker?.place?.id,
-        showQuestRoute
+        selectedMarker?.place?.id
     ) {
         val gMap = googleMapRef ?: return@LaunchedEffect
         val pLat = userLat ?: return@LaunchedEffect
@@ -534,7 +619,7 @@ fun AtlasThemeView(
             halfAngleDeg = 24.0
         ).map { LatLng(it.first, it.second) }
 
-        val sectorAlpha = if (isMapDark) 32 else 24
+        val sectorAlpha = if (isMapDark) 34 else 26
         val existingCone = headingConeRef
         if (existingCone == null) {
             headingConeRef = gMap.addPolygon(
@@ -568,6 +653,7 @@ fun AtlasThemeView(
             existingMarker.position = playerLatLng
             existingMarker.setIcon(playerIcon)
         }
+        cameraMoveTick++
     }
 
     val surfaceBg = if (isMapDark) Color(0xEB12151D) else Color(0xF5FFFFFF)
@@ -581,9 +667,7 @@ fun AtlasThemeView(
         val statusTopPx = WindowInsets.statusBars.getTop(density)
         val navBottomPx = WindowInsets.navigationBars.getBottom(density)
         val mapTopPadPx = with(density) { 58.dp.roundToPx() } + statusTopPx
-        val mapBottomPadPx = with(density) {
-            (bottomModeBarHeight + 112.dp).roundToPx()
-        } + navBottomPx
+        val mapBottomPadPx = with(density) { (bottomModeBarHeight + 112.dp).roundToPx() } + navBottomPx
         LaunchedEffect(googleMapRef, mapTopPadPx, mapBottomPadPx) {
             googleMapRef?.setPadding(0, mapTopPadPx, 0, mapBottomPadPx)
         }
@@ -602,12 +686,18 @@ fun AtlasThemeView(
                         isRotateGesturesEnabled = true
                         isZoomControlsEnabled = false
                     }
+                    gMap.setOnCameraMoveListener { cameraMoveTick++ }
+                    gMap.setOnCameraIdleListener { cameraMoveTick++ }
                     gMap.setOnMarkerClickListener { clicked ->
                         val id = clicked.tag as? String
                         if (id != null && id != PLAYER_MARKER_TAG) {
                             haptics.reorderTick()
                             selectedPlaceId = id
-                            animateCameraTo(clicked.position.latitude, clicked.position.longitude)
+                            animateCameraTo(
+                                lat = clicked.position.latitude,
+                                lng = clicked.position.longitude,
+                                orbitParallax = true
+                            )
                             true
                         } else {
                             false
@@ -620,12 +710,34 @@ fun AtlasThemeView(
             modifier = Modifier.fillMaxSize()
         )
 
-        // 2. Minimal Floating Top Bar (Left: ATLAS status pill, Right: + / Theme / Settings capsule)
+        // 2. 60fps GPU Spatial Motion Layer (Energy Stream Route, Player Breathe Halo, Hold Ring & Shockwave)
+        AtlasSpatialMotionOverlay(
+            googleMap = googleMapRef,
+            cameraMoveTick = cameraMoveTick,
+            userLat = userLat,
+            userLng = userLng,
+            selectedMarker = selectedMarker,
+            routeWaypoints = snapshot.routeWaypoints,
+            showQuestRoute = showQuestRoute,
+            breathePhase = breathePhase,
+            streamPhase = streamPhase,
+            holdProgress = activeHoldProgress,
+            shockwave = shockwaveEvent,
+            shockwaveProgress = shockwaveProgress.value,
+            accentColor = colors.accent,
+            modifier = Modifier.fillMaxSize()
+        )
+
+        // 3. Minimal Floating Top Bar (spring float-in entrance)
         Row(
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .fillMaxWidth()
                 .statusBarsPadding()
+                .graphicsLayer {
+                    alpha = chromeMotion
+                    translationY = (1f - chromeMotion) * -14.dp.toPx()
+                }
                 .padding(horizontal = 14.dp, vertical = 10.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
@@ -650,7 +762,7 @@ fun AtlasThemeView(
                             modifier = Modifier
                                 .size(6.dp)
                                 .clip(CircleShape)
-                                .background(colors.accent)
+                                .background(colors.accent.copy(alpha = statusDotPulse))
                         )
                         Text(
                             text = "ATLAS",
@@ -829,7 +941,7 @@ fun AtlasThemeView(
             }
         }
 
-        // 3. Right-Edge Minimalist Map Control Pill
+        // 4. Right-Edge Minimalist Map Control Pill
         AtlasControlDock(
             isMapDark = isMapDark,
             is3DMode = is3DMode,
@@ -879,10 +991,14 @@ fun AtlasThemeView(
             modifier = Modifier
                 .align(Alignment.TopEnd)
                 .statusBarsPadding()
+                .graphicsLayer {
+                    alpha = chromeMotion
+                    translationX = (1f - chromeMotion) * 14.dp.toPx()
+                }
                 .padding(end = 14.dp, top = 62.dp)
         )
 
-        // 4. Slim Responsive Quest Mission Card (Bottom-Start 312.dp on wide screens; compact centered on phones)
+        // 5. Slim Responsive Quest Mission Card
         val showMissionCard = !isQuickInputExpanded
         val cardAlignment = if (isWideScreen) Alignment.BottomStart else Alignment.BottomCenter
         val cardWidthMod = if (isWideScreen) {
@@ -895,7 +1011,7 @@ fun AtlasThemeView(
         val cardPadding = if (isWideScreen) {
             Modifier.padding(start = 14.dp, bottom = bottomModeBarHeight + 10.dp)
         } else {
-            Modifier.padding(horizontal = 14.dp, vertical = 0.dp).padding(bottom = bottomModeBarHeight + 6.dp)
+            Modifier.padding(horizontal = 14.dp).padding(bottom = bottomModeBarHeight + 6.dp)
         }
 
         AnimatedVisibility(
@@ -905,6 +1021,10 @@ fun AtlasThemeView(
             modifier = Modifier
                 .align(cardAlignment)
                 .navigationBarsPadding()
+                .graphicsLayer {
+                    alpha = chromeMotion
+                    translationY = (1f - chromeMotion) * 18.dp.toPx()
+                }
                 .then(cardPadding)
         ) {
             Box(modifier = cardWidthMod) {
@@ -938,7 +1058,16 @@ fun AtlasThemeView(
                             )
                         },
                         onOpenTaskDetail = { onOpenTaskDetail(focusedTask) },
-                        onCompleteTask = { onCompleteTask(focusedTask) }
+                        onHoldProgressChange = { activeHoldProgress = it },
+                        onCompleteTask = {
+                            shockwaveEvent = AtlasShockwave(
+                                id = System.currentTimeMillis(),
+                                lat = selectedMarker.place.latitude,
+                                lng = selectedMarker.place.longitude
+                            )
+                            activeHoldProgress = 0f
+                            onCompleteTask(focusedTask)
+                        }
                     )
                 } else {
                     AtlasEmptyQuestCard(
@@ -967,6 +1096,195 @@ fun AtlasThemeView(
             },
             onDismiss = { showAnywhereSheet = false }
         )
+    }
+}
+
+/**
+ * High-precision 60fps Compose Canvas overlay synced directly to GoogleMap [Projection].
+ * Renders flowing energy pulses along routes, soft Apple-style breathing locator halo,
+ * live hold-to-complete charging reticle, and architectural completion shockwaves.
+ */
+@Composable
+private fun AtlasSpatialMotionOverlay(
+    googleMap: GoogleMap?,
+    cameraMoveTick: Long,
+    userLat: Double?,
+    userLng: Double?,
+    selectedMarker: AtlasQuestMarker?,
+    routeWaypoints: List<Pair<Double, Double>>,
+    showQuestRoute: Boolean,
+    breathePhase: Float,
+    streamPhase: Float,
+    holdProgress: Float,
+    shockwave: AtlasShockwave?,
+    shockwaveProgress: Float,
+    accentColor: Color,
+    modifier: Modifier = Modifier
+) {
+    Canvas(modifier = modifier) {
+        if (googleMap == null) return@Canvas
+        // Read cameraMoveTick so pan/zoom/tilt/fly anims invalidate projection cleanly at 60fps
+        @Suppress("UNUSED_VARIABLE")
+        val tick = cameraMoveTick
+        val projection = runCatching { googleMap.projection }.getOrNull() ?: return@Canvas
+
+        fun project(lat: Double, lng: Double): Offset? = runCatching {
+            val pt = projection.toScreenLocation(LatLng(lat, lng))
+            Offset(pt.x.toFloat(), pt.y.toFloat())
+        }.getOrNull()
+
+        // 1. Subtle Route Track + 60fps Flowing SignalOrange Comet Pulses
+        if (showQuestRoute && routeWaypoints.size >= 2) {
+            val screenPts = routeWaypoints.mapNotNull { project(it.first, it.second) }
+            if (screenPts.size >= 2) {
+                var totalLen = 0f
+                val segLens = FloatArray(screenPts.size - 1)
+                for (i in 0 until screenPts.lastIndex) {
+                    val segLen = hypot(
+                        (screenPts[i + 1].x - screenPts[i].x).toDouble(),
+                        (screenPts[i + 1].y - screenPts[i].y).toDouble()
+                    ).toFloat()
+                    segLens[i] = segLen
+                    totalLen += segLen
+                    drawLine(
+                        color = accentColor.copy(alpha = 0.28f),
+                        start = screenPts[i],
+                        end = screenPts[i + 1],
+                        strokeWidth = 1.8.dp.toPx(),
+                        cap = StrokeCap.Round
+                    )
+                }
+
+                if (totalLen > 12f) {
+                    fun sampleAt(distAlong: Float): Offset {
+                        var rem = distAlong.coerceIn(0f, totalLen)
+                        for (i in segLens.indices) {
+                            val len = segLens[i]
+                            if (rem <= len || i == segLens.lastIndex) {
+                                val t = if (len > 0f) (rem / len).coerceIn(0f, 1f) else 0f
+                                val a = screenPts[i]
+                                val b = screenPts[i + 1]
+                                return Offset(a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t)
+                            }
+                            rem -= len
+                        }
+                        return screenPts.last()
+                    }
+
+                    // Draw 2 staggered luminous stream pulses gliding toward target buildings
+                    val tailSpan = (totalLen * 0.14f).coerceIn(22.dp.toPx(), 64.dp.toPx())
+                    for (pulseIdx in 0..1) {
+                        val p = (streamPhase + pulseIdx * 0.5f) % 1f
+                        val headDist = p * totalLen
+                        val steps = 8
+                        for (s in 0 until steps) {
+                            val fracA = s.toFloat() / steps
+                            val fracB = (s + 1).toFloat() / steps
+                            val dA = (headDist - tailSpan * (1f - fracA)).coerceAtLeast(0f)
+                            val dB = (headDist - tailSpan * (1f - fracB)).coerceAtLeast(0f)
+                            if (dB > dA) {
+                                drawLine(
+                                    color = accentColor.copy(alpha = fracB * 0.85f),
+                                    start = sampleAt(dA),
+                                    end = sampleAt(dB),
+                                    strokeWidth = (1.6f + fracB * 2.2f).dp.toPx(),
+                                    cap = StrokeCap.Round
+                                )
+                            }
+                        }
+                        val headPos = sampleAt(headDist)
+                        drawCircle(
+                            color = accentColor.copy(alpha = 0.32f),
+                            radius = 5.5.dp.toPx(),
+                            center = headPos
+                        )
+                        drawCircle(
+                            color = Color.White,
+                            radius = 2.dp.toPx(),
+                            center = headPos
+                        )
+                    }
+                }
+            }
+        }
+
+        // 2. Soft Apple-Style Breathing Halo around Player Locator
+        if (userLat != null && userLng != null) {
+            project(userLat, userLng)?.let { playerPt ->
+                val radiusPx = (10f + breathePhase * 22f).dp.toPx()
+                val fade = (1f - breathePhase).coerceIn(0f, 1f)
+                drawCircle(
+                    color = accentColor.copy(alpha = fade * 0.34f),
+                    radius = radiusPx,
+                    center = playerPt,
+                    style = Stroke(width = 1.4.dp.toPx())
+                )
+            }
+        }
+
+        // 3. Active Geofence Breathing Rim + Hold-to-Complete Tightening Reticle
+        selectedMarker?.let { sel ->
+            project(sel.place.latitude, sel.place.longitude)?.let { tgtPt ->
+                if (sel.isInsideGeofence && holdProgress <= 0.01f) {
+                    val rPx = (14f + breathePhase * 24f).dp.toPx()
+                    val fade = (1f - breathePhase).coerceIn(0f, 1f)
+                    drawCircle(
+                        color = accentColor.copy(alpha = fade * 0.42f),
+                        radius = rPx,
+                        center = tgtPt,
+                        style = Stroke(width = 1.6.dp.toPx())
+                    )
+                }
+
+                if (holdProgress > 0.01f) {
+                    val ringRadius = (42f - holdProgress * 24f).dp.toPx()
+                    drawCircle(
+                        color = accentColor.copy(alpha = 0.25f + holdProgress * 0.45f),
+                        radius = ringRadius,
+                        center = tgtPt,
+                        style = Stroke(width = 2.dp.toPx())
+                    )
+                    drawArc(
+                        color = accentColor,
+                        startAngle = -90f,
+                        sweepAngle = 360f * holdProgress,
+                        useCenter = false,
+                        topLeft = Offset(tgtPt.x - ringRadius, tgtPt.y - ringRadius),
+                        size = Size(ringRadius * 2f, ringRadius * 2f),
+                        style = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round)
+                    )
+                }
+            }
+        }
+
+        // 4. Completion Architectural Shockwave & 8 Radial Sparks
+        if (shockwave != null && shockwaveProgress < 1f) {
+            project(shockwave.lat, shockwave.lng)?.let { swPt ->
+                val fade = (1f - shockwaveProgress).coerceIn(0f, 1f)
+                val swRadius = (10f + shockwaveProgress * 94f).dp.toPx()
+                val strokeW = (3.2f - shockwaveProgress * 2.5f).coerceAtLeast(0.6f).dp.toPx()
+                drawCircle(
+                    color = accentColor.copy(alpha = fade * 0.92f),
+                    radius = swRadius,
+                    center = swPt,
+                    style = Stroke(width = strokeW)
+                )
+                val sparkInner = (14f + shockwaveProgress * 64f).dp.toPx()
+                val sparkOuter = sparkInner + (10f * fade).dp.toPx()
+                for (i in 0 until 8) {
+                    val rad = Math.toRadians(i * 45.0)
+                    val cx = cos(rad).toFloat()
+                    val sy = sin(rad).toFloat()
+                    drawLine(
+                        color = accentColor.copy(alpha = fade * 0.85f),
+                        start = Offset(swPt.x + cx * sparkInner, swPt.y + sy * sparkInner),
+                        end = Offset(swPt.x + cx * sparkOuter, swPt.y + sy * sparkOuter),
+                        strokeWidth = 1.8.dp.toPx(),
+                        cap = StrokeCap.Round
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -1089,6 +1407,7 @@ private fun AtlasQuestHudCard(
     onNextTask: () -> Unit,
     onNavigate: () -> Unit,
     onOpenTaskDetail: () -> Unit,
+    onHoldProgressChange: (Float) -> Unit,
     onCompleteTask: () -> Unit
 ) {
     val haptics = rememberZeroHaptics()
@@ -1176,7 +1495,7 @@ private fun AtlasQuestHudCard(
             }
         }
 
-        // Row 2: Task Title + Task Switcher + Inline Hold-to-Complete Pill
+        // Row 2: Fluid Animated Task Title + Switcher + Inline Hold-to-Complete Pill
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
@@ -1192,14 +1511,23 @@ private fun AtlasQuestHudCard(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                Text(
-                    text = focusedTask.title,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = primaryText,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f)
-                )
+                AnimatedContent(
+                    targetState = focusedTask,
+                    transitionSpec = {
+                        (fadeIn(tween(180)) + slideInHorizontally(tween(180)) { it / 6 }) togetherWith
+                            (fadeOut(tween(130)) + slideOutHorizontally(tween(130)) { -it / 6 })
+                    },
+                    modifier = Modifier.weight(1f),
+                    label = "atlas_task_swap"
+                ) { task ->
+                    Text(
+                        text = task.title,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = primaryText,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
                 if (marker.tasks.size > 1) {
                     IconButton(onClick = onPrevTask, modifier = Modifier.size(22.dp)) {
                         Icon(
@@ -1246,10 +1574,13 @@ private fun AtlasQuestHudCard(
                                 var released = false
                                 while (!released && !completed) {
                                     val elapsed = System.currentTimeMillis() - start
-                                    holdProgress = (elapsed.toFloat() / durationMs).coerceIn(0f, 1f)
+                                    val progress = (elapsed.toFloat() / durationMs).coerceIn(0f, 1f)
+                                    holdProgress = progress
+                                    onHoldProgressChange(progress)
                                     if (elapsed >= durationMs) {
                                         completed = true
                                         holdProgress = 1f
+                                        onHoldProgressChange(1f)
                                         haptics.confirm()
                                         onCompleteTask()
                                         break
@@ -1259,6 +1590,7 @@ private fun AtlasQuestHudCard(
                                 }
                                 if (!completed) {
                                     holdProgress = 0f
+                                    onHoldProgressChange(0f)
                                 }
                             }
                         )
@@ -1266,10 +1598,7 @@ private fun AtlasQuestHudCard(
                 contentAlignment = Alignment.CenterStart
             ) {
                 if (animatedHold > 0.01f) {
-                    Box(
-                        modifier = Modifier
-                            .matchParentSize()
-                    ) {
+                    Box(modifier = Modifier.matchParentSize()) {
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth(animatedHold)
@@ -1554,7 +1883,6 @@ private fun createQuestPinIcon(
     val pillRect = RectF(cx - pillW / 2f, pillTop, cx + pillW / 2f, pillBottom)
     val corner = pillH / 2f
 
-    // Subtle elevation shadow
     val shadowPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = 0x33000000
         style = Paint.Style.FILL
@@ -1573,7 +1901,6 @@ private fun createQuestPinIcon(
     }
     canvas.drawRoundRect(pillRect, corner, corner, bgPaint)
 
-    // Pointer tail
     val tailPath = Path().apply {
         moveTo(cx - 4.5f * density, pillBottom - 0.5f * density)
         lineTo(cx, pillBottom + tailH)
