@@ -1740,7 +1740,7 @@ private fun AiEngineSettingsCard(
                         .horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    listOf("gpt-4o-mini", "gpt-4o", "gpt-4.1-mini", "gpt-4.1").forEach { preset ->
+                    listOf("gpt-6-luna", "gpt-4.1-mini", "gpt-4.1", "gpt-4o-mini", "gpt-4o").forEach { preset ->
                         val active = openAiModelDraft.trim() == preset
                         Box(
                             modifier = Modifier

@@ -434,4 +434,25 @@ class ZeroAiEngineTest {
         }
         assertEquals(VoiceAutoStopDecision.AUTO_CANCEL_NO_SPEECH, silentDecision)
     }
+
+    @Test
+    fun omitsTemperatureForGpt6LunaAndOtherReasoningModels() {
+        val lunaReq = ZeroAiJsonParser.buildOpenAiRequestJson(
+            model = "gpt-6-luna",
+            systemPrompt = "sys",
+            userPrompt = "usr",
+            image = null
+        )
+        assertEquals("gpt-6-luna", lunaReq.getString("model"))
+        assertFalse(lunaReq.has("temperature"))
+        assertTrue(lunaReq.has("response_format"))
+
+        val miniReq = ZeroAiJsonParser.buildOpenAiRequestJson(
+            model = "gpt-4o-mini",
+            systemPrompt = "sys",
+            userPrompt = "usr",
+            image = null
+        )
+        assertEquals(0.2, miniReq.getDouble("temperature"), 0.0001)
+    }
 }

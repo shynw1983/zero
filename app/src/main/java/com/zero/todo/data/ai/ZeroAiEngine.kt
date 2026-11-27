@@ -303,8 +303,10 @@ object ZeroAiJsonParser {
         }
         return JSONObject()
             .put("model", model)
-            .put("temperature", 0.2)
             .apply {
+                if (supportsCustomOpenAiTemperature(model)) {
+                    put("temperature", 0.2)
+                }
                 if (expectJson) {
                     put("response_format", JSONObject().put("type", "json_object"))
                 }
@@ -315,6 +317,15 @@ object ZeroAiJsonParser {
                     .put(JSONObject().put("role", "system").put("content", systemPrompt))
                     .put(userMessage)
             )
+    }
+
+    fun supportsCustomOpenAiTemperature(model: String): Boolean {
+        val normalized = model.trim().lowercase()
+        return !(normalized.startsWith("gpt-6") ||
+            normalized.startsWith("gpt-5") ||
+            normalized.startsWith("o1") ||
+            normalized.startsWith("o3") ||
+            normalized.startsWith("o4"))
     }
 
     fun extractGeminiText(responseBody: String): String {
