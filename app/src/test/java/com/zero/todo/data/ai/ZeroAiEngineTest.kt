@@ -191,10 +191,16 @@ class ZeroAiEngineTest {
         assertTrue(jaDirective.contains("簡体字"))
         assertTrue(jaDirective.contains("敬語・丁寧語禁止"))
         assertTrue(jaDirective.contains("してください"))
+        assertTrue(jaDirective.contains("個人メモとして自然な日常的漢語名詞による体言止め"))
+        assertTrue(jaDirective.contains("現代のインテリア・アパレル表記"))
+        assertTrue(jaDirective.contains("表記ゆれ"))
         assertFalse(jaDirective.contains("煤炉"))
         assertFalse(jaDirective.contains("后备箱"))
         assertFalse(jaDirective.contains("メルカリ"))
         assertFalse(jaDirective.contains("トランク"))
+        assertFalse(jaDirective.contains("チェスト"))
+        assertFalse(jaDirective.contains("たんす"))
+        assertFalse(jaDirective.contains("運搬"))
 
         val zhDirective = ZeroAiJsonParser.buildLanguageStyleDirective("zh-CN")
         assertTrue(zhDirective.contains("Simplified Chinese"))
@@ -574,6 +580,8 @@ class ZeroAiEngineTest {
         assertTrue(prompt.contains("SHORT HEADLINE TITLES"))
         assertTrue(prompt.contains("NEVER drop a substantive second action"))
         assertTrue(prompt.contains("IMAGE & CHAT SCREENSHOT FIDELITY"))
+        assertTrue(prompt.contains("BATCH WORDING CONSISTENCY"))
+        assertTrue(prompt.contains("NON-REDUNDANT DESCRIPTION"))
         assertTrue(prompt.contains("EVENT VS. PREPARATION"))
         assertTrue(prompt.contains("SUBTASKS VS. CHECKLIST"))
         assertTrue(prompt.contains("ALWAYS set parent \"firstStep\" to JSON null"))
@@ -583,6 +591,9 @@ class ZeroAiEngineTest {
         assertFalse(prompt.contains("牛仔"))
         assertFalse(prompt.contains("五斗橱"))
         assertFalse(prompt.contains("着ぐるみ"))
+        assertFalse(prompt.contains("チェスト"))
+        assertFalse(prompt.contains("たんす"))
+        assertFalse(prompt.contains("運搬"))
 
         val imageUserPrompt = ZeroAiJsonParser.buildCaptureUserPrompt(
             effectiveText = "",

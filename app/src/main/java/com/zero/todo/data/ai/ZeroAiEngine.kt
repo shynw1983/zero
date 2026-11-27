@@ -427,9 +427,10 @@ object ZeroAiJsonParser {
                   1. 入力が他言語（中国語・英語・韓国語等）や口語・通称・当て字であっても、元の文字や熟語をそのまま流用・簡繁変換せず、話し手が現実世界で何をしようとしているか（対象のサービス・モノ・行動）を文脈から正確に理解すること。
                   2. 「日本語ネイティブが同じ用事を自分のメモに書くならどう書くか」を基準に、ゼロから自然な日本語（適切なカタカナ語・和語・一般的な日本語表現）で書き直すこと。
                   3. 簡体字・中国語特有の熟語・不自然な直訳漢字を1文字も残さないこと。
-                - 文体（新聞見出し・体言止め・常体）: 最小限の文字数で一目で動作が分かる簡潔な見出しにする。
+                - 文体（新聞見出し・体言止め・常体）: 和語動詞の文より、個人メモとして自然な日常的漢語名詞による体言止め（複数動作は「・」繋ぎ）を優先し、物流・公文書のような大げさ・堅苦しい漢語は避ける。
+                - 現代的な語彙選定: 家具・衣類・日用品は伝統的な和風呼称や難読漢字より、現代のインテリア・アパレル表記（定着したカタカナ語や簡潔な1〜2字名詞）を優先する。
                 - 敬語・丁寧語禁止: 「です」「ます」「してください」「しましょう」「お願いします」「確認が必要です」「〜すること」は絶対に使わない。
-                - 出力前チェック: JSON を返す直前に、生成した全テキストを日本語ネイティブの目線で読み直し、他言語の熟語や直訳の不自然さが残っていれば自然な日本語へ書き直すこと。
+                - 出力前チェック: JSON を返す直前に、生成した全テキストを日本語ネイティブの目線で読み直し、他言語の熟語・直訳の不自然さ・同一バッチ内の表記ゆれが残っていれば整えてから出力すること。
             """.trimIndent()
 
             "zh" -> """
@@ -485,7 +486,7 @@ $header
       "priority": 1|2|3|4 (1=urgent, 2=high, 3=medium, 4=lowest/normal; default to 4 when urgency is unknown),
       "estimatedMinutes": 5|25|60|null,
       "firstStep": "JSON null for simple/obvious/physical tasks (or when subtasks non-empty); ONLY populate a <=20 char starter action when a standalone leaf task is complex, ambiguous, or procrastination-prone",
-      "description": "concise reference details or key numbers in target UI language, empty string if none",
+      "description": "ONLY extra reference details NOT already stated in the title (sender, location, amount, IDs); empty string \"\" if none—NEVER restate or paraphrase the title",
       "checklistItems": [
         "short parallel item/document/material checked off in the SAME sitting (0-5 items; [] if none)"
       ],
@@ -508,6 +509,8 @@ ${buildLanguageStyleDirective(context.languageTag)}$customSection
 - Prefer reusing existing folderPaths and tags accurately.
 - SHORT HEADLINE TITLES: Keep every "title" and "subtask.title" ultra-short (<=12 chars CJK / 2-5 words EN) by stripping filler and honorifics—NEVER drop a substantive second action, required deliverable (e.g., photographing, reporting, sending), or distinguishing item specifier just to shorten a title, and NEVER stitch "for event X, prepare Y" into one long sentence (express that via parent task + subtasks or checklistItems).
 - IMAGE & CHAT SCREENSHOT FIDELITY: When reading images or chat screenshots, read every text bubble accurately BEFORE translating. Treat stickers, memes, emojis, and avatars purely as decoration—NEVER let sticker artwork bias or distort the meaning of nearby text. Keep distinct actionable requests from a chat as separate independent tasks (do not force-merge independent requests), while ignoring emotional banter or non-actionable chatter.
+- BATCH WORDING CONSISTENCY: When multiple tasks in the same batch share the same action or intent, NEVER vary synonyms across items—unify them to the exact same wording.
+- NON-REDUNDANT DESCRIPTION: Leave "description" as an empty string "" unless there is genuine extra reference information not already in the title (e.g., requester, address, amount, tracking/order ID). NEVER repeat or paraphrase the title in "description".
 - EVENT VS. PREPARATION SPLIT & ADVANCE DATES: When input describes an upcoming event, meeting, or deadline X AND preparation work Y needed before X, make X the parent task (dueDate = X's date) and put Y in "subtasks" scheduled EARLIER (for example today ${context.currentDateIso} when X is tomorrow, never after X) so preparation surfaces immediately in ZERO's Leaf-Only NOW runway.
 - SUBTASKS VS. CHECKLIST: Use "subtasks" for distinct prerequisite actions requiring a different time, location, or substantial prep step before completing the parent; use "checklistItems" for quick parallel items, materials, or sub-checks done in the SAME sitting (never list items inside a long title). Keep both empty for simple single-step tasks.
 - FIRST STEP DISCIPLINE: ALWAYS set parent "firstStep" to JSON null when "subtasks" is non-empty (ZERO's NOW runway only executes leaf subtasks, never parent containers). For standalone leaf tasks, default "firstStep" to JSON null for straightforward, self-explanatory, or single-action physical tasks; ONLY populate when genuinely heavy, ambiguous, or procrastination-prone with a concrete physical starter action (never abstract filler or tautologies).
