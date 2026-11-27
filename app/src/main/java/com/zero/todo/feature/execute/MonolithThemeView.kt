@@ -375,32 +375,32 @@ fun MonolithThemeView(
                             val caption = buildAnnotatedString {
                                 if (folderBadge != null) {
                                     if (!folderBadge.prefix.isNullOrBlank()) {
-                                        withStyle(SpanStyle(color = colors.textMuted.copy(alpha = 0.65f))) {
+                                        withStyle(SpanStyle(color = colors.textMuted.copy(alpha = 0.60f))) {
                                             append(folderBadge.prefix)
                                         }
                                     }
-                                    withStyle(SpanStyle(color = colors.textSecondary)) {
+                                    withStyle(SpanStyle(color = colors.textMuted)) {
                                         append(folderBadge.leaf)
                                     }
                                 } else if (fallbackFolderName != null) {
-                                    withStyle(SpanStyle(color = colors.textSecondary)) {
+                                    withStyle(SpanStyle(color = colors.textMuted)) {
                                         append(fallbackFolderName)
                                     }
                                 }
                                 if (effortLabel != null) {
                                     if (folderBadge != null || fallbackFolderName != null) {
-                                        withStyle(SpanStyle(color = colors.textMuted)) {
+                                        withStyle(SpanStyle(color = colors.textMuted.copy(alpha = 0.80f))) {
                                             append(" · ")
                                         }
                                     }
-                                    withStyle(SpanStyle(color = colors.textMuted)) {
+                                    withStyle(SpanStyle(color = colors.textMuted.copy(alpha = 0.80f))) {
                                         append(effortLabel)
                                     }
                                 }
                             }
                             Text(
                                 text = caption,
-                                style = tabular.dateCompact,
+                                style = MaterialTheme.typography.labelSmall,
                                 color = colors.textMuted,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
@@ -409,34 +409,47 @@ fun MonolithThemeView(
                     }
 
                     val parentTitle = state.parentTaskTitleById[activeTask.id]
-                    if (!parentTitle.isNullOrBlank()) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        if (!parentTitle.isNullOrBlank()) {
+                            Text(
+                                text = buildAnnotatedString {
+                                    withStyle(SpanStyle(color = colors.textMuted)) { append("↳ ") }
+                                    withStyle(SpanStyle(color = colors.textPrimary.copy(alpha = 0.78f))) {
+                                        append(parentTitle)
+                                    }
+                                },
+                                style = MaterialTheme.typography.titleSmall.copy(
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.Medium
+                                ),
+                                textAlign = TextAlign.Center,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+
+                        // Centered Large Title (Tap -> Minimalist BottomSheet)
                         Text(
-                            text = "↳ $parentTitle",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = colors.textMuted.copy(alpha = 0.8f),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
+                            text = activeTask.title,
+                            style = MaterialTheme.typography.displaySmall.copy(
+                                fontSize = 30.sp,
+                                lineHeight = 38.sp,
+                                fontWeight = FontWeight.Medium
+                            ),
+                            color = colors.textPrimary,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier
+                                .clip(ZeroSmallShape)
+                                .clickable {
+                                    haptics.reorderTick()
+                                    showTaskSheet = true
+                                }
+                                .padding(horizontal = 10.dp, vertical = 6.dp)
                         )
                     }
-
-                    // Centered Large Title (Tap -> Minimalist BottomSheet)
-                    Text(
-                        text = activeTask.title,
-                        style = MaterialTheme.typography.displaySmall.copy(
-                            fontSize = 30.sp,
-                            lineHeight = 38.sp,
-                            fontWeight = FontWeight.Medium
-                        ),
-                        color = colors.textPrimary,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier
-                            .clip(ZeroSmallShape)
-                            .clickable {
-                                haptics.reorderTick()
-                                showTaskSheet = true
-                            }
-                            .padding(horizontal = 10.dp, vertical = 6.dp)
-                    )
 
                     if (!activeTask.firstStep.isNullOrBlank() && !state.isInlineFlowActive) {
                         Text(

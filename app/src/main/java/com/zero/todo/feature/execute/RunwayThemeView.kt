@@ -625,9 +625,11 @@ private fun RunwayTimelineBlockRow(
                     )
                     if (isActive && !parentTitle.isNullOrBlank()) {
                         Text(
-                            text = "↳ $parentTitle",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = colors.textMuted,
+                            text = buildAnnotatedString {
+                                withStyle(SpanStyle(color = colors.textMuted)) { append("↳ ") }
+                                withStyle(SpanStyle(color = colors.textPrimary.copy(alpha = 0.78f))) { append(parentTitle) }
+                            },
+                            style = MaterialTheme.typography.labelMedium,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
@@ -651,17 +653,19 @@ private fun RunwayTimelineBlockRow(
                         val label = if (folderBadge != null) {
                             buildAnnotatedString {
                                 if (!folderBadge.prefix.isNullOrBlank()) {
-                                    withStyle(SpanStyle(color = colors.textMuted.copy(alpha = 0.65f))) {
+                                    withStyle(SpanStyle(color = colors.textMuted.copy(alpha = 0.60f))) {
                                         append(folderBadge.prefix)
                                     }
                                 }
-                                withStyle(SpanStyle(color = colors.textSecondary)) {
+                                withStyle(SpanStyle(color = colors.textMuted.copy(alpha = 0.90f))) {
                                     append(folderBadge.leaf)
                                 }
                             }
                         } else {
                             buildAnnotatedString {
-                                append(folderName.orEmpty())
+                                withStyle(SpanStyle(color = colors.textMuted.copy(alpha = 0.90f))) {
+                                    append(folderName.orEmpty())
+                                }
                             }
                         }
                         Text(
