@@ -19,7 +19,8 @@ data class AiConfig(
     val geminiModel: String = DEFAULT_GEMINI_MODEL,
     val openAiApiKey: String = "",
     val openAiModel: String = DEFAULT_OPENAI_MODEL,
-    val openAiBaseUrl: String = DEFAULT_OPENAI_BASE_URL
+    val openAiBaseUrl: String = DEFAULT_OPENAI_BASE_URL,
+    val customInstructions: String = ""
 ) {
     val activeApiKey: String
         get() = when (provider) {
@@ -59,7 +60,8 @@ data class AiWorkspaceContext(
     val currentWeekday: String,
     val languageTag: String,
     val folderPaths: List<String>,
-    val tagPaths: List<String>
+    val tagPaths: List<String>,
+    val customInstructions: String = ""
 )
 
 data class AiSubtaskDraft(

@@ -187,6 +187,7 @@ class SharedPrefsUserPreferencesRepository @Inject constructor(
             .putString(KEY_AI_OPENAI_KEY, config.openAiApiKey)
             .putString(KEY_AI_OPENAI_MODEL, config.openAiModel)
             .putString(KEY_AI_OPENAI_BASE_URL, config.openAiBaseUrl)
+            .putString(KEY_AI_CUSTOM_INSTRUCTIONS, config.customInstructions)
             .apply()
         _preferences.update { it.copy(aiConfig = config) }
     }
@@ -245,7 +246,8 @@ class SharedPrefsUserPreferencesRepository @Inject constructor(
                 .ifBlank { AiConfig.DEFAULT_OPENAI_MODEL },
             openAiBaseUrl = prefs.getString(KEY_AI_OPENAI_BASE_URL, AiConfig.DEFAULT_OPENAI_BASE_URL)
                 .orEmpty()
-                .ifBlank { AiConfig.DEFAULT_OPENAI_BASE_URL }
+                .ifBlank { AiConfig.DEFAULT_OPENAI_BASE_URL },
+            customInstructions = prefs.getString(KEY_AI_CUSTOM_INSTRUCTIONS, "").orEmpty()
         )
         return UserPreferences(
             isDarkTheme = isDark,
@@ -299,6 +301,7 @@ class SharedPrefsUserPreferencesRepository @Inject constructor(
         private const val KEY_AI_OPENAI_KEY = "ai_openai_key"
         private const val KEY_AI_OPENAI_MODEL = "ai_openai_model"
         private const val KEY_AI_OPENAI_BASE_URL = "ai_openai_base_url"
+        private const val KEY_AI_CUSTOM_INSTRUCTIONS = "ai_custom_instructions"
     }
 }
 

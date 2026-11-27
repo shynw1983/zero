@@ -2015,7 +2015,8 @@ class MainViewModel @Inject constructor(
             currentWeekday = today.dayOfWeek.name,
             languageTag = languageTag,
             folderPaths = state.folderFullPathById.values.sorted(),
-            tagPaths = state.tagPathById.values.sorted()
+            tagPaths = state.tagPathById.values.sorted(),
+            customInstructions = userPreferencesRepository.preferences.value.aiConfig.customInstructions.trim()
         )
     }
 

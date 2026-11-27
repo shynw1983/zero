@@ -377,12 +377,17 @@ object ZeroAiJsonParser {
         val primaryLang = languageTag.trim().lowercase().substringBefore('-').substringBefore('_')
         val styleSpec = when (primaryLang) {
             "ja" -> """
-                - TARGET OUTPUT LANGUAGE: Japanese (日本語) [locale=$languageTag].
-                - STRICT TRANSLATION: Regardless of whether the user's voice transcript, pasted note, or image is in Chinese, English, Korean, or mixed languages, translate and summarize EVERY generated text field (`title`, `firstStep`, `description`, `subtasks[].title`, `checklistItems[]`) into natural, concise Japanese.
-                - STYLE (新聞見出し・体言止め・常体): Write like Japanese newspaper headlines or telegraphic action labels—ultra-concise, noun-ended or plain-form, action-first, zero fluff.
-                - IDIOMATIC JAPANESE ONLY (中国語語彙の直訳・偽日本語禁止): Always translate concepts into everyday natural Japanese used in Japan (prefer standard Katakana/native words over literal Chinese-to-Kanji conversion). Examples: 后备箱→トランク (NEVER 後備箱), 手机→スマホ (NEVER 手機), 快递→宅配便/荷物 (NEVER 快逓), 电脑→PC (NEVER 電脳), 物业→管理会社.
-                - STRICTLY FORBIDDEN (敬語・丁寧語禁止): NEVER use polite forms, honorifics, or soft endings (`です`, `ます`, `してください`, `しましょう`, `お願いします`, `確認が必要です`, `〜すること`).
-                - Examples -> title: "仕訳資料送付", "レターパック購入", "11月分領収書照合", "税理士へ連絡" (NEVER "仕訳資料を税理士に送付してください"); firstStep: "領収書フォルダを開く"; checklist: "枚数確認", "切手代確認".
+                - 出力言語（最重要）: 必ず自然な「日本語」のみ（locale=$languageTag）。
+                - 簡体字・中国語熟語の残留完全禁止: 入力（音声・メモ・画像）が中国語・英語・韓国語・多言語混在であっても、`title` / `firstStep` / `description` / `subtasks[].title` / `checklistItems[]` のすべてを完全に自然な日本語へ意訳・要約すること。中国語の漢字をそのまま並べたり（例：「煤炉商品上架」「支付方式变更」「後備箱整理」）、簡体字を残すことは絶対禁止。
+                - 日本在住者の日常語彙・スラング意訳辞書（必ず現地の表現へ変換）:
+                  * 煤炉 → メルカリ / 上架 → 出品（「已经拍完照的商品 煤炉上架」→「撮影済み商品 メルカリ出品」）
+                  * 支付方式变更 → 支払い方法変更 / 取消・退订 → 解約
+                  * 后备箱 → トランク / 手机 → スマホ / 快递 → 宅配便・荷物 / 电脑 → PC / 物业 → 管理会社
+                  * 日亚 → Amazon / 乐天 → 楽天 / 大创 → ダイソー / 唐吉诃德 → ドンキ / 转运 → 転送便
+                - 文体（新聞見出し・体言止め・常体）: 最小限の文字数で一目で動作が分かる見出しにする。
+                - 敬語・丁寧語禁止: 「です」「ます」「してください」「しましょう」「お願いします」「確認が必要です」「〜すること」は絶対使わない。
+                - 良い例 -> title: "撮影済み商品 メルカリ出品", "支払い方法変更", "仕訳資料送付", "レターパック購入", "トランク整理"; checklist: "枚数確認", "送料確認"。
+                - 自己検証: JSON を返す直前に、各テキストに中国語の言い回しや不自然な直訳漢字が残っていないか確認し、残っていれば自然な日本語へ書き直すこと。
             """.trimIndent()
 
             "zh" -> """
@@ -416,13 +421,22 @@ object ZeroAiJsonParser {
         }
     }
 
-    fun buildCaptureSystemPrompt(context: AiWorkspaceContext): String = """
-You convert natural text, chat screenshots, bills, letters, or voice notes into structured tasks for ZERO.
-Always reply strictly with JSON matching:
+    fun buildCaptureSystemPrompt(context: AiWorkspaceContext): String {
+        val primaryLang = context.languageTag.trim().lowercase().substringBefore('-').substringBefore('_')
+        val header = if (primaryLang == "ja") {
+            "あなたは GTD アプリ「ZERO」専用のタスク構造化アシスタントです。ユーザーの自然文・音声・画像から実行可能なタスクを抽出し、必ず有効な JSON のみを返してください。"
+        } else {
+            "You convert natural text, chat screenshots, bills, letters, or voice notes into structured tasks for ZERO.\nAlways reply strictly with JSON matching:"
+        }
+        val customSection = context.customInstructions.trim().takeIf { it.isNotEmpty() }?.let {
+            "\n- USER CUSTOM GLOSSARY / RULES (HIGHEST PRIORITY):\n${it.take(600)}"
+        }.orEmpty()
+        return """
+$header
 {
   "tasks": [
     {
-      "title": "telegraphic headline task title in target UI language",
+      "title": "concise newspaper-headline task title in target UI language",
       "folderPath": "EXACT path from Existing folders if clearly matched, otherwise JSON null (NEVER invent a new folder name; unmatched tasks default to Inbox)",
       "tags": ["existing tag path (exact spelling) or concise scene tag without # in target UI language"],
       "dueDate": "YYYY-MM-DD" or "YYYY-MM-DD HH:mm", or JSON null if no date is mentioned,
@@ -442,18 +456,28 @@ Always reply strictly with JSON matching:
   ]
 }
 ZERO rules:
-${buildLanguageStyleDirective(context.languageTag)}
+${buildLanguageStyleDirective(context.languageTag)}$customSection
 - Context date: ${context.currentDateIso} (${context.currentWeekday}).
 - Existing folders: ${context.folderPaths.take(40).joinToString(", ").ifBlank { "(none)" }}
 - Existing tags: ${context.tagPaths.take(40).joinToString(", ").ifBlank { "(none)" }}
 - Prefer reusing existing folderPaths and tags accurately.
 - FIRST STEP DISCIPLINE: Default "firstStep" to JSON null for straightforward or single-action physical tasks (e.g., "トランク整理", "ゴミ出し", "牛乳購入", "薬を飲む"). ONLY set "firstStep" when the task is heavy/multi-step/vague AND the starter action genuinely lowers mental friction (e.g., "確定申告" → "領収書フォルダを開く"). NEVER output obvious tautologies like "トランクを開く" for "トランク整理" or "電話を取る" for "電話する".
 - Never include the final completion step itself as a subtask; if the task is small/single-sitting, keep subtasks empty.
-    """.trimIndent()
+        """.trimIndent()
+    }
 
-    fun buildBreakdownSystemPrompt(context: AiWorkspaceContext): String = """
-You help break down a task for ZERO (an anti-procrastination GTD app).
-Reply strictly with JSON:
+    fun buildBreakdownSystemPrompt(context: AiWorkspaceContext): String {
+        val primaryLang = context.languageTag.trim().lowercase().substringBefore('-').substringBefore('_')
+        val header = if (primaryLang == "ja") {
+            "あなたは先延ばし防止 GTD アプリ「ZERO」のタスク分解アシスタントです。必ず以下の形式の JSON のみを返してください。"
+        } else {
+            "You help break down a task for ZERO (an anti-procrastination GTD app).\nReply strictly with JSON:"
+        }
+        val customSection = context.customInstructions.trim().takeIf { it.isNotEmpty() }?.let {
+            "\n- USER CUSTOM GLOSSARY / RULES (HIGHEST PRIORITY):\n${it.take(600)}"
+        }.orEmpty()
+        return """
+$header
 {
   "firstStep": "one ultra-tiny <=20 char physical starter action in target UI language",
   "estimatedMinutes": 5|25|60,
@@ -469,12 +493,52 @@ Reply strictly with JSON:
   ]
 }
 ZERO rules:
-${buildLanguageStyleDirective(context.languageTag)}
+${buildLanguageStyleDirective(context.languageTag)}$customSection
 - Context date: ${context.currentDateIso}.
 - Existing tags: ${context.tagPaths.take(40).joinToString(", ").ifBlank { "(none)" }}
 - Keep subtasks focused (0-4 items) ONLY for genuine separate prerequisites; put quick in-sitting verification steps into checklistItems (0-5 items).
 - Avoid obvious tautologies in firstStep (never output trivial restatements of the task title like "トランクを開く" for "トランク整理").
-    """.trimIndent()
+        """.trimIndent()
+    }
+
+    fun buildCaptureUserPrompt(
+        effectiveText: String,
+        hasImage: Boolean,
+        hasAudio: Boolean,
+        languageTag: String
+    ): String {
+        val primaryLang = languageTag.trim().lowercase().substringBefore('-').substringBefore('_')
+        return buildString {
+            if (effectiveText.isNotBlank()) {
+                when (primaryLang) {
+                    "ja" -> append("以下の内容を、中国語表現や簡体字を一切残さず自然な日本語（新聞見出し風・敬語なし）へ意訳してタスクJSONにしてください。\n\nメモ:\n")
+                    "zh" -> append("请将以下内容精准提炼为极简简体中文动宾短语任务 JSON：\n\n记录：\n")
+                    "ko" -> append("아래 내용을 간결한 한국어 명사형·개조식(존댓말 금지) 태스크 JSON으로 번역·요약하세요.\n\n메모:\n")
+                    else -> append("Translate and summarize the following into concise newspaper-headline English tasks JSON:\n\nNote:\n")
+                }
+                append(effectiveText)
+            } else if (hasAudio && !hasImage) {
+                when (primaryLang) {
+                    "ja" -> append("音声メモを聞き取り、中国語や他言語が混在していても必ず自然な日本語（新聞見出し風・敬語なし）でタスクJSONにしてください。")
+                    "zh" -> append("请识别语音内容并翻译整理为极简简体中文动宾短语任务 JSON。")
+                    "ko" -> append("음성 메모를 듣고 자연스러운 한국어 개조식(존댓말 금지) 태스크 JSON으로 정리하세요.")
+                    else -> append("Listen carefully to this voice note and translate/summarize all actionable tasks into concise English JSON.")
+                }
+            } else if (hasAudio) {
+                when (primaryLang) {
+                    "ja" -> append("音声メモと添付画像を確認し、自然な日本語（新聞見出し風・敬語なし）でタスクJSONにしてください。")
+                    else -> append("Listen to this voice note and inspect the attached image, then extract all actionable tasks in target UI language JSON.")
+                }
+            } else {
+                when (primaryLang) {
+                    "ja" -> append("添付画像から対応すべきタスク・期限・補足情報を読み取り、自然な日本語（新聞見出し風・敬語なし）でタスクJSONにしてください。")
+                    "zh" -> append("请识别图片中的待办事项、截止日期与关键参考信息，整理为简体中文极简任务 JSON。")
+                    "ko" -> append("첨부 이미지에서 할 일, 마감일, 참고 정보를 추출하여 간결한 한국어(존댓말 금지) 태스크 JSON으로 정리하세요.")
+                    else -> append("Extract actionable tasks, deadlines, and reference details from this image in concise English JSON.")
+                }
+            }
+        }
+    }
 }
 
 @Singleton
@@ -518,17 +582,12 @@ class ZeroAiEngine @Inject constructor() {
                 transcribedAudio?.trim()?.takeIf { it.isNotEmpty() }
             ).joinToString("\n")
 
-            val userPrompt = buildString {
-                if (effectiveText.isNotBlank()) {
-                    append("Note:\n").append(effectiveText)
-                } else if (audio != null && image == null) {
-                    append("Listen carefully to this voice note, then extract and translate all actionable tasks into the target UI language following the ZERO rules.")
-                } else if (audio != null) {
-                    append("Listen to this voice note and inspect the attached image, then extract all actionable tasks into the target UI language.")
-                } else {
-                    append("Extract actionable tasks, deadlines, and reference details from this image.")
-                }
-            }
+            val userPrompt = ZeroAiJsonParser.buildCaptureUserPrompt(
+                effectiveText = effectiveText,
+                hasImage = image != null,
+                hasAudio = audio != null,
+                languageTag = context.languageTag
+            )
 
             val raw = executePrompt(
                 config = config,

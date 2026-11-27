@@ -391,16 +391,15 @@ fun AiCaptureDialog(
                         .padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    // Camera + Gallery + Voice + Loading Row
+                    // Camera + Gallery + Voice (equal width so labels never clip on compact screens)
                     Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Row(
                             modifier = Modifier
+                                .weight(1f)
                                 .height(38.dp)
                                 .clip(ZeroSmallShape)
                                 .background(colors.surface)
@@ -409,25 +408,28 @@ fun AiCaptureDialog(
                                     haptics.reorderTick()
                                     launchCamera()
                                 }
-                                .padding(horizontal = 12.dp),
+                                .padding(horizontal = 6.dp),
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterHorizontally)
                         ) {
                             Icon(
                                 imageVector = Icons.Rounded.PhotoCamera,
                                 contentDescription = null,
                                 tint = colors.accent,
-                                modifier = Modifier.size(16.dp)
+                                modifier = Modifier.size(15.dp)
                             )
                             Text(
                                 text = stringResource(R.string.ai_capture_camera_btn),
                                 style = MaterialTheme.typography.labelMedium,
-                                color = colors.textPrimary
+                                color = colors.textPrimary,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                         }
 
                         Row(
                             modifier = Modifier
+                                .weight(1f)
                                 .height(38.dp)
                                 .clip(ZeroSmallShape)
                                 .background(colors.surface)
@@ -436,25 +438,28 @@ fun AiCaptureDialog(
                                     haptics.reorderTick()
                                     pickImageLauncher.launch("image/*")
                                 }
-                                .padding(horizontal = 12.dp),
+                                .padding(horizontal = 6.dp),
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterHorizontally)
                         ) {
                             Icon(
                                 imageVector = Icons.Rounded.Image,
                                 contentDescription = null,
                                 tint = colors.textSecondary,
-                                modifier = Modifier.size(16.dp)
+                                modifier = Modifier.size(15.dp)
                             )
                             Text(
                                 text = stringResource(R.string.ai_capture_gallery_btn),
                                 style = MaterialTheme.typography.labelMedium,
-                                color = colors.textPrimary
+                                color = colors.textPrimary,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                         }
 
                         Row(
                             modifier = Modifier
+                                .weight(1f)
                                 .height(38.dp)
                                 .clip(ZeroSmallShape)
                                 .background(if (isRecording) colors.priorityUrgent.copy(alpha = 0.16f) else colors.surface)
@@ -466,30 +471,42 @@ fun AiCaptureDialog(
                                     haptics.reorderTick()
                                     toggleVoiceRecording()
                                 }
-                                .padding(horizontal = 12.dp),
+                                .padding(horizontal = 6.dp),
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterHorizontally)
                         ) {
                             Icon(
                                 imageVector = if (isRecording) Icons.Rounded.Stop else Icons.Rounded.Mic,
                                 contentDescription = null,
                                 tint = if (isRecording) colors.priorityUrgent else colors.accent,
-                                modifier = Modifier.size(16.dp)
+                                modifier = Modifier.size(15.dp)
                             )
                             Text(
                                 text = stringResource(
                                     if (isRecording) R.string.ai_voice_stop_and_analyze else R.string.ai_capture_voice_btn
                                 ),
                                 style = MaterialTheme.typography.labelMedium,
-                                color = if (isRecording) colors.priorityUrgent else colors.textPrimary
+                                color = if (isRecording) colors.priorityUrgent else colors.textPrimary,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                         }
+                    }
 
-                        if (encodingImage) {
+                    if (encodingImage) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
                             CircularProgressIndicator(
                                 strokeWidth = 2.dp,
                                 color = colors.accent,
-                                modifier = Modifier.size(18.dp)
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Text(
+                                text = stringResource(R.string.ai_capture_image_attached),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = colors.textMuted
                             )
                         }
                     }

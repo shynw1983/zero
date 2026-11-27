@@ -502,4 +502,6 @@
     <string name="ai_voice_stop_and_analyze">说完提取</string>
     <string name="ai_voice_permission_denied">请先允许麦克风权限后再使用语音录入</string>
     <string name="ai_voice_recording_failed">录音过短或启动失败，请重试</string>
+    <string name="settings_ai_custom_instructions_label">个人 AI 术语词表与偏好规则（选填）</string>
+    <string name="settings_ai_custom_instructions_placeholder">例：煤炉=メルカリ，上架=出品，默认日文不超过12字</string>
 </resources>

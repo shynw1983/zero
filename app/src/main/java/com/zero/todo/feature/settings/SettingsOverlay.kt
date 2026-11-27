@@ -1579,6 +1579,7 @@ private fun AiEngineSettingsCard(
     var openAiKeyDraft by remember(aiConfig.openAiApiKey) { mutableStateOf(aiConfig.openAiApiKey) }
     var openAiModelDraft by remember(aiConfig.openAiModel) { mutableStateOf(aiConfig.openAiModel) }
     var openAiBaseUrlDraft by remember(aiConfig.openAiBaseUrl) { mutableStateOf(aiConfig.openAiBaseUrl) }
+    var customInstructionsDraft by remember(aiConfig.customInstructions) { mutableStateOf(aiConfig.customInstructions) }
     var showKey by remember { mutableStateOf(false) }
 
     fun pushCurrentDraft(providerOverride: AiProvider = aiConfig.provider) {
@@ -1589,7 +1590,8 @@ private fun AiEngineSettingsCard(
                 geminiModel = geminiModelDraft.trim().ifBlank { AiConfig.DEFAULT_GEMINI_MODEL },
                 openAiApiKey = openAiKeyDraft,
                 openAiModel = openAiModelDraft.trim().ifBlank { AiConfig.DEFAULT_OPENAI_MODEL },
-                openAiBaseUrl = openAiBaseUrlDraft.trim().ifBlank { AiConfig.DEFAULT_OPENAI_BASE_URL }
+                openAiBaseUrl = openAiBaseUrlDraft.trim().ifBlank { AiConfig.DEFAULT_OPENAI_BASE_URL },
+                customInstructions = customInstructionsDraft.trim()
             )
         )
     }
@@ -1768,6 +1770,41 @@ private fun AiEngineSettingsCard(
                         pushCurrentDraft()
                     }
                 )
+            }
+
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    text = stringResource(R.string.settings_ai_custom_instructions_label),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = colors.textMuted
+                )
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 58.dp, max = 110.dp)
+                        .clip(ZeroSmallShape)
+                        .background(colors.background)
+                        .hairlineBorder(shape = ZeroSmallShape)
+                        .padding(horizontal = 10.dp, vertical = 9.dp)
+                ) {
+                    if (customInstructionsDraft.isEmpty()) {
+                        Text(
+                            text = stringResource(R.string.settings_ai_custom_instructions_placeholder),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = colors.textMuted
+                        )
+                    }
+                    BasicTextField(
+                        value = customInstructionsDraft,
+                        onValueChange = {
+                            customInstructionsDraft = it
+                            pushCurrentDraft()
+                        },
+                        textStyle = MaterialTheme.typography.bodySmall.copy(color = colors.textPrimary),
+                        cursorBrush = SolidColor(colors.accent),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
             }
 
             val isBusy = testStatus == AiTestStatus.Working
