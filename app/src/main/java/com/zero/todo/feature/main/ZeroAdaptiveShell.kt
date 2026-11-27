@@ -93,6 +93,7 @@ import com.zero.todo.domain.model.ExecuteTheme
 import com.zero.todo.domain.model.FocusMode
 import com.zero.todo.domain.model.Folder
 import com.zero.todo.domain.model.FolderNode
+import com.zero.todo.domain.model.FolderPathDisplayMode
 import com.zero.todo.domain.model.TagItem
 import com.zero.todo.domain.model.TaskItem
 import com.zero.todo.domain.model.TaskPriority
@@ -166,8 +167,9 @@ data class ZeroShellCallbacks(
     val onRescheduleOverdueToToday: () -> Unit = {},
     val onPrefillQuickInputPriority: (TaskPriority) -> Unit = {},
     val onToggleFolderExpanded: (folderId: String, isExpanded: Boolean) -> Unit = { _, _ -> },
-    val onCreateFolder: (name: String, parentId: String?) -> Unit = { _, _ -> },
+    val onCreateFolder: (name: String, parentId: String?, colorHex: String?) -> Unit = { _, _, _ -> },
     val onRenameFolder: (folderId: String, newName: String) -> Unit = { _, _ -> },
+    val onUpdateFolderColor: (folderId: String, colorHex: String?) -> Unit = { _, _ -> },
     val onMoveFolderOrder: (folderId: String, direction: Int) -> Unit = { _, _ -> },
     val onMoveFolderToParent: (folderId: String, targetParentId: String?) -> Unit = { _, _ -> },
     val onDeleteFolder: (folderId: String) -> Unit = {},
@@ -206,6 +208,7 @@ data class ZeroShellCallbacks(
     val onSetTaskSwipeAction: (TaskSwipeDirection, TaskSwipeAction) -> Unit = { _, _ -> },
     val onSetHapticsEnabled: (Boolean) -> Unit = {},
     val onSetAppLanguage: (AppLanguage) -> Unit = {},
+    val onSetFolderPathDisplayMode: (FolderPathDisplayMode) -> Unit = {},
     val onUpdateNotificationPreferences: (NotificationPreferences) -> Unit = {},
     val onUpdateWebDavConfig: (WebDavConfig) -> Unit = {},
     val onTestWebDav: () -> Unit = {},
@@ -552,6 +555,7 @@ fun ZeroAdaptiveShell(
             TriageDeckOverlay(
                 queue = uiState.triageQueue,
                 quickFolders = uiState.quickFolders,
+                folderBadgeById = uiState.folderBadgeById,
                 onScheduleToday = callbacks.onTriageScheduleToday,
                 onDeferTomorrow = callbacks.onTriageDeferTomorrow,
                 onMoveToFolder = callbacks.onTriageMoveToFolder,
@@ -597,6 +601,7 @@ fun ZeroAdaptiveShell(
                 hapticsEnabled = uiState.hapticsEnabled,
                 appLanguage = uiState.appLanguage,
                 dailyCapacityMinutes = uiState.dailyCapacityMinutes,
+                folderPathDisplayMode = uiState.folderPathDisplayMode,
                 notificationPreferences = uiState.notificationPreferences,
                 webDavConfig = uiState.webDavConfig,
                 webDavStatus = uiState.webDavStatus,
@@ -608,6 +613,7 @@ fun ZeroAdaptiveShell(
                 onSetHapticsEnabled = callbacks.onSetHapticsEnabled,
                 onSetAppLanguage = callbacks.onSetAppLanguage,
                 onSetDailyCapacityMinutes = callbacks.onSetDailyCapacityMinutes,
+                onSetFolderPathDisplayMode = callbacks.onSetFolderPathDisplayMode,
                 onUpdateNotificationPreferences = callbacks.onUpdateNotificationPreferences,
                 onUpdateWebDavConfig = callbacks.onUpdateWebDavConfig,
                 onTestWebDav = callbacks.onTestWebDav,
@@ -641,6 +647,9 @@ fun ZeroAdaptiveShell(
     if (menuFolder != null) {
         FolderActionMenuDialog(
             folder = menuFolder,
+            inheritedColorHex = uiState.folderColorHexById[menuFolder.id],
+            rootProjectName = uiState.folderRootNameById[menuFolder.id],
+            onSelectColor = { hex -> callbacks.onUpdateFolderColor(menuFolder.id, hex) },
             onCreateSubfolder = { openCreateFolderDialog(menuFolder) },
             onRename = { renameTargetFolder = menuFolder },
             onOrganize = { organizeTargetFolder = menuFolder },
@@ -653,9 +662,9 @@ fun ZeroAdaptiveShell(
         CreateFolderDialog(
             parentFolder = createFolderParent,
             onDismiss = { showCreateFolderDialog = false },
-            onConfirm = { name, parentId ->
+            onConfirm = { name, parentId, colorHex ->
                 showCreateFolderDialog = false
-                callbacks.onCreateFolder(name, parentId)
+                callbacks.onCreateFolder(name, parentId, colorHex)
             }
         )
     }
@@ -893,6 +902,7 @@ private fun CenterWorkspacePane(
                 viewMode = uiState.calendarViewMode,
                 allActiveTasks = uiState.allActiveTasks,
                 folderNameById = uiState.folderNameById,
+                folderBadgeById = uiState.folderBadgeById,
                 selectedTaskId = uiState.selectedTaskId,
                 antiMisclickMode = uiState.antiMisclickMode,
                 taskSwipeActions = uiState.taskSwipeActions,
@@ -980,6 +990,11 @@ private fun CenterWorkspacePane(
                 tasks = uiState.tasks,
                 allActiveTasks = uiState.allActiveTasks,
                 folderNameById = uiState.folderNameById,
+                folderBadgeById = if (!uiState.isSearchOpen && dest is NavigationDestination.FolderView) {
+                    uiState.relativeFolderBadgeById
+                } else {
+                    uiState.folderBadgeById
+                },
                 selectedTaskId = uiState.selectedTaskId,
                 antiMisclickMode = uiState.antiMisclickMode,
                 taskSwipeActions = uiState.taskSwipeActions,
@@ -1033,6 +1048,10 @@ private fun BoundTaskDetailPane(
         task = uiState.selectedTask,
         currentDate = uiState.currentDate,
         folderName = uiState.selectedTask?.folderId?.let { uiState.folderNameById[it] },
+        folderBadge = uiState.selectedTask?.folderId?.let { uiState.folderBadgeById[it] },
+        folderBreadcrumbs = uiState.selectedTask?.folderId?.let { uiState.folderBreadcrumbsById[it] }.orEmpty(),
+        folderColorHexById = uiState.folderColorHexById,
+        folderFullPathById = uiState.folderFullPathById,
         folderTree = uiState.folderTree,
         subtasks = uiState.selectedTaskSubtasks,
         parentTask = uiState.selectedTask?.parentTaskId?.let { id -> uiState.allActiveTasks.firstOrNull { it.id == id } },
@@ -1109,6 +1128,7 @@ private fun CompactSinglePaneLayout(
             ) {
                 FolderTreePanel(
                     folderTree = uiState.folderTree,
+                    folderColorHexById = uiState.folderColorHexById,
                     tagsWithCounts = uiState.tagsWithCounts,
                     selectedDestination = uiState.selectedDestination,
                     smartViewCounts = uiState.smartViewCounts,
@@ -1215,6 +1235,7 @@ private fun MediumTwoPaneLayout(
             ) {
                 FolderTreePanel(
                     folderTree = uiState.folderTree,
+                    folderColorHexById = uiState.folderColorHexById,
                     tagsWithCounts = uiState.tagsWithCounts,
                     selectedDestination = uiState.selectedDestination,
                     smartViewCounts = uiState.smartViewCounts,
@@ -1261,6 +1282,7 @@ private fun MediumTwoPaneLayout(
                 ) {
                     FolderTreePanel(
                         folderTree = uiState.folderTree,
+                        folderColorHexById = uiState.folderColorHexById,
                         tagsWithCounts = uiState.tagsWithCounts,
                         selectedDestination = uiState.selectedDestination,
                         smartViewCounts = uiState.smartViewCounts,
@@ -1337,6 +1359,7 @@ private fun ExpandedThreePaneLayout(
     Row(modifier = modifier.fillMaxSize()) {
         FolderTreePanel(
             folderTree = uiState.folderTree,
+            folderColorHexById = uiState.folderColorHexById,
             tagsWithCounts = uiState.tagsWithCounts,
             selectedDestination = uiState.selectedDestination,
             smartViewCounts = uiState.smartViewCounts,

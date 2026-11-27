@@ -72,11 +72,14 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.zero.todo.R
@@ -85,6 +88,7 @@ import com.zero.todo.core.designsystem.ZeroMotion
 import com.zero.todo.core.designsystem.ZeroSmallShape
 import com.zero.todo.core.designsystem.ZeroTheme
 import com.zero.todo.core.designsystem.hairlineBorder
+import com.zero.todo.core.designsystem.parseFolderColorHex
 import com.zero.todo.core.designsystem.rememberZeroHaptics
 import com.zero.todo.domain.model.EffortTier
 import com.zero.todo.domain.model.FocusMode
@@ -351,15 +355,57 @@ fun MonolithThemeView(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    val folderLabel = activeTask.folderId?.let(state.folderNameById::get)
+                    val folderBadge = activeTask.folderId?.let(state.monolithFolderBadgeById::get)
+                    val fallbackFolderName = activeTask.folderId?.let(state.folderNameById::get)
                     val effortLabel = activeTask.estimatedMinutes?.let { "${it}m" }
-                    val metaCaption = listOfNotNull(folderLabel, effortLabel).joinToString(" · ")
-                    if (metaCaption.isNotEmpty()) {
-                        Text(
-                            text = metaCaption,
-                            style = tabular.dateCompact,
-                            color = colors.textMuted
-                        )
+                    val dotColor = parseFolderColorHex(folderBadge?.colorHex)
+                    if (folderBadge != null || fallbackFolderName != null || effortLabel != null) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            if (dotColor != null) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(6.dp)
+                                        .clip(CircleShape)
+                                        .background(dotColor)
+                                )
+                            }
+                            val caption = buildAnnotatedString {
+                                if (folderBadge != null) {
+                                    if (!folderBadge.prefix.isNullOrBlank()) {
+                                        withStyle(SpanStyle(color = colors.textMuted.copy(alpha = 0.65f))) {
+                                            append(folderBadge.prefix)
+                                        }
+                                    }
+                                    withStyle(SpanStyle(color = colors.textSecondary)) {
+                                        append(folderBadge.leaf)
+                                    }
+                                } else if (fallbackFolderName != null) {
+                                    withStyle(SpanStyle(color = colors.textSecondary)) {
+                                        append(fallbackFolderName)
+                                    }
+                                }
+                                if (effortLabel != null) {
+                                    if (folderBadge != null || fallbackFolderName != null) {
+                                        withStyle(SpanStyle(color = colors.textMuted)) {
+                                            append(" · ")
+                                        }
+                                    }
+                                    withStyle(SpanStyle(color = colors.textMuted)) {
+                                        append(effortLabel)
+                                    }
+                                }
+                            }
+                            Text(
+                                text = caption,
+                                style = tabular.dateCompact,
+                                color = colors.textMuted,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
                     }
 
                     // Centered Large Title (Tap -> Minimalist BottomSheet)

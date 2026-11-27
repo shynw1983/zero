@@ -31,6 +31,7 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
@@ -69,9 +70,12 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import com.zero.todo.R
 import com.zero.todo.core.common.RecurrenceRule
@@ -85,9 +89,11 @@ import com.zero.todo.core.designsystem.ZeroTheme
 import com.zero.todo.core.designsystem.hairlineBorder
 import com.zero.todo.core.designsystem.hairlineDividerBottom
 import com.zero.todo.core.designsystem.hairlineDividerTop
+import com.zero.todo.core.designsystem.parseFolderColorHex
 import com.zero.todo.core.designsystem.rememberZeroHaptics
 import com.zero.todo.domain.model.EffortTier
 import com.zero.todo.domain.model.FocusMode
+import com.zero.todo.domain.model.FolderBadgeDisplay
 import com.zero.todo.domain.model.FolderNode
 import com.zero.todo.domain.model.TagItem
 import com.zero.todo.domain.model.TaskItem
@@ -134,6 +140,10 @@ fun TaskDetailPane(
     task: TaskItem?,
     currentDate: LocalDate,
     folderName: String?,
+    folderBadge: FolderBadgeDisplay? = null,
+    folderBreadcrumbs: List<String> = emptyList(),
+    folderColorHexById: Map<String, String> = emptyMap(),
+    folderFullPathById: Map<String, String> = emptyMap(),
     folderTree: List<FolderNode>,
     subtasks: List<TaskItem>,
     parentTask: TaskItem?,
@@ -321,14 +331,31 @@ fun TaskDetailPane(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
+                    val chipProjectColor = parseFolderColorHex(folderBadge?.colorHex)
                     Icon(
                         imageVector = Icons.Rounded.Folder,
                         contentDescription = null,
-                        tint = colors.textSecondary,
+                        tint = chipProjectColor ?: colors.textSecondary,
                         modifier = Modifier.size(14.dp)
                     )
+                    val chipText = if (folderBadge != null) {
+                        buildAnnotatedString {
+                            if (!folderBadge.prefix.isNullOrBlank()) {
+                                withStyle(SpanStyle(color = colors.textMuted)) {
+                                    append(folderBadge.prefix)
+                                }
+                            }
+                            withStyle(SpanStyle(color = colors.textSecondary)) {
+                                append(folderBadge.leaf)
+                            }
+                        }
+                    } else {
+                        buildAnnotatedString {
+                            append(folderName ?: stringResource(R.string.nav_inbox))
+                        }
+                    }
                     Text(
-                        text = folderName ?: stringResource(R.string.nav_inbox),
+                        text = chipText,
                         style = MaterialTheme.typography.labelMedium,
                         color = colors.textSecondary,
                         maxLines = 1,
@@ -454,6 +481,36 @@ fun TaskDetailPane(
             if (parentTask != null) {
                 TextButton(onClick = { onOpenRelatedTask(parentTask.id) }, modifier = Modifier.heightIn(min = 48.dp)) {
                     Text(stringResource(R.string.task_parent_link, parentTask.title), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+            }
+            if (folderBreadcrumbs.size >= 3) {
+                val crumbColor = parseFolderColorHex(folderBadge?.colorHex)
+                Row(
+                    modifier = Modifier
+                        .clip(ZeroSmallShape)
+                        .clickable {
+                            haptics.reorderTick()
+                            showFolderPicker = true
+                        }
+                        .padding(vertical = 2.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    if (crumbColor != null) {
+                        Box(
+                            modifier = Modifier
+                                .size(6.dp)
+                                .clip(CircleShape)
+                                .background(crumbColor)
+                        )
+                    }
+                    Text(
+                        text = folderBreadcrumbs.joinToString(" › "),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = colors.textMuted,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
                 }
             }
             // Editable Title
@@ -1484,6 +1541,8 @@ fun TaskDetailPane(
         FolderPickerDialog(
             folderTree = folderTree,
             currentFolderId = task.folderId,
+            folderColorHexById = folderColorHexById,
+            folderFullPathById = folderFullPathById,
             onSelectFolder = { targetFolderId ->
                 haptics.confirm()
                 onMoveTaskToFolder(task.id, targetFolderId)

@@ -185,6 +185,7 @@ fun ZeroAppRoot(
             onToggleFolderExpanded = viewModel::setFolderExpanded,
             onCreateFolder = viewModel::createFolder,
             onRenameFolder = viewModel::renameFolder,
+            onUpdateFolderColor = viewModel::updateFolderColor,
             onMoveFolderOrder = viewModel::moveFolderOrder,
             onMoveFolderToParent = viewModel::moveFolderToParent,
             onDeleteFolder = viewModel::deleteFolder,
@@ -243,6 +244,7 @@ fun ZeroAppRoot(
                 }
             },
             onUpdateWebDavConfig = viewModel::updateWebDavConfig,
+            onSetFolderPathDisplayMode = viewModel::setFolderPathDisplayMode,
             onUpdateNotificationPreferences = viewModel::updateNotificationPreferences,
             onTestWebDav = viewModel::testWebDavConnection,
             onPushWebDav = viewModel::pushWebDavBackup,

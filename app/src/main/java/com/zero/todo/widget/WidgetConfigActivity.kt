@@ -80,7 +80,10 @@ import com.zero.todo.data.local.entity.FolderEntity
 import com.zero.todo.data.local.entity.TagEntity
 import com.zero.todo.data.preferences.SharedPrefsUserPreferencesRepository
 import com.zero.todo.data.preferences.UserPreferencesRepository
+import com.zero.todo.data.repository.toDomain
 import com.zero.todo.domain.model.AppLanguage
+import com.zero.todo.domain.model.FolderPathDisplayMode
+import com.zero.todo.domain.model.FolderPathFormatter
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
 import java.util.Locale
@@ -167,6 +170,7 @@ class WidgetConfigActivity : ComponentActivity() {
                     isQuickCapture = isQuickCapture,
                     appIsDark = prefs.isDarkTheme,
                     appAccent = prefs.accent,
+                    folderPathDisplayMode = prefs.folderPathDisplayMode,
                     initialConfig = initialConfig,
                     loadFolders = { folderDao.getActiveFolders() },
                     loadTags = { tagDao.getActiveTagsSnapshot() },
@@ -205,6 +209,7 @@ private fun WidgetConfigScreen(
     isQuickCapture: Boolean,
     appIsDark: Boolean,
     appAccent: ZeroAccent,
+    folderPathDisplayMode: FolderPathDisplayMode,
     initialConfig: ZeroWidgetConfig,
     loadFolders: suspend () -> List<FolderEntity>,
     loadTags: suspend () -> List<TagEntity>,
@@ -250,11 +255,18 @@ private fun WidgetConfigScreen(
         resolveWidgetPalette(draft, appIsDark, appAccent)
     }
 
-    val headerTitlePreview = remember(draft, folders, tags, tagDisplayNames, context) {
+    val folderIndex = remember(folders) {
+        FolderPathFormatter.buildIndex(folders.map { it.toDomain() })
+    }
+
+    val headerTitlePreview = remember(draft, folders, folderIndex, folderPathDisplayMode, tags, tagDisplayNames, context) {
         resolveWidgetHeaderTitle(
             locContext = context,
             config = draft,
-            folderName = draft.folderId?.let { fid -> folders.firstOrNull { it.id == fid }?.name },
+            folderName = draft.folderId?.let { fid ->
+                folderIndex.badgeFor(fid, folderPathDisplayMode)?.fullText
+                    ?: folders.firstOrNull { it.id == fid }?.name
+            },
             tagName = draft.tagId?.let { tid -> tagDisplayNames[tid] ?: tags.firstOrNull { it.id == tid }?.name }
         )
     }

@@ -443,4 +443,16 @@
     <string name="settings_notif_test_btn">发送测试通知</string>
     <string name="settings_notif_test_sent">测试通知已发出，请查看系统状态栏</string>
     <string name="settings_notif_test_blocked">请先开启上方的系统通知权限</string>
+
+    <!-- v2.7.0: 文件夹智能路径消歧与项目色点 -->
+    <string name="settings_folder_path_title">文件夹路径显示</string>
+    <string name="settings_folder_path_smart">智能消歧</string>
+    <string name="settings_folder_path_root_leaf">项目 / 目录</string>
+    <string name="settings_folder_path_full">完整路径</string>
+    <string name="settings_folder_path_desc_smart">仅当存在同名目录时自动补全所属项目，唯一目录保持简洁</string>
+    <string name="settings_folder_path_desc_root_leaf">始终显示顶层项目与当前子目录（例：项目/…/子目录）</string>
+    <string name="settings_folder_path_desc_full">始终展示完整的嵌套目录路径</string>
+    <string name="folder_color_label">项目色点</string>
+    <string name="folder_color_none">无</string>
+    <string name="folder_color_inherited_hint">自动继承自「%1$s」</string>
 </resources>

@@ -58,8 +58,10 @@ import com.zero.todo.core.designsystem.ZeroSmallShape
 import com.zero.todo.core.designsystem.ZeroTheme
 import com.zero.todo.core.designsystem.hairlineBorder
 import com.zero.todo.core.designsystem.hairlineDividerBottom
+import com.zero.todo.core.designsystem.parseFolderColorHex
 import com.zero.todo.core.designsystem.rememberZeroHaptics
 import com.zero.todo.domain.model.Folder
+import com.zero.todo.domain.model.FolderBadgeDisplay
 import com.zero.todo.domain.model.TaskItem
 import kotlinx.coroutines.launch
 import kotlin.math.abs
@@ -77,6 +79,7 @@ import kotlin.math.roundToInt
 fun TriageDeckOverlay(
     queue: List<TaskItem>,
     quickFolders: List<Folder>,
+    folderBadgeById: Map<String, FolderBadgeDisplay> = emptyMap(),
     onScheduleToday: (TaskItem) -> Unit,
     onDeferTomorrow: (TaskItem) -> Unit,
     onMoveToFolder: (TaskItem, String) -> Unit,
@@ -366,6 +369,8 @@ fun TriageDeckOverlay(
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             quickFolders.forEach { folder ->
+                                val badge = folderBadgeById[folder.id]
+                                val dotColor = parseFolderColorHex(badge?.colorHex)
                                 Row(
                                     modifier = Modifier
                                         .heightIn(min = 44.dp)
@@ -380,14 +385,23 @@ fun TriageDeckOverlay(
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                                 ) {
-                                    Icon(
-                                        imageVector = Icons.Rounded.Folder,
-                                        contentDescription = null,
-                                        tint = colors.accent,
-                                        modifier = Modifier.size(16.dp)
-                                    )
+                                    if (dotColor != null) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(7.dp)
+                                                .clip(CircleShape)
+                                                .background(dotColor)
+                                        )
+                                    } else {
+                                        Icon(
+                                            imageVector = Icons.Rounded.Folder,
+                                            contentDescription = null,
+                                            tint = colors.accent,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    }
                                     Text(
-                                        text = folder.name,
+                                        text = badge?.fullText ?: folder.name,
                                         style = MaterialTheme.typography.labelLarge,
                                         color = colors.textPrimary
                                     )

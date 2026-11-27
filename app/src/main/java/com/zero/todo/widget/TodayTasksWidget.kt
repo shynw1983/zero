@@ -44,6 +44,8 @@ import com.zero.todo.R
 import com.zero.todo.core.common.ZeroDateFormatter
 import com.zero.todo.core.notification.syncTaskReminder
 import com.zero.todo.data.local.entity.TaskEntity
+import com.zero.todo.data.repository.toDomain
+import com.zero.todo.domain.model.FolderPathFormatter
 import java.time.LocalDate
 
 private val PARAM_TASK_ID = ActionParameters.Key<String>("zero_widget_task_id")
@@ -77,11 +79,16 @@ class TodayTasksWidget : GlanceAppWidget() {
             allTags = allTags
         )
         val tagPaths = WidgetTaskQueryEngine.buildTagPathMap(allTags)
+        val pathMode = entryPoint.userPreferencesRepository().preferences.value.folderPathDisplayMode
+        val folderIndex = FolderPathFormatter.buildIndex(allFolders.map { it.toDomain() })
 
         val headerTitle = resolveWidgetHeaderTitle(
             locContext = locContext,
             config = config,
-            folderName = config.folderId?.let { fid -> allFolders.firstOrNull { it.id == fid }?.name },
+            folderName = config.folderId?.let { fid ->
+                folderIndex.badgeFor(fid, pathMode)?.fullText
+                    ?: allFolders.firstOrNull { it.id == fid }?.name
+            },
             tagName = config.tagId?.let { tid -> tagPaths[tid] ?: allTags.firstOrNull { it.id == tid }?.name }
         )
 

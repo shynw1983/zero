@@ -26,6 +26,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.rounded.Undo
@@ -60,9 +61,12 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.zero.todo.R
@@ -73,6 +77,7 @@ import com.zero.todo.core.designsystem.ZeroMotion
 import com.zero.todo.core.designsystem.ZeroSmallShape
 import com.zero.todo.core.designsystem.ZeroTheme
 import com.zero.todo.core.designsystem.hairlineBorder
+import com.zero.todo.core.designsystem.parseFolderColorHex
 import com.zero.todo.core.designsystem.rememberZeroHaptics
 import com.zero.todo.domain.model.AntiMisclickMode
 import com.zero.todo.domain.model.TaskItem
@@ -107,6 +112,8 @@ fun AntiMisclickTaskCard(
     isDragging: Boolean,
     dragOffsetY: Float,
     folderBadgeName: String?,
+    folderBadgePrefix: String? = null,
+    folderBadgeColorHex: String? = null,
     antiMisclickMode: AntiMisclickMode = AntiMisclickMode.BOTH,
     swipeActions: TaskSwipeActions,
     onToggleComplete: (TaskItem) -> Unit,
@@ -471,13 +478,42 @@ fun AntiMisclickTaskCard(
                         }
 
                         if (!folderBadgeName.isNullOrBlank()) {
-                            Text(
-                                text = "/$folderBadgeName",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = colors.textMuted,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
+                            val badgeDotColor = parseFolderColorHex(folderBadgeColorHex)
+                            Row(
+                                modifier = Modifier.weight(1f, fill = false),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                if (badgeDotColor != null) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(6.dp)
+                                            .clip(CircleShape)
+                                            .background(badgeDotColor)
+                                    )
+                                }
+                                val formattedBadge = buildAnnotatedString {
+                                    val dimColor = colors.textMuted.copy(alpha = 0.65f)
+                                    if (badgeDotColor == null && folderBadgePrefix.isNullOrBlank()) {
+                                        append("/$folderBadgeName")
+                                    } else {
+                                        if (badgeDotColor == null) {
+                                            withStyle(SpanStyle(color = dimColor)) { append("/") }
+                                        }
+                                        if (!folderBadgePrefix.isNullOrBlank()) {
+                                            withStyle(SpanStyle(color = dimColor)) { append(folderBadgePrefix) }
+                                        }
+                                        withStyle(SpanStyle(color = colors.textMuted)) { append(folderBadgeName) }
+                                    }
+                                }
+                                Text(
+                                    text = formattedBadge,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = colors.textMuted,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
                         }
 
                         task.tags.take(2).forEach { tag ->

@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -43,10 +44,11 @@ import com.zero.todo.domain.model.Folder
 fun CreateFolderDialog(
     parentFolder: Folder?,
     onDismiss: () -> Unit,
-    onConfirm: (name: String, parentId: String?) -> Unit
+    onConfirm: (name: String, parentId: String?, colorHex: String?) -> Unit
 ) {
     val colors = ZeroTheme.colors
     var folderName by rememberSaveable(parentFolder?.id) { mutableStateOf("") }
+    var selectedColorHex by rememberSaveable(parentFolder?.id) { mutableStateOf<String?>(null) }
     val focusRequester = remember { FocusRequester() }
 
     LaunchedEffect(Unit) {
@@ -56,7 +58,7 @@ fun CreateFolderDialog(
     fun submit() {
         val trimmed = folderName.trim()
         if (trimmed.isNotEmpty()) {
-            onConfirm(trimmed, parentFolder?.id)
+            onConfirm(trimmed, parentFolder?.id, if (parentFolder == null) selectedColorHex else null)
         }
     }
 
@@ -110,6 +112,20 @@ fun CreateFolderDialog(
                     modifier = Modifier
                         .fillMaxWidth()
                         .focusRequester(focusRequester)
+                )
+            }
+
+            if (parentFolder == null) {
+                Spacer(modifier = Modifier.height(14.dp))
+                Text(
+                    text = stringResource(R.string.folder_color_label),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = colors.textMuted
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                FolderColorSwatchRow(
+                    selectedColorHex = selectedColorHex,
+                    onSelectColor = { selectedColorHex = it }
                 )
             }
 

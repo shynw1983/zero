@@ -79,6 +79,7 @@ import com.zero.todo.core.designsystem.rememberZeroHaptics
 import com.zero.todo.core.nlp.ParsedQuickInput
 import com.zero.todo.domain.model.AntiMisclickMode
 import com.zero.todo.domain.model.Folder
+import com.zero.todo.domain.model.FolderBadgeDisplay
 import com.zero.todo.domain.model.TaskItem
 import com.zero.todo.domain.model.TaskSortMode
 import com.zero.todo.domain.model.TaskSwipeActions
@@ -103,6 +104,7 @@ fun TaskListPane(
     tasks: List<TaskItem>,
     allActiveTasks: List<TaskItem>,
     folderNameById: Map<String, String>,
+    folderBadgeById: Map<String, FolderBadgeDisplay> = emptyMap(),
     selectedTaskId: String?,
     antiMisclickMode: AntiMisclickMode,
     taskSwipeActions: TaskSwipeActions,
@@ -651,13 +653,16 @@ fun TaskListPane(
                             key = { _, row -> "overdue_${row.task.id}" }
                         ) { _, row ->
                             val task = row.task
+                            val badge = task.folderId?.let { folderBadgeById[it] }
                             AntiMisclickTaskCard(
                                 task = task,
                                 isSelected = task.id == selectedTaskId,
                                 isListScrolling = lazyListState.isScrollInProgress,
                                 isDragging = false,
                                 dragOffsetY = 0f,
-                                folderBadgeName = task.folderId?.let { folderNameById[it] },
+                                folderBadgeName = badge?.leaf ?: task.folderId?.let { folderNameById[it] },
+                                folderBadgePrefix = badge?.prefix,
+                                folderBadgeColorHex = badge?.colorHex,
                                 antiMisclickMode = antiMisclickMode,
                                 swipeActions = taskSwipeActions,
                                 onToggleComplete = onToggleTaskComplete,
@@ -711,13 +716,16 @@ fun TaskListPane(
                         val showAfterMarker = dropSlot != null && dropSlot.beforeTaskId == null &&
                             dragTargets?.lastId == task.id
 
+                        val badge = if (showFolderBadge) task.folderId?.let { folderBadgeById[it] } else null
                         AntiMisclickTaskCard(
                             task = task,
                             isSelected = task.id == selectedTaskId,
                             isListScrolling = !isDragging && (lazyListState.isScrollInProgress || draggingId != null),
                             isDragging = isDragging,
                             dragOffsetY = if (isDragging) dragDistance + dragScrollDistance else 0f,
-                            folderBadgeName = if (showFolderBadge) task.folderId?.let { folderNameById[it] } else null,
+                            folderBadgeName = if (showFolderBadge) (badge?.leaf ?: task.folderId?.let { folderNameById[it] }) else null,
+                            folderBadgePrefix = badge?.prefix,
+                            folderBadgeColorHex = badge?.colorHex,
                             antiMisclickMode = antiMisclickMode,
                             swipeActions = taskSwipeActions,
                             onToggleComplete = onToggleTaskComplete,
@@ -821,13 +829,16 @@ fun TaskListPane(
                                 val showFolderBadge = isSearchOpen ||
                                     selectedDestination !is NavigationDestination.FolderView ||
                                     (includeSubfolders && task.folderId != selectedDestination.folderId)
+                                val badge = if (showFolderBadge) task.folderId?.let { folderBadgeById[it] } else null
                                 AntiMisclickTaskCard(
                                     task = task,
                                     isSelected = task.id == selectedTaskId,
                                     isListScrolling = lazyListState.isScrollInProgress,
                                     isDragging = false,
                                     dragOffsetY = 0f,
-                                    folderBadgeName = if (showFolderBadge) task.folderId?.let { folderNameById[it] } else null,
+                                    folderBadgeName = if (showFolderBadge) (badge?.leaf ?: task.folderId?.let { folderNameById[it] }) else null,
+                                    folderBadgePrefix = badge?.prefix,
+                                    folderBadgeColorHex = badge?.colorHex,
                                     antiMisclickMode = antiMisclickMode,
                                     swipeActions = taskSwipeActions,
                                     onToggleComplete = onToggleTaskComplete,

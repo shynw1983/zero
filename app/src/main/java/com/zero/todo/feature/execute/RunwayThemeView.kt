@@ -62,8 +62,11 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.zero.todo.R
@@ -72,9 +75,11 @@ import com.zero.todo.core.designsystem.ZeroMotion
 import com.zero.todo.core.designsystem.ZeroSmallShape
 import com.zero.todo.core.designsystem.ZeroTheme
 import com.zero.todo.core.designsystem.hairlineBorder
+import com.zero.todo.core.designsystem.parseFolderColorHex
 import com.zero.todo.core.designsystem.rememberZeroHaptics
 import com.zero.todo.domain.model.EffortTier
 import com.zero.todo.domain.model.FocusMode
+import com.zero.todo.domain.model.FolderBadgeDisplay
 import com.zero.todo.domain.model.TaskItem
 import com.zero.todo.domain.model.TaskPriority
 import com.zero.todo.feature.focus.FocusPhase
@@ -325,6 +330,7 @@ fun RunwayThemeView(
                                 isFlowActive = isTaskFlowing,
                                 focusState = state.focusState,
                                 folderName = slot.task.folderId?.let(state.folderNameById::get),
+                                folderBadge = slot.task.folderId?.let(state.folderBadgeById::get),
                                 onComplete = { onCompleteTask(slot.task) },
                                 onSkip = { onSkipTask(slot.task) },
                                 onBlockTap = {
@@ -488,6 +494,7 @@ private fun RunwayTimelineBlockRow(
     isFlowActive: Boolean,
     focusState: FocusUiState,
     folderName: String?,
+    folderBadge: FolderBadgeDisplay? = null,
     onComplete: () -> Unit,
     onSkip: () -> Unit,
     onBlockTap: () -> Unit,
@@ -614,14 +621,45 @@ private fun RunwayTimelineBlockRow(
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f)
                 )
-                if (!folderName.isNullOrBlank() && isActive) {
-                    Text(
-                        text = folderName,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = colors.textMuted,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
+                if ((folderBadge != null || !folderName.isNullOrBlank()) && isActive) {
+                    val dotColor = parseFolderColorHex(folderBadge?.colorHex)
+                    Row(
+                        modifier = Modifier.widthIn(max = 140.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        if (dotColor != null) {
+                            Box(
+                                modifier = Modifier
+                                    .size(5.5.dp)
+                                    .clip(CircleShape)
+                                    .background(dotColor)
+                            )
+                        }
+                        val label = if (folderBadge != null) {
+                            buildAnnotatedString {
+                                if (!folderBadge.prefix.isNullOrBlank()) {
+                                    withStyle(SpanStyle(color = colors.textMuted.copy(alpha = 0.65f))) {
+                                        append(folderBadge.prefix)
+                                    }
+                                }
+                                withStyle(SpanStyle(color = colors.textSecondary)) {
+                                    append(folderBadge.leaf)
+                                }
+                            }
+                        } else {
+                            buildAnnotatedString {
+                                append(folderName.orEmpty())
+                            }
+                        }
+                        Text(
+                            text = label,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = colors.textMuted,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
                 }
                 Box(
                     modifier = Modifier

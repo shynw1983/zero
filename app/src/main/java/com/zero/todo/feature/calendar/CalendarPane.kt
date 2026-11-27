@@ -54,6 +54,7 @@ import com.zero.todo.core.nlp.ParsedQuickInput
 import com.zero.todo.data.calendar.GoogleCalendarDay
 import com.zero.todo.data.calendar.GoogleCalendarEvent
 import com.zero.todo.domain.model.AntiMisclickMode
+import com.zero.todo.domain.model.FolderBadgeDisplay
 import com.zero.todo.domain.model.TaskSwipeActions
 import com.zero.todo.domain.model.TaskItem
 import com.zero.todo.feature.tasklist.AntiMisclickTaskCard
@@ -97,6 +98,7 @@ fun CalendarPane(
     viewMode: CalendarViewMode,
     allActiveTasks: List<TaskItem>,
     folderNameById: Map<String, String>,
+    folderBadgeById: Map<String, FolderBadgeDisplay> = emptyMap(),
     selectedTaskId: String?,
     antiMisclickMode: AntiMisclickMode,
     taskSwipeActions: TaskSwipeActions,
@@ -284,6 +286,7 @@ fun CalendarPane(
                         googleCalendar = googleCalendar,
                         zoneId = zoneId,
                         folderNameById = folderNameById,
+                        folderBadgeById = folderBadgeById,
                         selectedTaskId = selectedTaskId,
                         antiMisclickMode = antiMisclickMode,
                         taskSwipeActions = taskSwipeActions,
@@ -301,6 +304,7 @@ fun CalendarPane(
                         tasks = selectedDayTasks,
                         googleCalendar = googleCalendar,
                         folderNameById = folderNameById,
+                        folderBadgeById = folderBadgeById,
                         selectedTaskId = selectedTaskId,
                         antiMisclickMode = antiMisclickMode,
                         taskSwipeActions = taskSwipeActions,
@@ -512,6 +516,7 @@ private fun SelectedDayAgenda(
     googleCalendar: GoogleCalendarConnection,
     zoneId: ZoneId,
     folderNameById: Map<String, String>,
+    folderBadgeById: Map<String, FolderBadgeDisplay> = emptyMap(),
     selectedTaskId: String?,
     antiMisclickMode: AntiMisclickMode,
     taskSwipeActions: TaskSwipeActions,
@@ -566,13 +571,16 @@ private fun SelectedDayAgenda(
             }
 
             items(items = tasks, key = { it.id }) { task ->
+                val badge = task.folderId?.let { folderBadgeById[it] }
                 AntiMisclickTaskCard(
                     task = task,
                     isSelected = task.id == selectedTaskId,
                     isListScrolling = listState.isScrollInProgress,
                     isDragging = false,
                     dragOffsetY = 0f,
-                    folderBadgeName = task.folderId?.let { folderNameById[it] },
+                    folderBadgeName = badge?.leaf ?: task.folderId?.let { folderNameById[it] },
+                    folderBadgePrefix = badge?.prefix,
+                    folderBadgeColorHex = badge?.colorHex,
                     antiMisclickMode = antiMisclickMode,
                     swipeActions = taskSwipeActions,
                     onToggleComplete = onToggleTaskComplete,
@@ -611,6 +619,7 @@ private fun DayTimelineSection(
     tasks: List<TaskItem>,
     googleCalendar: GoogleCalendarConnection,
     folderNameById: Map<String, String>,
+    folderBadgeById: Map<String, FolderBadgeDisplay> = emptyMap(),
     selectedTaskId: String?,
     antiMisclickMode: AntiMisclickMode,
     taskSwipeActions: TaskSwipeActions,
@@ -686,13 +695,16 @@ private fun DayTimelineSection(
                 } else {
                     allDayEvents.forEach { event -> GoogleCalendarEventCard(event, selectedDate, zoneId) }
                     allDayTasks.forEach { task ->
+                        val badge = task.folderId?.let { folderBadgeById[it] }
                         AntiMisclickTaskCard(
                             task = task,
                             isSelected = task.id == selectedTaskId,
                             isListScrolling = listState.isScrollInProgress,
                             isDragging = false,
                             dragOffsetY = 0f,
-                            folderBadgeName = task.folderId?.let { folderNameById[it] },
+                            folderBadgeName = badge?.leaf ?: task.folderId?.let { folderNameById[it] },
+                            folderBadgePrefix = badge?.prefix,
+                            folderBadgeColorHex = badge?.colorHex,
                             antiMisclickMode = antiMisclickMode,
                             swipeActions = taskSwipeActions,
                             onToggleComplete = onToggleTaskComplete,

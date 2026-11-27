@@ -65,6 +65,7 @@ import com.zero.todo.core.designsystem.ZeroTheme
 import com.zero.todo.core.designsystem.hairlineBorder
 import com.zero.todo.core.designsystem.hairlineDividerBottom
 import com.zero.todo.core.designsystem.hairlineDividerTop
+import com.zero.todo.core.designsystem.parseFolderColorHex
 import com.zero.todo.data.repository.TagWithCount
 import com.zero.todo.domain.model.Folder
 import com.zero.todo.domain.model.FolderNode
@@ -77,6 +78,7 @@ import com.zero.todo.domain.model.TagTreeBuilder
 @Composable
 fun FolderTreePanel(
     folderTree: List<FolderNode>,
+    folderColorHexById: Map<String, String> = emptyMap(),
     tagsWithCounts: List<TagWithCount>,
     selectedDestination: NavigationDestination,
     smartViewCounts: SmartViewCounts,
@@ -356,6 +358,7 @@ fun FolderTreePanel(
                     FolderTreeRow(
                         node = node,
                         isSelected = isSelected,
+                        projectColorHex = folderColorHexById[node.folder.id],
                         showAggregatedCount = includeSubfolders,
                         onSelect = { onSelectDestination(NavigationDestination.FolderView(node.folder.id)) },
                         onToggleExpand = {
@@ -717,6 +720,7 @@ private fun TagTreeRow(
 private fun FolderTreeRow(
     node: FolderNode,
     isSelected: Boolean,
+    projectColorHex: String?,
     showAggregatedCount: Boolean,
     onSelect: () -> Unit,
     onToggleExpand: () -> Unit,
@@ -727,6 +731,7 @@ private fun FolderTreeRow(
     val hasChildren = node.children.isNotEmpty()
     val visualDepth = node.depth.coerceAtMost(ZeroDimens.MaxVisibleTreeDepth)
     val startIndent = ZeroDimens.TreeIndentPerLevel * visualDepth
+    val projectColor = parseFolderColorHex(projectColorHex)
 
     val chevronRotation by animateFloatAsState(
         targetValue = if (node.folder.isExpanded) 90f else 0f,
@@ -784,7 +789,11 @@ private fun FolderTreeRow(
                 Icons.Rounded.Folder
             },
             contentDescription = null,
-            tint = if (isSelected) colors.accent else colors.textSecondary,
+            tint = when {
+                isSelected -> projectColor ?: colors.accent
+                projectColor != null -> if (node.depth == 0) projectColor else projectColor.copy(alpha = 0.78f)
+                else -> colors.textSecondary
+            },
             modifier = Modifier.size(18.dp)
         )
 

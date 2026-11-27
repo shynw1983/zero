@@ -5,6 +5,7 @@ import androidx.compose.ui.unit.dp
 import com.zero.todo.core.nlp.ParsedQuickInput
 import com.zero.todo.domain.model.ExecuteTheme
 import com.zero.todo.domain.model.FocusMode
+import com.zero.todo.domain.model.FolderBadgeDisplay
 import com.zero.todo.domain.model.TaskItem
 import com.zero.todo.domain.model.WorkspaceMode
 import com.zero.todo.feature.focus.FocusUiState
@@ -33,6 +34,8 @@ data class ExecuteUiState(
     val todayCompletedCount: Int = 0,
     val triageCount: Int = 0,
     val folderNameById: Map<String, String> = emptyMap(),
+    val folderBadgeById: Map<String, FolderBadgeDisplay> = emptyMap(),
+    val monolithFolderBadgeById: Map<String, FolderBadgeDisplay> = emptyMap(),
     val focusState: FocusUiState = FocusUiState(),
     val isInlineFlowActive: Boolean = false,
     val quickInputText: String = "",

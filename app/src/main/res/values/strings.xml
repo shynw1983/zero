@@ -443,4 +443,16 @@
     <string name="settings_notif_test_btn">Send Test Notification</string>
     <string name="settings_notif_test_sent">Test notification sent — check your status bar</string>
     <string name="settings_notif_test_blocked">System notification permission required first</string>
+
+    <!-- v2.7.0: Folder Path Disambiguation & Project Colors -->
+    <string name="settings_folder_path_title">Folder Path Display</string>
+    <string name="settings_folder_path_smart">Smart</string>
+    <string name="settings_folder_path_root_leaf">Project / Folder</string>
+    <string name="settings_folder_path_full">Full Path</string>
+    <string name="settings_folder_path_desc_smart">Shows parent project automatically only when folder names collide</string>
+    <string name="settings_folder_path_desc_root_leaf">Always pairs top-level project with leaf folder (e.g. Project/…/Sub)</string>
+    <string name="settings_folder_path_desc_full">Always shows the complete nested hierarchy path</string>
+    <string name="folder_color_label">Project Color</string>
+    <string name="folder_color_none">None</string>
+    <string name="folder_color_inherited_hint">Inherits color from %1$s</string>
 </resources>

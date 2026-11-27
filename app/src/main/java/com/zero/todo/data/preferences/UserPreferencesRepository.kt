@@ -6,6 +6,7 @@ import com.zero.todo.data.backup.WebDavConfig
 import com.zero.todo.domain.model.AntiMisclickMode
 import com.zero.todo.domain.model.AppLanguage
 import com.zero.todo.domain.model.ExecuteTheme
+import com.zero.todo.domain.model.FolderPathDisplayMode
 import com.zero.todo.domain.model.TaskSortMode
 import com.zero.todo.domain.model.TaskSwipeAction
 import com.zero.todo.domain.model.TaskSwipeActions
@@ -47,6 +48,7 @@ data class UserPreferences(
     val workspaceMode: WorkspaceMode = WorkspaceMode.NOW,
     val executeTheme: ExecuteTheme = ExecuteTheme.MONOLITH,
     val dailyCapacityMinutes: Int = 240,
+    val folderPathDisplayMode: FolderPathDisplayMode = FolderPathDisplayMode.SMART_DISAMBIGUATE,
     val notifications: NotificationPreferences = NotificationPreferences(),
     val webDavConfig: WebDavConfig = WebDavConfig()
 )
@@ -64,6 +66,7 @@ interface UserPreferencesRepository {
     fun setWorkspaceMode(mode: WorkspaceMode)
     fun setExecuteTheme(theme: ExecuteTheme)
     fun setDailyCapacityMinutes(minutes: Int)
+    fun setFolderPathDisplayMode(mode: FolderPathDisplayMode)
     fun setNotificationPreferences(config: NotificationPreferences)
     fun setWebDavConfig(config: WebDavConfig)
 }
@@ -133,6 +136,11 @@ class SharedPrefsUserPreferencesRepository @Inject constructor(
         _preferences.update { it.copy(dailyCapacityMinutes = clamped) }
     }
 
+    override fun setFolderPathDisplayMode(mode: FolderPathDisplayMode) {
+        prefs.edit().putString(KEY_FOLDER_PATH_DISPLAY_MODE, mode.name).apply()
+        _preferences.update { it.copy(folderPathDisplayMode = mode) }
+    }
+
     override fun setNotificationPreferences(config: NotificationPreferences) {
         val normalized = config.copy(
             defaultAllDayReminderMinutes = config.defaultAllDayReminderMinutes.coerceIn(0, 23 * 60 + 59),
@@ -180,6 +188,9 @@ class SharedPrefsUserPreferencesRepository @Inject constructor(
             prefs.getString(KEY_EXECUTE_THEME, ExecuteTheme.MONOLITH.name)
         )
         val dailyCapacityMinutes = prefs.getInt(KEY_DAILY_CAPACITY_MINUTES, 240).coerceIn(60, 720)
+        val folderPathDisplayMode = FolderPathDisplayMode.fromStorage(
+            prefs.getString(KEY_FOLDER_PATH_DISPLAY_MODE, FolderPathDisplayMode.SMART_DISAMBIGUATE.name)
+        )
         val notifications = NotificationPreferences(
             defaultAllDayReminderMinutes = prefs.getInt(KEY_NOTIF_ALL_DAY_MINUTES, 9 * 60).coerceIn(0, 23 * 60 + 59),
             morningBriefingEnabled = prefs.getBoolean(KEY_NOTIF_MORNING_ENABLED, false),
@@ -209,6 +220,7 @@ class SharedPrefsUserPreferencesRepository @Inject constructor(
             workspaceMode = workspaceMode,
             executeTheme = executeTheme,
             dailyCapacityMinutes = dailyCapacityMinutes,
+            folderPathDisplayMode = folderPathDisplayMode,
             notifications = notifications,
             webDavConfig = webDavConfig
         )
@@ -227,6 +239,7 @@ class SharedPrefsUserPreferencesRepository @Inject constructor(
         private const val KEY_WORKSPACE_MODE = "workspace_mode"
         private const val KEY_EXECUTE_THEME = "execute_theme"
         private const val KEY_DAILY_CAPACITY_MINUTES = "daily_capacity_minutes"
+        private const val KEY_FOLDER_PATH_DISPLAY_MODE = "folder_path_display_mode"
         private const val KEY_NOTIF_ALL_DAY_MINUTES = "notif_all_day_minutes"
         private const val KEY_NOTIF_MORNING_ENABLED = "notif_morning_enabled"
         private const val KEY_NOTIF_MORNING_MINUTES = "notif_morning_minutes"
@@ -283,6 +296,10 @@ class InMemoryUserPreferencesRepository(
 
     override fun setDailyCapacityMinutes(minutes: Int) {
         _preferences.update { it.copy(dailyCapacityMinutes = minutes.coerceIn(60, 720)) }
+    }
+
+    override fun setFolderPathDisplayMode(mode: FolderPathDisplayMode) {
+        _preferences.update { it.copy(folderPathDisplayMode = mode) }
     }
 
     override fun setNotificationPreferences(config: NotificationPreferences) {

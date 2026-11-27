@@ -26,7 +26,10 @@ import com.zero.todo.domain.model.EffortTier
 import com.zero.todo.domain.model.ExecuteTheme
 import com.zero.todo.domain.model.FocusMode
 import com.zero.todo.domain.model.Folder
+import com.zero.todo.domain.model.FolderBadgeDisplay
 import com.zero.todo.domain.model.FolderNode
+import com.zero.todo.domain.model.FolderPathDisplayMode
+import com.zero.todo.domain.model.FolderPathFormatter
 import com.zero.todo.domain.model.TaskItem
 import com.zero.todo.domain.model.TaskPlacementChange
 import com.zero.todo.domain.model.TaskPriority
@@ -89,6 +92,14 @@ data class MainUiState(
     val includeSubfolders: Boolean = false,
     val folderTree: List<FolderNode> = emptyList(),
     val folderNameById: Map<String, String> = emptyMap(),
+    val folderPathDisplayMode: FolderPathDisplayMode = FolderPathDisplayMode.SMART_DISAMBIGUATE,
+    val folderBadgeById: Map<String, FolderBadgeDisplay> = emptyMap(),
+    val relativeFolderBadgeById: Map<String, FolderBadgeDisplay> = emptyMap(),
+    val monolithFolderBadgeById: Map<String, FolderBadgeDisplay> = emptyMap(),
+    val folderFullPathById: Map<String, String> = emptyMap(),
+    val folderBreadcrumbsById: Map<String, List<String>> = emptyMap(),
+    val folderColorHexById: Map<String, String> = emptyMap(),
+    val folderRootNameById: Map<String, String> = emptyMap(),
     val tagsWithCounts: List<TagWithCount> = emptyList(),
     val tagNameById: Map<String, String> = emptyMap(),
     val tagPathById: Map<String, String> = emptyMap(),
@@ -480,6 +491,33 @@ class MainViewModel @Inject constructor(
 
         val folderById = nav.activeFolders.associateBy { it.id }
         val folderNameById = nav.activeFolders.associate { it.id to it.name }
+        val folderIndex = FolderPathFormatter.buildIndex(nav.activeFolders)
+        val pathMode = ui.preferences.folderPathDisplayMode
+        val relativeAnchorFolderId = (nav.destination as? NavigationDestination.FolderView)?.folderId
+        val folderBadgeById = buildMap {
+            nav.activeFolders.forEach { folder ->
+                folderIndex.badgeFor(folder.id, pathMode, relativeToFolderId = null)?.let { put(folder.id, it) }
+            }
+        }
+        val relativeFolderBadgeById = if (relativeAnchorFolderId != null) {
+            buildMap {
+                nav.activeFolders.forEach { folder ->
+                    folderIndex.badgeFor(folder.id, pathMode, relativeToFolderId = relativeAnchorFolderId)?.let { put(folder.id, it) }
+                }
+            }
+        } else {
+            folderBadgeById
+        }
+        val monolithFolderBadgeById = buildMap {
+            nav.activeFolders.forEach { folder ->
+                folderIndex.monolithBadgeFor(folder.id, pathMode)?.let { put(folder.id, it) }
+            }
+        }
+        val folderBreadcrumbsById = buildMap {
+            nav.activeFolders.forEach { folder ->
+                put(folder.id, folderIndex.breadcrumbSegments(folder.id))
+            }
+        }
         val tagNameById = nav.tagsWithCounts.associate { it.tag.id to it.tag.name }
         val tagPathById = TagTreeBuilder.buildPathMap(nav.tagsWithCounts.map { it.tag })
 
@@ -501,7 +539,7 @@ class MainViewModel @Inject constructor(
             is NavigationDestination.TagView -> tagPathById[dest.tagId]?.let { "#$it" } ?: "收集箱"
         }
 
-        // Search includes nested tasks so they can be opened independently.
+        // Search includes nested tasks so they can be opened independently, plus full folder path.
         val trimmedQuery = searchTrash.searchQuery.trim()
         val effectiveTasks = if (searchTrash.isSearchOpen && trimmedQuery.isNotEmpty()) {
             val q = trimmedQuery.lowercase()
@@ -512,7 +550,10 @@ class MainViewModel @Inject constructor(
                         it.name.lowercase().contains(q) ||
                             (tagPathById[it.id]?.lowercase()?.contains(q) == true)
                     } ||
-                    (task.folderId != null && folderNameById[task.folderId]?.lowercase()?.contains(q) == true)
+                    (task.folderId != null && (
+                        folderNameById[task.folderId]?.lowercase()?.contains(q) == true ||
+                            folderIndex.fullPathById[task.folderId]?.lowercase()?.contains(q) == true
+                        ))
             }
         } else {
             rawTasks
@@ -580,6 +621,14 @@ class MainViewModel @Inject constructor(
             includeSubfolders = nav.includeSubfolders,
             folderTree = nav.folderTree,
             folderNameById = folderNameById,
+            folderPathDisplayMode = pathMode,
+            folderBadgeById = folderBadgeById,
+            relativeFolderBadgeById = relativeFolderBadgeById,
+            monolithFolderBadgeById = monolithFolderBadgeById,
+            folderFullPathById = folderIndex.fullPathById,
+            folderBreadcrumbsById = folderBreadcrumbsById,
+            folderColorHexById = folderIndex.colorHexById,
+            folderRootNameById = folderIndex.rootNameById,
             tagsWithCounts = nav.tagsWithCounts,
             tagNameById = tagNameById,
             tagPathById = tagPathById,
@@ -632,6 +681,7 @@ class MainViewModel @Inject constructor(
         hapticsEnabled = prefs.hapticsEnabled,
         appLanguage = prefs.appLanguage,
         taskSortMode = prefs.taskSortMode,
+        folderPathDisplayMode = prefs.folderPathDisplayMode,
         notificationPreferences = prefs.notifications,
         webDavConfig = prefs.webDavConfig
     )
@@ -666,6 +716,8 @@ class MainViewModel @Inject constructor(
             todayCompletedCount = todayCompletedCount,
             triageCount = triageQueue.size,
             folderNameById = folderNameById,
+            folderBadgeById = folderBadgeById,
+            monolithFolderBadgeById = monolithFolderBadgeById,
             focusState = focusState,
             isInlineFlowActive = inlineFlow,
             quickInputText = quickInputText,
@@ -811,6 +863,11 @@ class MainViewModel @Inject constructor(
 
     fun setDailyCapacityMinutes(minutes: Int) {
         userPreferencesRepository.setDailyCapacityMinutes(minutes)
+    }
+
+    fun setFolderPathDisplayMode(mode: FolderPathDisplayMode) {
+        userPreferencesRepository.setFolderPathDisplayMode(mode)
+        viewModelScope.launch { widgetRefresher.refreshAll() }
     }
 
     fun updateNotificationPreferences(config: NotificationPreferences) {
@@ -1094,15 +1151,26 @@ class MainViewModel @Inject constructor(
         }
     }
 
-    fun createFolder(name: String, parentId: String?) {
+    fun createFolder(name: String, parentId: String?, colorHex: String? = null) {
         val trimmed = name.trim()
         if (trimmed.isEmpty()) return
         viewModelScope.launch {
-            val created = folderRepository.createFolder(name = trimmed, parentId = parentId)
+            val created = folderRepository.createFolder(
+                name = trimmed,
+                parentId = parentId,
+                colorHex = if (parentId == null) colorHex else null
+            )
             if (parentId != null) {
                 folderRepository.setFolderExpanded(parentId, true)
             }
             selectDestination(NavigationDestination.FolderView(created.id))
+        }
+    }
+
+    fun updateFolderColor(folderId: String, colorHex: String?) {
+        viewModelScope.launch {
+            val existingIcon = folderRepository.getFolderById(folderId)?.icon
+            folderRepository.updateFolderAppearance(folderId, existingIcon, colorHex)
         }
     }
 

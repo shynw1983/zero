@@ -84,6 +84,7 @@ import com.zero.todo.data.backup.WebDavConfig
 import com.zero.todo.data.preferences.NotificationPreferences
 import com.zero.todo.domain.model.AntiMisclickMode
 import com.zero.todo.domain.model.AppLanguage
+import com.zero.todo.domain.model.FolderPathDisplayMode
 import com.zero.todo.domain.model.TaskSwipeAction
 import com.zero.todo.domain.model.TaskSwipeActions
 import com.zero.todo.domain.model.TaskSwipeDirection
@@ -117,6 +118,7 @@ fun SettingsOverlay(
     hapticsEnabled: Boolean,
     appLanguage: AppLanguage,
     dailyCapacityMinutes: Int,
+    folderPathDisplayMode: FolderPathDisplayMode = FolderPathDisplayMode.SMART_DISAMBIGUATE,
     notificationPreferences: NotificationPreferences = NotificationPreferences(),
     webDavConfig: WebDavConfig,
     webDavStatus: WebDavUiStatus?,
@@ -128,6 +130,7 @@ fun SettingsOverlay(
     onSetHapticsEnabled: (Boolean) -> Unit,
     onSetAppLanguage: (AppLanguage) -> Unit,
     onSetDailyCapacityMinutes: (Int) -> Unit,
+    onSetFolderPathDisplayMode: (FolderPathDisplayMode) -> Unit = {},
     onUpdateNotificationPreferences: (NotificationPreferences) -> Unit = {},
     onUpdateWebDavConfig: (WebDavConfig) -> Unit,
     onTestWebDav: () -> Unit,
@@ -355,6 +358,58 @@ fun SettingsOverlay(
                                 }
                             }
                         }
+                    }
+                }
+
+                // 2.5 Folder Path Display Mode
+                SettingsSectionCard(title = stringResource(R.string.settings_folder_path_title)) {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            FolderPathDisplayMode.entries.forEach { mode ->
+                                val selected = folderPathDisplayMode == mode
+                                val labelRes = when (mode) {
+                                    FolderPathDisplayMode.SMART_DISAMBIGUATE -> R.string.settings_folder_path_smart
+                                    FolderPathDisplayMode.ROOT_AND_LEAF -> R.string.settings_folder_path_root_leaf
+                                    FolderPathDisplayMode.FULL_PATH -> R.string.settings_folder_path_full
+                                }
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(38.dp)
+                                        .clip(ZeroSmallShape)
+                                        .background(if (selected) colors.accentSubtle else colors.background)
+                                        .hairlineBorder(
+                                            shape = ZeroSmallShape,
+                                            color = if (selected) colors.accent else colors.hairlineBorder
+                                        )
+                                        .clickable {
+                                            haptics.reorderTick()
+                                            onSetFolderPathDisplayMode(mode)
+                                        },
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = stringResource(labelRes),
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = if (selected) colors.accent else colors.textPrimary,
+                                        maxLines = 1
+                                    )
+                                }
+                            }
+                        }
+                        val descRes = when (folderPathDisplayMode) {
+                            FolderPathDisplayMode.SMART_DISAMBIGUATE -> R.string.settings_folder_path_desc_smart
+                            FolderPathDisplayMode.ROOT_AND_LEAF -> R.string.settings_folder_path_desc_root_leaf
+                            FolderPathDisplayMode.FULL_PATH -> R.string.settings_folder_path_desc_full
+                        }
+                        Text(
+                            text = stringResource(descRes),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = colors.textMuted
+                        )
                     }
                 }
 

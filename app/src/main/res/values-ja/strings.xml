@@ -443,4 +443,16 @@
     <string name="settings_notif_test_btn">テスト通知を送信</string>
     <string name="settings_notif_test_sent">テスト通知を送信しました（ステータスバーをご確認ください）</string>
     <string name="settings_notif_test_blocked">先にシステム通知権限を有効にしてください</string>
+
+    <!-- v2.7.0: フォルダパス判別＆プロジェクトカラー -->
+    <string name="settings_folder_path_title">フォルダパス表示</string>
+    <string name="settings_folder_path_smart">スマート</string>
+    <string name="settings_folder_path_root_leaf">プロジェクト / フォルダ</string>
+    <string name="settings_folder_path_full">フルパス</string>
+    <string name="settings_folder_path_desc_smart">同名フォルダがある場合のみ親プロジェクトを自動補完し、重複がない場合は簡潔に表示</string>
+    <string name="settings_folder_path_desc_root_leaf">常に最上位プロジェクトと対象フォルダを併記（例：プロジェクト/…/子フォルダ）</string>
+    <string name="settings_folder_path_desc_full">常に完全な階層パスを表示</string>
+    <string name="folder_color_label">プロジェクトカラー</string>
+    <string name="folder_color_none">なし</string>
+    <string name="folder_color_inherited_hint">「%1$s」のカラーを継承</string>
 </resources>

@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -60,8 +61,10 @@ import com.zero.todo.core.designsystem.ZeroDimens
 import com.zero.todo.core.designsystem.ZeroSmallShape
 import com.zero.todo.core.designsystem.ZeroTheme
 import com.zero.todo.core.designsystem.hairlineBorder
+import com.zero.todo.core.designsystem.parseFolderColorHex
 import com.zero.todo.domain.model.Folder
 import com.zero.todo.domain.model.FolderNode
+import com.zero.todo.domain.model.ProjectFolderColors
 import com.zero.todo.domain.model.TagItem
 import com.zero.todo.domain.model.TagNode
 import com.zero.todo.domain.model.TagTreeBuilder
@@ -70,6 +73,8 @@ import com.zero.todo.domain.model.TagTreeBuilder
 fun FolderPickerDialog(
     folderTree: List<FolderNode>,
     currentFolderId: String?,
+    folderColorHexById: Map<String, String> = emptyMap(),
+    folderFullPathById: Map<String, String> = emptyMap(),
     onSelectFolder: (folderId: String?) -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -153,6 +158,10 @@ fun FolderPickerDialog(
                 items(items = flatAllNodes, key = { it.folder.id }) { node ->
                     val selected = node.folder.id == currentFolderId
                     val indent = ZeroDimens.TreeIndentPerLevel * node.depth.coerceAtMost(ZeroDimens.MaxVisibleTreeDepth)
+                    val projectColor = parseFolderColorHex(folderColorHexById[node.folder.id])
+                    val parentHint = folderFullPathById[node.folder.id]
+                        ?.substringBeforeLast('/', "")
+                        ?.takeIf { it.isNotBlank() && node.depth > 0 }
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -172,18 +181,32 @@ fun FolderPickerDialog(
                         Icon(
                             imageVector = Icons.Rounded.Folder,
                             contentDescription = null,
-                            tint = if (selected) colors.accent else colors.textSecondary,
+                            tint = when {
+                                selected -> colors.accent
+                                projectColor != null -> projectColor
+                                else -> colors.textSecondary
+                            },
                             modifier = Modifier.size(16.dp)
                         )
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = node.folder.name,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = if (selected) colors.accent else colors.textPrimary,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f)
-                        )
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = node.folder.name,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = if (selected) colors.accent else colors.textPrimary,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            if (parentHint != null) {
+                                Text(
+                                    text = parentHint,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = colors.textMuted,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
                         if (selected) {
                             Icon(
                                 imageVector = Icons.Rounded.Check,
@@ -608,6 +631,9 @@ fun MoveFolderDialog(
 @Composable
 fun FolderActionMenuDialog(
     folder: Folder,
+    inheritedColorHex: String? = null,
+    rootProjectName: String? = null,
+    onSelectColor: ((String?) -> Unit)? = null,
     onCreateSubfolder: () -> Unit,
     onRename: () -> Unit,
     onOrganize: () -> Unit,
@@ -615,6 +641,7 @@ fun FolderActionMenuDialog(
     onDismiss: () -> Unit
 ) {
     val colors = ZeroTheme.colors
+    var activeColorHex by remember(folder.id, folder.colorHex) { mutableStateOf(folder.colorHex) }
     Dialog(onDismissRequest = onDismiss) {
         Column(
             modifier = Modifier
@@ -631,8 +658,55 @@ fun FolderActionMenuDialog(
                 color = colors.textPrimary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(bottom = 4.dp)
+                modifier = Modifier.padding(bottom = 2.dp)
             )
+            if (folder.parentId == null && onSelectColor != null) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(ZeroSmallShape)
+                        .background(colors.surface)
+                        .hairlineBorder(shape = ZeroSmallShape)
+                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text = stringResource(R.string.folder_color_label),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = colors.textMuted
+                    )
+                    FolderColorSwatchRow(
+                        selectedColorHex = activeColorHex,
+                        onSelectColor = { hex ->
+                            activeColorHex = hex
+                            onSelectColor(hex)
+                        }
+                    )
+                }
+            } else if (folder.parentId != null && !inheritedColorHex.isNullOrBlank() && !rootProjectName.isNullOrBlank()) {
+                val dotColor = parseFolderColorHex(inheritedColorHex)
+                if (dotColor != null) {
+                    Row(
+                        modifier = Modifier.padding(bottom = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(7.dp)
+                                .clip(CircleShape)
+                                .background(dotColor)
+                        )
+                        Text(
+                            text = stringResource(R.string.folder_color_inherited_hint, rootProjectName),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = colors.textMuted,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+            }
             TactileMenuRow(
                 icon = Icons.Rounded.CreateNewFolder,
                 label = stringResource(R.string.cd_create_subfolder),
@@ -669,6 +743,64 @@ fun FolderActionMenuDialog(
                     onDelete()
                 }
             )
+        }
+    }
+}
+
+@Composable
+fun FolderColorSwatchRow(
+    selectedColorHex: String?,
+    onSelectColor: (String?) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val colors = ZeroTheme.colors
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        val noneSelected = selectedColorHex.isNullOrBlank()
+        Box(
+            modifier = Modifier
+                .height(30.dp)
+                .clip(CircleShape)
+                .background(if (noneSelected) colors.accentSubtle else colors.surfaceElevated)
+                .hairlineBorder(
+                    shape = CircleShape,
+                    color = if (noneSelected) colors.accent else colors.hairlineBorder
+                )
+                .clickable { onSelectColor(null) }
+                .padding(horizontal = 10.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = stringResource(R.string.folder_color_none),
+                style = MaterialTheme.typography.labelSmall,
+                color = if (noneSelected) colors.accent else colors.textMuted
+            )
+        }
+        ProjectFolderColors.presets.forEach { hex ->
+            val swatchColor = parseFolderColorHex(hex) ?: return@forEach
+            val selected = selectedColorHex.equals(hex, ignoreCase = true)
+            Box(
+                modifier = Modifier
+                    .size(30.dp)
+                    .clip(CircleShape)
+                    .background(if (selected) swatchColor.copy(alpha = 0.20f) else Color.Transparent)
+                    .hairlineBorder(
+                        shape = CircleShape,
+                        color = if (selected) swatchColor else colors.hairlineBorder
+                    )
+                    .clickable { onSelectColor(hex) },
+                contentAlignment = Alignment.Center
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(16.dp)
+                        .clip(CircleShape)
+                        .background(swatchColor)
+                )
+            }
         }
     }
 }

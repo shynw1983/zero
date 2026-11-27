@@ -223,3 +223,8 @@ val LocalZeroColors = staticCompositionLocalOf<ZeroColorPalette> {
 val LocalZeroAccent = staticCompositionLocalOf {
     ZeroAccent.SlateBlue
 }
+
+fun parseFolderColorHex(hex: String?): Color? {
+    val trimmed = hex?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+    return runCatching { Color(android.graphics.Color.parseColor(trimmed)) }.getOrNull()
+}

@@ -443,4 +443,16 @@
     <string name="settings_notif_test_btn">테스트 알림 보내기</string>
     <string name="settings_notif_test_sent">테스트 알림이 발송되었습니다</string>
     <string name="settings_notif_test_blocked">먼저 위 시스템 알림 권한을 허용해 주세요</string>
+
+    <!-- v2.7.0: 폴더 경로 구분 및 프로젝트 색상 점 -->
+    <string name="settings_folder_path_title">폴더 경로 표시</string>
+    <string name="settings_folder_path_smart">스마트</string>
+    <string name="settings_folder_path_root_leaf">프로젝트 / 폴더</string>
+    <string name="settings_folder_path_full">전체 경로</string>
+    <string name="settings_folder_path_desc_smart">같은 이름의 폴더가 있을 때만 상위 프로젝트를 자동 표시하고 고유 폴더는 간결하게 표시</string>
+    <string name="settings_folder_path_desc_root_leaf">항상 최상위 프로젝트와 현재 폴더를 함께 표시 (예: 프로젝트/…/하위폴더)</string>
+    <string name="settings_folder_path_desc_full">항상 전체 중첩 경로를 표시</string>
+    <string name="folder_color_label">프로젝트 색상</string>
+    <string name="folder_color_none">없음</string>
+    <string name="folder_color_inherited_hint">\'%1$s\' 색상 자동 상속</string>
 </resources>

@@ -5,8 +5,10 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import com.zero.todo.core.common.ZeroDateFormatter
+import com.zero.todo.data.repository.toDomain
 import com.zero.todo.domain.model.EffortTier
 import com.zero.todo.domain.model.FocusMode
+import com.zero.todo.domain.model.FolderPathFormatter
 import com.zero.todo.widget.ZeroWidgetUpdater
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -31,8 +33,14 @@ class ZeroReminderReceiver : BroadcastReceiver() {
                         val ep = ZeroWidgetUpdater.entryPoint(context)
                         val task = ep.taskRepository().getTaskById(taskId)
                         if (task != null && !task.isCompleted && !task.isDeleted) {
-                            val folderName = task.folderId?.let { fid ->
-                                ep.folderDao().getFolderById(fid)?.name
+                            val folderLabel = task.folderId?.let { fid ->
+                                val folders = runCatching {
+                                    ep.folderDao().getActiveFolders().map { it.toDomain() }
+                                }.getOrDefault(emptyList())
+                                val mode = ep.userPreferencesRepository().preferences.value.folderPathDisplayMode
+                                val index = FolderPathFormatter.buildIndex(folders)
+                                index.badgeFor(fid, mode)?.fullText
+                                    ?: ep.folderDao().getFolderById(fid)?.name
                             }
                             val timeText = if (task.dueDate != null && !task.isAllDay) {
                                 Instant.ofEpochMilli(task.dueDate)
@@ -43,7 +51,7 @@ class ZeroReminderReceiver : BroadcastReceiver() {
                                 null
                             }
                             val subtitle = listOfNotNull(
-                                folderName?.let { "/$it" },
+                                folderLabel?.let { "/$it" },
                                 timeText
                             ).joinToString(" · ").takeIf { it.isNotBlank() }
                             ZeroNotificationHelper.showTaskReminder(
