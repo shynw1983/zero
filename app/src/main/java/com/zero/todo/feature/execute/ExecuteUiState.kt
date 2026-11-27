@@ -43,7 +43,8 @@ data class ExecuteUiState(
     val parsedQuickInput: ParsedQuickInput = ParsedQuickInput(rawInput = "", title = ""),
     val folderSuggestions: List<FolderPathSuggestion> = emptyList(),
     val continuousEntryEnabled: Boolean = true,
-    val undoBanner: UndoBannerState? = null
+    val undoBanner: UndoBannerState? = null,
+    val aiConfigured: Boolean = false
 )
 
 /**
@@ -81,4 +82,6 @@ interface ExecuteViewModel {
     fun submitVoiceInput(spokenText: String)
     fun performUndo(banner: UndoBannerState)
     fun dismissUndoBanner(bannerId: Long)
+    fun openAiCapture(initialText: String = "", autoLaunchCamera: Boolean = false)
+    fun openAiBreakdown(task: TaskItem, languageTag: String)
 }

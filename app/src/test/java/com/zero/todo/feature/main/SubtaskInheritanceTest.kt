@@ -74,6 +74,7 @@ class SubtaskInheritanceTest {
                 focusSessionDao = database.focusSessionDao()
             ),
             webDavSyncManager = WebDavSyncManager(),
+            aiEngine = com.zero.todo.data.ai.ZeroAiEngine(),
             reminderScheduler = NoOpReminderScheduler,
             widgetRefresher = object : WidgetRefresher { override suspend fun refreshAll() = Unit },
             getFolderTreeUseCase = GetFolderTreeUseCase(folderRepository, taskRepository),

@@ -36,6 +36,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Close
@@ -167,6 +168,7 @@ fun TaskDetailPane(
     onRemoveTag: (taskId: String, tagId: String) -> Unit,
     onSelectTag: (tagId: String) -> Unit,
     onDeleteTask: (TaskItem) -> Unit,
+    onOpenAiBreakdown: (TaskItem) -> Unit = {},
     tagPathById: Map<String, String> = emptyMap(),
     allTags: List<TagItem> = emptyList(),
     defaultAllDayReminderMinutes: Int = 9 * 60,
@@ -625,11 +627,43 @@ fun TaskDetailPane(
                     .padding(12.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                Text(
-                    text = stringResource(R.string.now_first_step_label),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = colors.textMuted
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = stringResource(R.string.now_first_step_label),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = colors.textMuted
+                    )
+                    Row(
+                        modifier = Modifier
+                            .height(28.dp)
+                            .clip(ZeroSmallShape)
+                            .background(colors.accentSubtle)
+                            .hairlineBorder(shape = ZeroSmallShape, color = colors.accent.copy(alpha = 0.55f))
+                            .clickable {
+                                haptics.reorderTick()
+                                onOpenAiBreakdown(task)
+                            }
+                            .padding(horizontal = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.AutoAwesome,
+                            contentDescription = null,
+                            tint = colors.accent,
+                            modifier = Modifier.size(13.dp)
+                        )
+                        Text(
+                            text = stringResource(R.string.detail_ai_breakdown_btn),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = colors.accent
+                        )
+                    }
+                }
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()

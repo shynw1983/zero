@@ -103,6 +103,8 @@ fun ExecuteHostScreen(
     onQuickInputSubmit: () -> Unit,
     onToggleContinuousEntry: () -> Unit,
     onVoiceInputRecognized: (String) -> Unit,
+    onOpenAiCapture: (initialText: String, autoLaunchCamera: Boolean) -> Unit = { _, _ -> },
+    onOpenAiBreakdown: (TaskItem) -> Unit = {},
     onUndo: (UndoBannerState) -> Unit,
     onUndoTimeout: (Long) -> Unit,
     modifier: Modifier = Modifier
@@ -294,6 +296,7 @@ fun ExecuteHostScreen(
                         onUpdateFirstStep = onUpdateFirstStep,
                         onCompleteFirstStepAndStartFlow = onCompleteFirstStepAndStartFlow,
                         onOpenTaskDetail = onOpenTaskDetail,
+                        onOpenAiBreakdown = onOpenAiBreakdown,
                         onOpenTriage = onOpenTriage,
                         onSwitchToVault = onSwitchToVault
                     )
@@ -343,6 +346,8 @@ fun ExecuteHostScreen(
                 onSubmit = onQuickInputSubmit,
                 onToggleContinuousEntry = onToggleContinuousEntry,
                 onVoiceInputRecognized = onVoiceInputRecognized,
+                aiConfigured = state.aiConfigured,
+                onOpenAiCapture = onOpenAiCapture,
                 currentDate = state.currentDate
             )
         }

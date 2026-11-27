@@ -122,6 +122,8 @@ fun CalendarPane(
     onQuickInputSubmit: () -> Unit,
     onToggleContinuousEntry: () -> Unit,
     onVoiceInputRecognized: (String) -> Unit,
+    aiConfigured: Boolean = false,
+    onOpenAiCapture: (initialText: String, autoLaunchCamera: Boolean) -> Unit = { _, _ -> },
     onUndo: (UndoBannerState) -> Unit,
     onUndoTimeout: (Long) -> Unit,
     modifier: Modifier = Modifier
@@ -343,6 +345,8 @@ fun CalendarPane(
                 onSubmit = onQuickInputSubmit,
                 onToggleContinuousEntry = onToggleContinuousEntry,
                 onVoiceInputRecognized = onVoiceInputRecognized,
+                aiConfigured = aiConfigured,
+                onOpenAiCapture = onOpenAiCapture,
                 currentDate = today
             )
         }

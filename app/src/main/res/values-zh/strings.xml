@@ -455,4 +455,30 @@
     <string name="folder_color_label">项目色点</string>
     <string name="folder_color_none">无</string>
     <string name="folder_color_inherited_hint">自动继承自「%1$s」</string>
+
+    <!-- v2.9.0: 内置多模态 AI 引擎（Gemini / OpenAI 可选） -->
+    <string name="settings_section_ai">AI 引擎（Gemini / OpenAI）</string>
+    <string name="settings_ai_desc">自带 API Key（仅存于本机），支持口语/聊天建树、拍照识图转待办与任务一键破冰拆解。</string>
+    <string name="ai_provider_gemini">Gemini</string>
+    <string name="ai_provider_openai">OpenAI</string>
+    <string name="settings_ai_gemini_key_placeholder">Gemini API Key（AIza...）</string>
+    <string name="settings_ai_openai_key_placeholder">OpenAI API Key（sk-...）</string>
+    <string name="settings_ai_test_btn">测试 AI 连通性</string>
+    <string name="settings_ai_test_ok">连接成功 · 已就绪（%1$s）</string>
+    <string name="settings_ai_test_err">连接失败：%1$s</string>
+    <string name="ai_capture_title">AI 智能识别与建树</string>
+    <string name="ai_capture_camera_btn">拍照识图</string>
+    <string name="ai_capture_gallery_btn">相册 / 截图</string>
+    <string name="ai_capture_image_attached">已附带图片，将自动提取待办与关键信息</string>
+    <string name="ai_capture_input_placeholder">粘贴聊天记录、输入口语描述，或补充图片说明…</string>
+    <string name="ai_capture_analyze_btn">AI 提取并建树</string>
+    <string name="ai_capture_apply_count">写入 %1$d 项任务</string>
+    <string name="ai_analyzing">正在解析…</string>
+    <string name="ai_retry">重试</string>
+    <string name="ai_not_configured_desc">请先在设置中填写 Gemini 或 OpenAI API Key，即可启用拍照识图、聊天提取与一键破冰拆解。</string>
+    <string name="ai_open_settings_btn">前往配置 AI Key</string>
+    <string name="detail_ai_breakdown_btn">AI 拆解</string>
+    <string name="ai_breakdown_subtasks_label">跨场景并行前置子任务</string>
+    <string name="ai_breakdown_checklist_label">单次完成检查清单（Checklist）</string>
+    <string name="ai_breakdown_apply_btn">应用勾选项</string>
 </resources>

@@ -9,6 +9,16 @@ import com.zero.todo.core.nlp.ParsedQuickInput
 import com.zero.todo.core.nlp.QuickInputParser
 import com.zero.todo.core.notification.ReminderScheduler
 import com.zero.todo.core.notification.syncTaskReminder
+import com.zero.todo.data.ai.AiBreakdownDialogState
+import com.zero.todo.data.ai.AiCaptureDialogState
+import com.zero.todo.data.ai.AiCapturedTaskDraft
+import com.zero.todo.data.ai.AiConfig
+import com.zero.todo.data.ai.AiImagePayload
+import com.zero.todo.data.ai.AiSubtaskDraft
+import com.zero.todo.data.ai.AiTestStatus
+import com.zero.todo.data.ai.AiWorkspaceContext
+import com.zero.todo.data.ai.ZeroAiEngine
+import com.zero.todo.data.ai.ZeroAiJsonParser
 import com.zero.todo.data.backup.WebDavConfig
 import com.zero.todo.data.backup.WebDavSyncManager
 import com.zero.todo.data.backup.ZeroBackupManager
@@ -130,6 +140,7 @@ data class MainUiState(
     val appLanguage: AppLanguage = AppLanguage.SYSTEM,
     val notificationPreferences: NotificationPreferences = NotificationPreferences(),
     val webDavConfig: WebDavConfig = WebDavConfig(),
+    val aiConfig: AiConfig = AiConfig(),
     val webDavStatus: WebDavUiStatus? = null,
     val isMediumTreeExpanded: Boolean = true,
     val isSettingsOpen: Boolean = false,
@@ -155,6 +166,7 @@ class MainViewModel @Inject constructor(
     private val userPreferencesRepository: UserPreferencesRepository,
     private val backupManager: ZeroBackupManager,
     private val webDavSyncManager: WebDavSyncManager,
+    private val aiEngine: ZeroAiEngine,
     private val reminderScheduler: ReminderScheduler,
     private val widgetRefresher: WidgetRefresher,
     getFolderTreeUseCase: GetFolderTreeUseCase,
@@ -223,6 +235,15 @@ class MainViewModel @Inject constructor(
     private val deletedTasksFlow = taskRepository.observeDeletedTasks()
     private val _taskParentPicker = MutableStateFlow<TaskParentPickerState?>(null)
     val taskParentPicker = _taskParentPicker.asStateFlow()
+
+    private val _aiTestStatus = MutableStateFlow<AiTestStatus?>(null)
+    val aiTestStatus = _aiTestStatus.asStateFlow()
+
+    private val _aiCaptureState = MutableStateFlow(AiCaptureDialogState())
+    val aiCaptureState = _aiCaptureState.asStateFlow()
+
+    private val _aiBreakdownState = MutableStateFlow(AiBreakdownDialogState())
+    val aiBreakdownState = _aiBreakdownState.asStateFlow()
 
     init {
         // Re-sync upcoming task alarms & daily briefings on startup
@@ -645,6 +666,7 @@ class MainViewModel @Inject constructor(
             appLanguage = ui.preferences.appLanguage,
             notificationPreferences = ui.preferences.notifications,
             webDavConfig = ui.preferences.webDavConfig,
+            aiConfig = ui.preferences.aiConfig,
             webDavStatus = searchTrash.webDavStatus,
             isMediumTreeExpanded = ui.isMediumTreeExpanded,
             isSettingsOpen = ui.isSettingsOpen,
@@ -671,7 +693,8 @@ class MainViewModel @Inject constructor(
         taskSortMode = prefs.taskSortMode,
         folderPathDisplayMode = prefs.folderPathDisplayMode,
         notificationPreferences = prefs.notifications,
-        webDavConfig = prefs.webDavConfig
+        webDavConfig = prefs.webDavConfig,
+        aiConfig = prefs.aiConfig
     )
 
     override val executeUiState: StateFlow<ExecuteUiState> = uiState
@@ -713,7 +736,8 @@ class MainViewModel @Inject constructor(
             parsedQuickInput = parsedQuickInput,
             folderSuggestions = folderSuggestions,
             continuousEntryEnabled = continuousEntryEnabled,
-            undoBanner = undoBanner
+            undoBanner = undoBanner,
+            aiConfigured = aiConfig.isConfigured
         )
     }
 
@@ -1682,6 +1706,286 @@ class MainViewModel @Inject constructor(
         }
         walk(this)
         return out
+    }
+
+    // =========================================================================
+    // Built-in BYOK AI Engine Workflows (Capture / Image OCR & Breakdown)
+    // =========================================================================
+
+    fun updateAiConfig(config: AiConfig) {
+        userPreferencesRepository.setAiConfig(config)
+        if (_aiTestStatus.value != null) {
+            _aiTestStatus.value = null
+        }
+    }
+
+    fun testAiConnection() {
+        val cfg = userPreferencesRepository.preferences.value.aiConfig
+        _aiTestStatus.value = AiTestStatus.Working
+        viewModelScope.launch {
+            val result = aiEngine.testConnection(cfg)
+            _aiTestStatus.value = result.fold(
+                onSuccess = { model -> AiTestStatus.Success(model) },
+                onFailure = { err -> AiTestStatus.Error(err.message ?: "Request failed") }
+            )
+        }
+    }
+
+    override fun openAiCapture(initialText: String, autoLaunchCamera: Boolean) {
+        _aiCaptureState.value = AiCaptureDialogState(
+            isOpen = true,
+            initialText = initialText,
+            autoLaunchCamera = autoLaunchCamera
+        )
+    }
+
+    fun closeAiCapture() {
+        _aiCaptureState.value = AiCaptureDialogState()
+    }
+
+    fun analyzeAiCapture(text: String, image: AiImagePayload?, languageTag: String) {
+        val cfg = userPreferencesRepository.preferences.value.aiConfig
+        _aiCaptureState.value = _aiCaptureState.value.copy(
+            isAnalyzing = true,
+            autoLaunchCamera = false,
+            errorMessage = null
+        )
+        viewModelScope.launch {
+            val ctx = buildAiWorkspaceContext(languageTag)
+            val result = aiEngine.captureTasks(
+                config = cfg,
+                rawText = text,
+                image = image,
+                context = ctx
+            )
+            _aiCaptureState.value = result.fold(
+                onSuccess = { drafts ->
+                    _aiCaptureState.value.copy(
+                        isAnalyzing = false,
+                        results = drafts,
+                        errorMessage = null
+                    )
+                },
+                onFailure = { err ->
+                    _aiCaptureState.value.copy(
+                        isAnalyzing = false,
+                        errorMessage = err.message ?: "AI analysis failed"
+                    )
+                }
+            )
+        }
+    }
+
+    fun applyAiCapturedTasks(drafts: List<AiCapturedTaskDraft>) {
+        if (drafts.isEmpty()) return
+        val sourceInitialText = _aiCaptureState.value.initialText
+        viewModelScope.launch {
+            val zoneId = ZoneId.systemDefault()
+            val fallbackDest = NavigationDestination.fromStorageKey(destinationKeyFlow.value)
+            val fallbackFolderId = (fallbackDest as? NavigationDestination.FolderView)?.folderId
+            val todayStart = ZeroDateFormatter.startOfDayMillis(currentDateFlow.value)
+
+            for (draft in drafts) {
+                val cleanTitle = draft.title.trim()
+                if (cleanTitle.isEmpty()) continue
+                val folderSegments = draft.folderPath
+                    ?.split('/')
+                    ?.map { it.trim() }
+                    ?.filter { it.isNotEmpty() }
+                    .orEmpty()
+                val resolvedFolderId = if (folderSegments.isNotEmpty()) {
+                    resolveOrCreateFolderPath(folderSegments)
+                } else {
+                    fallbackFolderId
+                }
+
+                val parsedDue = ZeroAiJsonParser.parseIsoDueDate(draft.dueDateIso, zoneId)
+                val resolvedDueMillis = parsedDue?.first ?: if (fallbackDest == NavigationDestination.Today) todayStart else null
+                val resolvedAllDay = parsedDue?.second ?: true
+                val resolvedReminder = if (resolvedDueMillis != null && !resolvedAllDay) resolvedDueMillis else null
+
+                val createdParent = taskRepository.createTask(
+                    title = cleanTitle,
+                    folderId = resolvedFolderId,
+                    description = draft.description,
+                    priority = draft.priority,
+                    dueDate = resolvedDueMillis,
+                    isAllDay = resolvedAllDay,
+                    reminderAt = resolvedReminder,
+                    firstStep = draft.firstStep,
+                    estimatedMinutes = draft.estimatedMinutes
+                )
+                syncTaskReminder(createdParent)
+
+                for (tagName in draft.tags) {
+                    val cleanTag = tagName.trim().removePrefix("#").trim()
+                    if (cleanTag.isNotEmpty()) {
+                        val tag = tagRepository.getOrCreateTag(cleanTag)
+                        tagRepository.attachTagToTask(createdParent.id, tag.id)
+                    }
+                }
+                if (fallbackDest is NavigationDestination.TagView) {
+                    tagRepository.attachTagToTask(createdParent.id, fallbackDest.tagId)
+                }
+
+                for (sub in draft.subtasks) {
+                    val subTitle = sub.title.trim()
+                    if (subTitle.isEmpty()) continue
+                    val subDue = ZeroAiJsonParser.parseIsoDueDate(sub.dueDateIso, zoneId)
+                    val subPriority = if (sub.priority != TaskPriority.NONE) sub.priority else draft.priority
+                    val createdSub = taskRepository.createTask(
+                        title = subTitle,
+                        folderId = resolvedFolderId,
+                        parentTaskId = createdParent.id,
+                        priority = subPriority,
+                        dueDate = subDue?.first,
+                        isAllDay = subDue?.second ?: true,
+                        reminderAt = if (subDue != null && !subDue.second) subDue.first else null,
+                        estimatedMinutes = sub.estimatedMinutes
+                    )
+                    syncTaskReminder(createdSub)
+                    for (tagName in sub.tags) {
+                        val cleanTag = tagName.trim().removePrefix("#").trim()
+                        if (cleanTag.isNotEmpty()) {
+                            val tag = tagRepository.getOrCreateTag(cleanTag)
+                            tagRepository.attachTagToTask(createdSub.id, tag.id)
+                        }
+                    }
+                }
+            }
+
+            if (sourceInitialText.isNotBlank() && quickInputTextFlow.value == sourceInitialText) {
+                savedStateHandle[KEY_QUICK_INPUT] = ""
+            }
+            _aiCaptureState.value = AiCaptureDialogState()
+            widgetRefresher.refreshAll()
+        }
+    }
+
+    override fun openAiBreakdown(task: TaskItem, languageTag: String) {
+        _aiBreakdownState.value = AiBreakdownDialogState(
+            task = task,
+            isAnalyzing = userPreferencesRepository.preferences.value.aiConfig.isConfigured
+        )
+        if (!userPreferencesRepository.preferences.value.aiConfig.isConfigured) return
+        launchAiBreakdownAnalysis(task, languageTag)
+    }
+
+    fun retryAiBreakdown(languageTag: String) {
+        val target = _aiBreakdownState.value.task ?: return
+        _aiBreakdownState.value = AiBreakdownDialogState(task = target, isAnalyzing = true)
+        launchAiBreakdownAnalysis(target, languageTag)
+    }
+
+    fun closeAiBreakdown() {
+        _aiBreakdownState.value = AiBreakdownDialogState()
+    }
+
+    private fun launchAiBreakdownAnalysis(task: TaskItem, languageTag: String) {
+        val cfg = userPreferencesRepository.preferences.value.aiConfig
+        viewModelScope.launch {
+            val state = uiState.value
+            val folderPath = task.folderId?.let { state.folderFullPathById[it] ?: state.folderNameById[it] }
+            val existingTags = task.tags.map { state.tagPathById[it.id] ?: it.name }
+            val ctx = buildAiWorkspaceContext(languageTag)
+            val result = aiEngine.breakdownTask(
+                config = cfg,
+                taskTitle = task.title,
+                taskDescription = task.description,
+                existingFolderPath = folderPath,
+                existingTags = existingTags,
+                context = ctx
+            )
+            _aiBreakdownState.value = result.fold(
+                onSuccess = { draft ->
+                    _aiBreakdownState.value.copy(
+                        isAnalyzing = false,
+                        draft = draft,
+                        errorMessage = null
+                    )
+                },
+                onFailure = { err ->
+                    _aiBreakdownState.value.copy(
+                        isAnalyzing = false,
+                        errorMessage = err.message ?: "AI breakdown failed"
+                    )
+                }
+            )
+        }
+    }
+
+    fun applyAiBreakdown(
+        task: TaskItem,
+        firstStep: String?,
+        estimatedMinutes: Int?,
+        subtasks: List<AiSubtaskDraft>,
+        checklistItems: List<String>
+    ) {
+        viewModelScope.launch {
+            val latestParent = taskRepository.getTaskById(task.id) ?: task
+            val cleanFirstStep = firstStep?.trim()?.take(36)?.ifBlank { null }
+            val checklistBlock = checklistItems
+                .map { it.trim().removePrefix("- [ ]").trim() }
+                .filter { it.isNotEmpty() }
+                .joinToString("\n") { "- [ ] $it" }
+            val mergedDesc = when {
+                checklistBlock.isEmpty() -> latestParent.description
+                latestParent.description.isBlank() -> checklistBlock
+                else -> "${latestParent.description.trimEnd()}\n$checklistBlock"
+            }
+
+            if (cleanFirstStep != null || estimatedMinutes != null || checklistBlock.isNotEmpty()) {
+                taskRepository.updateTask(latestParent.id) { cur ->
+                    cur.copy(
+                        firstStep = cleanFirstStep ?: cur.firstStep,
+                        firstStepCompleted = if (cleanFirstStep != null && cleanFirstStep != cur.firstStep) false else cur.firstStepCompleted,
+                        estimatedMinutes = estimatedMinutes ?: cur.estimatedMinutes,
+                        description = mergedDesc
+                    )
+                }
+            }
+
+            val zoneId = ZoneId.systemDefault()
+            for (sub in subtasks) {
+                val subTitle = sub.title.trim()
+                if (subTitle.isEmpty()) continue
+                val subDue = ZeroAiJsonParser.parseIsoDueDate(sub.dueDateIso, zoneId)
+                val subPriority = if (sub.priority != TaskPriority.NONE) sub.priority else latestParent.priority
+                val createdSub = taskRepository.createTask(
+                    title = subTitle,
+                    folderId = latestParent.folderId,
+                    parentTaskId = latestParent.id,
+                    priority = subPriority,
+                    dueDate = subDue?.first,
+                    isAllDay = subDue?.second ?: true,
+                    reminderAt = if (subDue != null && !subDue.second) subDue.first else null,
+                    estimatedMinutes = sub.estimatedMinutes
+                )
+                syncTaskReminder(createdSub)
+                for (tagName in sub.tags) {
+                    val cleanTag = tagName.trim().removePrefix("#").trim()
+                    if (cleanTag.isNotEmpty()) {
+                        val tag = tagRepository.getOrCreateTag(cleanTag)
+                        tagRepository.attachTagToTask(createdSub.id, tag.id)
+                    }
+                }
+            }
+
+            _aiBreakdownState.value = AiBreakdownDialogState()
+            widgetRefresher.refreshAll()
+        }
+    }
+
+    private fun buildAiWorkspaceContext(languageTag: String): AiWorkspaceContext {
+        val today = currentDateFlow.value
+        val state = uiState.value
+        return AiWorkspaceContext(
+            currentDateIso = today.toString(),
+            currentWeekday = today.dayOfWeek.name,
+            languageTag = languageTag,
+            folderPaths = state.folderFullPathById.values.sorted(),
+            tagPaths = state.tagPathById.values.sorted()
+        )
     }
 
     companion object {

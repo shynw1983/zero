@@ -57,6 +57,9 @@ fun ZeroAppRoot(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val executeUiState by viewModel.executeUiState.collectAsStateWithLifecycle()
     val taskParentPicker by viewModel.taskParentPicker.collectAsStateWithLifecycle()
+    val aiTestStatus by viewModel.aiTestStatus.collectAsStateWithLifecycle()
+    val aiCaptureState by viewModel.aiCaptureState.collectAsStateWithLifecycle()
+    val aiBreakdownState by viewModel.aiBreakdownState.collectAsStateWithLifecycle()
     val navController = rememberNavController()
     val baseContext = LocalContext.current
     val baseConfig = LocalConfiguration.current
@@ -148,7 +151,13 @@ fun ZeroAppRoot(
         LocalizedContextWrapper(baseContext, localizedResources)
     }
 
-    val callbacks = remember(viewModel, baseContext) {
+    val activeLanguageTag = if (!localizedConfig.locales.isEmpty) {
+        localizedConfig.locales[0].toLanguageTag()
+    } else {
+        "en"
+    }
+
+    val callbacks = remember(viewModel, baseContext, activeLanguageTag) {
         ZeroShellCallbacks(
             onSetWorkspaceMode = viewModel::setWorkspaceMode,
             onSetExecuteTheme = viewModel::setExecuteTheme,
@@ -246,6 +255,22 @@ fun ZeroAppRoot(
             onUpdateWebDavConfig = viewModel::updateWebDavConfig,
             onSetFolderPathDisplayMode = viewModel::setFolderPathDisplayMode,
             onUpdateNotificationPreferences = viewModel::updateNotificationPreferences,
+            onUpdateAiConfig = viewModel::updateAiConfig,
+            onTestAiConnection = viewModel::testAiConnection,
+            onOpenAiCapture = viewModel::openAiCapture,
+            onCloseAiCapture = viewModel::closeAiCapture,
+            onAnalyzeAiCapture = { text, image ->
+                viewModel.analyzeAiCapture(text, image, activeLanguageTag)
+            },
+            onApplyAiCapturedTasks = viewModel::applyAiCapturedTasks,
+            onOpenAiBreakdown = { task ->
+                viewModel.openAiBreakdown(task, activeLanguageTag)
+            },
+            onCloseAiBreakdown = viewModel::closeAiBreakdown,
+            onRetryAiBreakdown = {
+                viewModel.retryAiBreakdown(activeLanguageTag)
+            },
+            onApplyAiBreakdown = viewModel::applyAiBreakdown,
             onTestWebDav = viewModel::testWebDavConnection,
             onPushWebDav = viewModel::pushWebDavBackup,
             onPullWebDav = viewModel::pullWebDavBackup,
@@ -290,6 +315,9 @@ fun ZeroAppRoot(
                             callbacks = callbacks,
                             executeUiState = executeUiState,
                             taskParentPicker = taskParentPicker,
+                            aiTestStatus = aiTestStatus,
+                            aiCaptureState = aiCaptureState,
+                            aiBreakdownState = aiBreakdownState,
                             windowWidthSizeClass = windowWidthSizeClass
                         )
                     }

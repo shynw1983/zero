@@ -85,6 +85,13 @@ import com.zero.todo.core.designsystem.hairlineDividerStart
 import com.zero.todo.core.designsystem.hairlineDividerTop
 import com.zero.todo.core.designsystem.rememberZeroHaptics
 import com.zero.todo.core.nlp.QuickInputParser
+import com.zero.todo.data.ai.AiBreakdownDialogState
+import com.zero.todo.data.ai.AiCaptureDialogState
+import com.zero.todo.data.ai.AiCapturedTaskDraft
+import com.zero.todo.data.ai.AiConfig
+import com.zero.todo.data.ai.AiImagePayload
+import com.zero.todo.data.ai.AiSubtaskDraft
+import com.zero.todo.data.ai.AiTestStatus
 import com.zero.todo.data.backup.WebDavConfig
 import com.zero.todo.data.preferences.NotificationPreferences
 import com.zero.todo.domain.model.AntiMisclickMode
@@ -103,6 +110,8 @@ import com.zero.todo.domain.model.TaskSwipeDirection
 import com.zero.todo.domain.model.WorkspaceMode
 import com.zero.todo.feature.calendar.CalendarPane
 import com.zero.todo.feature.calendar.CalendarViewMode
+import com.zero.todo.feature.ai.AiBreakdownDialog
+import com.zero.todo.feature.ai.AiCaptureDialog
 import com.zero.todo.feature.focus.SingleTaskFocusOverlay
 import com.zero.todo.feature.folder.CreateFolderDialog
 import com.zero.todo.feature.folder.CreateTagDialog
@@ -210,6 +219,16 @@ data class ZeroShellCallbacks(
     val onSetAppLanguage: (AppLanguage) -> Unit = {},
     val onSetFolderPathDisplayMode: (FolderPathDisplayMode) -> Unit = {},
     val onUpdateNotificationPreferences: (NotificationPreferences) -> Unit = {},
+    val onUpdateAiConfig: (AiConfig) -> Unit = {},
+    val onTestAiConnection: () -> Unit = {},
+    val onOpenAiCapture: (initialText: String, autoLaunchCamera: Boolean) -> Unit = { _, _ -> },
+    val onCloseAiCapture: () -> Unit = {},
+    val onAnalyzeAiCapture: (text: String, image: AiImagePayload?) -> Unit = { _, _ -> },
+    val onApplyAiCapturedTasks: (List<AiCapturedTaskDraft>) -> Unit = {},
+    val onOpenAiBreakdown: (TaskItem) -> Unit = {},
+    val onCloseAiBreakdown: () -> Unit = {},
+    val onRetryAiBreakdown: () -> Unit = {},
+    val onApplyAiBreakdown: (task: TaskItem, firstStep: String?, estimatedMinutes: Int?, subtasks: List<AiSubtaskDraft>, checklistItems: List<String>) -> Unit = { _, _, _, _, _ -> },
     val onUpdateWebDavConfig: (WebDavConfig) -> Unit = {},
     val onTestWebDav: () -> Unit = {},
     val onPushWebDav: () -> Unit = {},
@@ -238,6 +257,9 @@ fun ZeroAdaptiveShell(
     callbacks: ZeroShellCallbacks,
     executeUiState: ExecuteUiState = ExecuteUiState(),
     taskParentPicker: TaskParentPickerState? = null,
+    aiTestStatus: AiTestStatus? = null,
+    aiCaptureState: AiCaptureDialogState = AiCaptureDialogState(),
+    aiBreakdownState: AiBreakdownDialogState = AiBreakdownDialogState(),
     windowWidthSizeClass: WindowWidthSizeClass = currentWindowAdaptiveInfo().windowSizeClass.windowWidthSizeClass,
     modifier: Modifier = Modifier
 ) {
@@ -478,6 +500,8 @@ fun ZeroAdaptiveShell(
                                 onQuickInputSubmit = callbacks.onQuickInputSubmit,
                                 onToggleContinuousEntry = callbacks.onToggleContinuousEntry,
                                 onVoiceInputRecognized = callbacks.onVoiceInputRecognized,
+                                onOpenAiCapture = callbacks.onOpenAiCapture,
+                                onOpenAiBreakdown = callbacks.onOpenAiBreakdown,
                                 onUndo = callbacks.onUndo,
                                 onUndoTimeout = callbacks.onUndoTimeout
                             )
@@ -603,6 +627,8 @@ fun ZeroAdaptiveShell(
                 dailyCapacityMinutes = uiState.dailyCapacityMinutes,
                 folderPathDisplayMode = uiState.folderPathDisplayMode,
                 notificationPreferences = uiState.notificationPreferences,
+                aiConfig = uiState.aiConfig,
+                aiTestStatus = aiTestStatus,
                 webDavConfig = uiState.webDavConfig,
                 webDavStatus = uiState.webDavStatus,
                 backupStatus = uiState.backupStatus,
@@ -615,6 +641,8 @@ fun ZeroAdaptiveShell(
                 onSetDailyCapacityMinutes = callbacks.onSetDailyCapacityMinutes,
                 onSetFolderPathDisplayMode = callbacks.onSetFolderPathDisplayMode,
                 onUpdateNotificationPreferences = callbacks.onUpdateNotificationPreferences,
+                onUpdateAiConfig = callbacks.onUpdateAiConfig,
+                onTestAiConnection = callbacks.onTestAiConnection,
                 onUpdateWebDavConfig = callbacks.onUpdateWebDavConfig,
                 onTestWebDav = callbacks.onTestWebDav,
                 onPushWebDav = callbacks.onPushWebDav,
@@ -642,6 +670,24 @@ fun ZeroAdaptiveShell(
             )
         }
     }
+
+    AiCaptureDialog(
+        state = aiCaptureState,
+        aiConfig = uiState.aiConfig,
+        onDismiss = callbacks.onCloseAiCapture,
+        onOpenSettings = callbacks.onOpenSettings,
+        onAnalyze = callbacks.onAnalyzeAiCapture,
+        onApplyTasks = callbacks.onApplyAiCapturedTasks
+    )
+
+    AiBreakdownDialog(
+        state = aiBreakdownState,
+        aiConfig = uiState.aiConfig,
+        onDismiss = callbacks.onCloseAiBreakdown,
+        onOpenSettings = callbacks.onOpenSettings,
+        onRetry = callbacks.onRetryAiBreakdown,
+        onApply = callbacks.onApplyAiBreakdown
+    )
 
     val menuFolder = folderMenuTarget
     if (menuFolder != null) {
@@ -926,6 +972,8 @@ private fun CenterWorkspacePane(
                 onQuickInputSubmit = callbacks.onQuickInputSubmit,
                 onToggleContinuousEntry = callbacks.onToggleContinuousEntry,
                 onVoiceInputRecognized = callbacks.onVoiceInputRecognized,
+                aiConfigured = uiState.aiConfig.isConfigured,
+                onOpenAiCapture = callbacks.onOpenAiCapture,
                 onUndo = callbacks.onUndo,
                 onUndoTimeout = callbacks.onUndoTimeout,
                 modifier = modifier
@@ -1028,6 +1076,8 @@ private fun CenterWorkspacePane(
                 onQuickInputSubmit = callbacks.onQuickInputSubmit,
                 onToggleContinuousEntry = callbacks.onToggleContinuousEntry,
                 onVoiceInputRecognized = callbacks.onVoiceInputRecognized,
+                aiConfigured = uiState.aiConfig.isConfigured,
+                onOpenAiCapture = callbacks.onOpenAiCapture,
                 onUndo = callbacks.onUndo,
                 onUndoTimeout = callbacks.onUndoTimeout,
                 modifier = modifier
@@ -1078,6 +1128,7 @@ private fun BoundTaskDetailPane(
             onNavigateBack()
         },
         onDeleteTask = callbacks.onDeleteTask,
+        onOpenAiBreakdown = callbacks.onOpenAiBreakdown,
         tagPathById = uiState.tagPathById,
         allTags = uiState.tagsWithCounts.map { it.tag },
         defaultAllDayReminderMinutes = uiState.notificationPreferences.defaultAllDayReminderMinutes,

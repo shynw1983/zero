@@ -455,4 +455,30 @@
     <string name="folder_color_label">프로젝트 색상</string>
     <string name="folder_color_none">없음</string>
     <string name="folder_color_inherited_hint">\'%1$s\' 색상 자동 상속</string>
+
+    <!-- v2.9.0: 내장 멀티모달 AI 엔진 (Gemini / OpenAI 선택 가능) -->
+    <string name="settings_section_ai">AI 엔진 (Gemini / OpenAI)</string>
+    <string name="settings_ai_desc">API 키는 이 기기에만 저장되며 사진 OCR, 메신저 내용 추출 및 즉시 작업 분해에 사용됩니다.</string>
+    <string name="ai_provider_gemini">Gemini</string>
+    <string name="ai_provider_openai">OpenAI</string>
+    <string name="settings_ai_gemini_key_placeholder">Gemini API Key (AIza...)</string>
+    <string name="settings_ai_openai_key_placeholder">OpenAI API Key (sk-...)</string>
+    <string name="settings_ai_test_btn">AI 연결 테스트</string>
+    <string name="settings_ai_test_ok">연결 성공 · 준비됨 (%1$s)</string>
+    <string name="settings_ai_test_err">연결 실패: %1$s</string>
+    <string name="ai_capture_title">AI 스마트 캡처</string>
+    <string name="ai_capture_camera_btn">사진 촬영</string>
+    <string name="ai_capture_gallery_btn">스크린샷 / 사진</string>
+    <string name="ai_capture_image_attached">이미지가 첨부되었습니다</string>
+    <string name="ai_capture_input_placeholder">대화 내용 붙여넣기, 메모 입력 또는 사진 설명 추가…</string>
+    <string name="ai_capture_analyze_btn">할 일 추출</string>
+    <string name="ai_capture_apply_count">%1$d개 할 일 추가</string>
+    <string name="ai_analyzing">분석 중…</string>
+    <string name="ai_retry">다시 시도</string>
+    <string name="ai_not_configured_desc">설정에서 Gemini 또는 OpenAI API 키를 등록하면 사진 OCR과 즉시 작업 분해 기능을 사용할 수 있습니다.</string>
+    <string name="ai_open_settings_btn">AI 설정 열기</string>
+    <string name="detail_ai_breakdown_btn">AI 분해</string>
+    <string name="ai_breakdown_subtasks_label">병렬 진행 사전 하위 작업</string>
+    <string name="ai_breakdown_checklist_label">한 번에 처리할 체크리스트</string>
+    <string name="ai_breakdown_apply_btn">선택 항목 적용</string>
 </resources>

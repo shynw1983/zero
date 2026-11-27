@@ -118,6 +118,7 @@ class MainViewModelStateTest {
             userPreferencesRepository = preferencesRepository,
             backupManager = backupManager,
             webDavSyncManager = webDavSyncManager,
+            aiEngine = com.zero.todo.data.ai.ZeroAiEngine(),
             reminderScheduler = NoOpReminderScheduler,
             widgetRefresher = NoOpWidgetRefresher,
             getFolderTreeUseCase = getFolderTreeUseCase,

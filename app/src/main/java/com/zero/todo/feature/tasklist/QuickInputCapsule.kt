@@ -28,10 +28,12 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AllInclusive
 import androidx.compose.material.icons.rounded.ArrowUpward
+import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material.icons.rounded.Flag
 import androidx.compose.material.icons.rounded.Folder
 import androidx.compose.material.icons.rounded.Mic
+import androidx.compose.material.icons.rounded.PhotoCamera
 import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.Tag
 import androidx.compose.material3.Icon
@@ -105,6 +107,8 @@ fun QuickInputCapsule(
     onSubmit: () -> Unit,
     onToggleContinuousEntry: () -> Unit,
     onVoiceInputRecognized: (String) -> Unit,
+    aiConfigured: Boolean = false,
+    onOpenAiCapture: (initialText: String, autoLaunchCamera: Boolean) -> Unit = { _, _ -> },
     currentDate: LocalDate = LocalDate.now(),
     modifier: Modifier = Modifier
 ) {
@@ -310,7 +314,55 @@ fun QuickInputCapsule(
                     )
                 }
 
-                Spacer(modifier = Modifier.width(8.dp))
+                Spacer(modifier = Modifier.width(6.dp))
+
+                // AI Camera OCR + AI Quick Capture
+                Box(
+                    modifier = Modifier
+                        .size(32.dp)
+                        .clip(ZeroCapsuleShape)
+                        .background(colors.surface)
+                        .hairlineBorder(shape = ZeroCapsuleShape)
+                        .clickable {
+                            haptics.reorderTick()
+                            onOpenAiCapture(text, true)
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.PhotoCamera,
+                        contentDescription = stringResource(R.string.ai_capture_camera_btn),
+                        tint = if (aiConfigured) colors.textSecondary else colors.textMuted,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(6.dp))
+
+                Box(
+                    modifier = Modifier
+                        .size(32.dp)
+                        .clip(ZeroCapsuleShape)
+                        .background(if (aiConfigured) colors.accentSubtle else colors.surface)
+                        .hairlineBorder(
+                            shape = ZeroCapsuleShape,
+                            color = if (aiConfigured) colors.accent.copy(alpha = 0.55f) else colors.hairlineBorder
+                        )
+                        .clickable {
+                            haptics.reorderTick()
+                            onOpenAiCapture(text, false)
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.AutoAwesome,
+                        contentDescription = stringResource(R.string.ai_capture_title),
+                        tint = if (aiConfigured) colors.accent else colors.textMuted,
+                        modifier = Modifier.size(15.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(6.dp))
 
                 // Voice-to-Task button (tap or long-press) & Send button
                 if (text.isBlank()) {

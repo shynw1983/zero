@@ -30,6 +30,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.CloudDownload
@@ -40,6 +41,8 @@ import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.Link
 import androidx.compose.material.icons.rounded.NotificationsActive
 import androidx.compose.material.icons.rounded.Upload
+import androidx.compose.material.icons.rounded.Visibility
+import androidx.compose.material.icons.rounded.VisibilityOff
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -79,6 +82,9 @@ import com.zero.todo.core.designsystem.hairlineBorder
 import com.zero.todo.core.designsystem.hairlineDividerBottom
 import com.zero.todo.core.designsystem.rememberZeroHaptics
 import com.zero.todo.core.notification.ZeroNotificationHelper
+import com.zero.todo.data.ai.AiConfig
+import com.zero.todo.data.ai.AiProvider
+import com.zero.todo.data.ai.AiTestStatus
 import com.zero.todo.data.backup.BackupSummary
 import com.zero.todo.data.backup.WebDavConfig
 import com.zero.todo.data.preferences.NotificationPreferences
@@ -120,6 +126,8 @@ fun SettingsOverlay(
     dailyCapacityMinutes: Int,
     folderPathDisplayMode: FolderPathDisplayMode = FolderPathDisplayMode.SMART_DISAMBIGUATE,
     notificationPreferences: NotificationPreferences = NotificationPreferences(),
+    aiConfig: AiConfig = AiConfig(),
+    aiTestStatus: AiTestStatus? = null,
     webDavConfig: WebDavConfig,
     webDavStatus: WebDavUiStatus?,
     backupStatus: BackupUiStatus?,
@@ -132,6 +140,8 @@ fun SettingsOverlay(
     onSetDailyCapacityMinutes: (Int) -> Unit,
     onSetFolderPathDisplayMode: (FolderPathDisplayMode) -> Unit = {},
     onUpdateNotificationPreferences: (NotificationPreferences) -> Unit = {},
+    onUpdateAiConfig: (AiConfig) -> Unit = {},
+    onTestAiConnection: () -> Unit = {},
     onUpdateWebDavConfig: (WebDavConfig) -> Unit,
     onTestWebDav: () -> Unit,
     onPushWebDav: () -> Unit,
@@ -567,6 +577,14 @@ fun SettingsOverlay(
                 NotificationsSettingsCard(
                     preferences = notificationPreferences,
                     onUpdate = onUpdateNotificationPreferences
+                )
+
+                // 4d. Built-in Multimodal AI Engine (Gemini & OpenAI BYOK)
+                AiEngineSettingsCard(
+                    aiConfig = aiConfig,
+                    testStatus = aiTestStatus,
+                    onUpdateConfig = onUpdateAiConfig,
+                    onTestConnection = onTestAiConnection
                 )
 
                 // 5. Local Data Backup & Export (JSON + Hierarchical Markdown)
@@ -1476,6 +1494,259 @@ private fun DailyBriefingRow(
                 ) {
                     onToggle(false)
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AiEngineSettingsCard(
+    aiConfig: AiConfig,
+    testStatus: AiTestStatus?,
+    onUpdateConfig: (AiConfig) -> Unit,
+    onTestConnection: () -> Unit
+) {
+    val colors = ZeroTheme.colors
+    val tabular = ZeroTheme.tabularTypography
+    val haptics = rememberZeroHaptics()
+
+    var geminiKeyDraft by remember(aiConfig.geminiApiKey) { mutableStateOf(aiConfig.geminiApiKey) }
+    var geminiModelDraft by remember(aiConfig.geminiModel) { mutableStateOf(aiConfig.geminiModel) }
+    var openAiKeyDraft by remember(aiConfig.openAiApiKey) { mutableStateOf(aiConfig.openAiApiKey) }
+    var openAiModelDraft by remember(aiConfig.openAiModel) { mutableStateOf(aiConfig.openAiModel) }
+    var openAiBaseUrlDraft by remember(aiConfig.openAiBaseUrl) { mutableStateOf(aiConfig.openAiBaseUrl) }
+    var showKey by remember { mutableStateOf(false) }
+
+    fun pushCurrentDraft(providerOverride: AiProvider = aiConfig.provider) {
+        onUpdateConfig(
+            AiConfig(
+                provider = providerOverride,
+                geminiApiKey = geminiKeyDraft,
+                geminiModel = geminiModelDraft.trim().ifBlank { AiConfig.DEFAULT_GEMINI_MODEL },
+                openAiApiKey = openAiKeyDraft,
+                openAiModel = openAiModelDraft.trim().ifBlank { AiConfig.DEFAULT_OPENAI_MODEL },
+                openAiBaseUrl = openAiBaseUrlDraft.trim().ifBlank { AiConfig.DEFAULT_OPENAI_BASE_URL }
+            )
+        )
+    }
+
+    SettingsSectionCard(title = stringResource(R.string.settings_section_ai)) {
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text(
+                text = stringResource(R.string.settings_ai_desc),
+                style = MaterialTheme.typography.bodySmall,
+                color = colors.textSecondary
+            )
+
+            // Provider Selector (Gemini | OpenAI)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                AiProvider.entries.forEach { provider ->
+                    val selected = aiConfig.provider == provider
+                    val titleRes = when (provider) {
+                        AiProvider.GEMINI -> R.string.ai_provider_gemini
+                        AiProvider.OPENAI -> R.string.ai_provider_openai
+                    }
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(38.dp)
+                            .clip(ZeroSmallShape)
+                            .background(if (selected) colors.accentSubtle else colors.background)
+                            .hairlineBorder(
+                                shape = ZeroSmallShape,
+                                color = if (selected) colors.accent else colors.hairlineBorder
+                            )
+                            .clickable {
+                                haptics.reorderTick()
+                                pushCurrentDraft(providerOverride = provider)
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = stringResource(titleRes),
+                            style = MaterialTheme.typography.labelLarge,
+                            color = if (selected) colors.accent else colors.textPrimary
+                        )
+                    }
+                }
+            }
+
+            if (aiConfig.provider == AiProvider.GEMINI) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    WebDavInputField(
+                        value = geminiKeyDraft,
+                        placeholder = stringResource(R.string.settings_ai_gemini_key_placeholder),
+                        isPassword = !showKey,
+                        onValueChange = {
+                            geminiKeyDraft = it
+                            pushCurrentDraft()
+                        },
+                        modifier = Modifier.weight(1f)
+                    )
+                    IconButton(onClick = { showKey = !showKey }, modifier = Modifier.size(36.dp)) {
+                        Icon(
+                            imageVector = if (showKey) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility,
+                            contentDescription = null,
+                            tint = colors.textMuted,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                }
+                WebDavInputField(
+                    value = geminiModelDraft,
+                    placeholder = AiConfig.DEFAULT_GEMINI_MODEL,
+                    onValueChange = {
+                        geminiModelDraft = it
+                        pushCurrentDraft()
+                    }
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    listOf("gemini-2.5-flash", "gemini-2.5-pro").forEach { preset ->
+                        val active = geminiModelDraft.trim() == preset
+                        Box(
+                            modifier = Modifier
+                                .clip(ZeroSmallShape)
+                                .background(if (active) colors.accentSubtle else colors.background)
+                                .hairlineBorder(
+                                    shape = ZeroSmallShape,
+                                    color = if (active) colors.accent else colors.hairlineBorder
+                                )
+                                .clickable {
+                                    geminiModelDraft = preset
+                                    pushCurrentDraft()
+                                }
+                                .padding(horizontal = 8.dp, vertical = 5.dp)
+                        ) {
+                            Text(
+                                text = preset,
+                                style = tabular.dateCompact,
+                                color = if (active) colors.accent else colors.textSecondary
+                            )
+                        }
+                    }
+                }
+            } else {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    WebDavInputField(
+                        value = openAiKeyDraft,
+                        placeholder = stringResource(R.string.settings_ai_openai_key_placeholder),
+                        isPassword = !showKey,
+                        onValueChange = {
+                            openAiKeyDraft = it
+                            pushCurrentDraft()
+                        },
+                        modifier = Modifier.weight(1f)
+                    )
+                    IconButton(onClick = { showKey = !showKey }, modifier = Modifier.size(36.dp)) {
+                        Icon(
+                            imageVector = if (showKey) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility,
+                            contentDescription = null,
+                            tint = colors.textMuted,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                }
+                WebDavInputField(
+                    value = openAiModelDraft,
+                    placeholder = AiConfig.DEFAULT_OPENAI_MODEL,
+                    onValueChange = {
+                        openAiModelDraft = it
+                        pushCurrentDraft()
+                    }
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    listOf("gpt-4o-mini", "gpt-4o").forEach { preset ->
+                        val active = openAiModelDraft.trim() == preset
+                        Box(
+                            modifier = Modifier
+                                .clip(ZeroSmallShape)
+                                .background(if (active) colors.accentSubtle else colors.background)
+                                .hairlineBorder(
+                                    shape = ZeroSmallShape,
+                                    color = if (active) colors.accent else colors.hairlineBorder
+                                )
+                                .clickable {
+                                    openAiModelDraft = preset
+                                    pushCurrentDraft()
+                                }
+                                .padding(horizontal = 8.dp, vertical = 5.dp)
+                        ) {
+                            Text(
+                                text = preset,
+                                style = tabular.dateCompact,
+                                color = if (active) colors.accent else colors.textSecondary
+                            )
+                        }
+                    }
+                }
+                WebDavInputField(
+                    value = openAiBaseUrlDraft,
+                    placeholder = AiConfig.DEFAULT_OPENAI_BASE_URL,
+                    onValueChange = {
+                        openAiBaseUrlDraft = it
+                        pushCurrentDraft()
+                    }
+                )
+            }
+
+            val isBusy = testStatus == AiTestStatus.Working
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(ZeroSmallShape)
+                    .background(colors.background)
+                    .hairlineBorder(shape = ZeroSmallShape, color = colors.accent.copy(alpha = 0.55f))
+                    .clickable(enabled = !isBusy && aiConfig.isConfigured) {
+                        haptics.reorderTick()
+                        pushCurrentDraft()
+                        onTestConnection()
+                    }
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.AutoAwesome,
+                    contentDescription = null,
+                    tint = if (aiConfig.isConfigured) colors.accent else colors.textMuted,
+                    modifier = Modifier.size(16.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = stringResource(R.string.settings_ai_test_btn),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = if (aiConfig.isConfigured) colors.accent else colors.textMuted
+                )
+            }
+
+            if (testStatus != null) {
+                val (msg, isError) = when (testStatus) {
+                    AiTestStatus.Working -> stringResource(R.string.ai_analyzing) to false
+                    is AiTestStatus.Success -> stringResource(R.string.settings_ai_test_ok, testStatus.model) to false
+                    is AiTestStatus.Error -> stringResource(R.string.settings_ai_test_err, testStatus.detail) to true
+                }
+                Text(
+                    text = msg,
+                    style = tabular.dateCompact,
+                    color = if (isError) colors.priorityUrgent else colors.accent
+                )
             }
         }
     }

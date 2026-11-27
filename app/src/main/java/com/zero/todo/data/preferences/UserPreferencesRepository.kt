@@ -2,6 +2,8 @@ package com.zero.todo.data.preferences
 
 import android.content.Context
 import com.zero.todo.core.designsystem.ZeroAccent
+import com.zero.todo.data.ai.AiConfig
+import com.zero.todo.data.ai.AiProvider
 import com.zero.todo.data.backup.WebDavConfig
 import com.zero.todo.domain.model.AntiMisclickMode
 import com.zero.todo.domain.model.AppLanguage
@@ -50,7 +52,8 @@ data class UserPreferences(
     val dailyCapacityMinutes: Int = 240,
     val folderPathDisplayMode: FolderPathDisplayMode = FolderPathDisplayMode.SMART_DISAMBIGUATE,
     val notifications: NotificationPreferences = NotificationPreferences(),
-    val webDavConfig: WebDavConfig = WebDavConfig()
+    val webDavConfig: WebDavConfig = WebDavConfig(),
+    val aiConfig: AiConfig = AiConfig()
 )
 
 interface UserPreferencesRepository {
@@ -69,6 +72,7 @@ interface UserPreferencesRepository {
     fun setFolderPathDisplayMode(mode: FolderPathDisplayMode)
     fun setNotificationPreferences(config: NotificationPreferences)
     fun setWebDavConfig(config: WebDavConfig)
+    fun setAiConfig(config: AiConfig)
 }
 
 @Singleton
@@ -167,6 +171,18 @@ class SharedPrefsUserPreferencesRepository @Inject constructor(
         _preferences.update { it.copy(webDavConfig = config) }
     }
 
+    override fun setAiConfig(config: AiConfig) {
+        prefs.edit()
+            .putString(KEY_AI_PROVIDER, config.provider.name)
+            .putString(KEY_AI_GEMINI_KEY, config.geminiApiKey)
+            .putString(KEY_AI_GEMINI_MODEL, config.geminiModel)
+            .putString(KEY_AI_OPENAI_KEY, config.openAiApiKey)
+            .putString(KEY_AI_OPENAI_MODEL, config.openAiModel)
+            .putString(KEY_AI_OPENAI_BASE_URL, config.openAiBaseUrl)
+            .apply()
+        _preferences.update { it.copy(aiConfig = config) }
+    }
+
     private fun loadInitial(): UserPreferences {
         val isDark = prefs.getBoolean(KEY_DARK_THEME, true)
         val accentName = prefs.getString(KEY_ACCENT, ZeroAccent.SlateBlue.name)
@@ -206,6 +222,20 @@ class SharedPrefsUserPreferencesRepository @Inject constructor(
                 .orEmpty()
                 .ifBlank { WebDavConfig.DEFAULT_REMOTE_FILE }
         )
+        val aiConfig = AiConfig(
+            provider = AiProvider.fromStorage(prefs.getString(KEY_AI_PROVIDER, AiProvider.GEMINI.name)),
+            geminiApiKey = prefs.getString(KEY_AI_GEMINI_KEY, "").orEmpty(),
+            geminiModel = prefs.getString(KEY_AI_GEMINI_MODEL, AiConfig.DEFAULT_GEMINI_MODEL)
+                .orEmpty()
+                .ifBlank { AiConfig.DEFAULT_GEMINI_MODEL },
+            openAiApiKey = prefs.getString(KEY_AI_OPENAI_KEY, "").orEmpty(),
+            openAiModel = prefs.getString(KEY_AI_OPENAI_MODEL, AiConfig.DEFAULT_OPENAI_MODEL)
+                .orEmpty()
+                .ifBlank { AiConfig.DEFAULT_OPENAI_MODEL },
+            openAiBaseUrl = prefs.getString(KEY_AI_OPENAI_BASE_URL, AiConfig.DEFAULT_OPENAI_BASE_URL)
+                .orEmpty()
+                .ifBlank { AiConfig.DEFAULT_OPENAI_BASE_URL }
+        )
         return UserPreferences(
             isDarkTheme = isDark,
             accent = accent,
@@ -222,7 +252,8 @@ class SharedPrefsUserPreferencesRepository @Inject constructor(
             dailyCapacityMinutes = dailyCapacityMinutes,
             folderPathDisplayMode = folderPathDisplayMode,
             notifications = notifications,
-            webDavConfig = webDavConfig
+            webDavConfig = webDavConfig,
+            aiConfig = aiConfig
         )
     }
 
@@ -249,6 +280,12 @@ class SharedPrefsUserPreferencesRepository @Inject constructor(
         private const val KEY_WEBDAV_USER = "webdav_user"
         private const val KEY_WEBDAV_PASS = "webdav_pass"
         private const val KEY_WEBDAV_FILE = "webdav_file"
+        private const val KEY_AI_PROVIDER = "ai_provider"
+        private const val KEY_AI_GEMINI_KEY = "ai_gemini_key"
+        private const val KEY_AI_GEMINI_MODEL = "ai_gemini_model"
+        private const val KEY_AI_OPENAI_KEY = "ai_openai_key"
+        private const val KEY_AI_OPENAI_MODEL = "ai_openai_model"
+        private const val KEY_AI_OPENAI_BASE_URL = "ai_openai_base_url"
     }
 }
 
@@ -308,5 +345,9 @@ class InMemoryUserPreferencesRepository(
 
     override fun setWebDavConfig(config: WebDavConfig) {
         _preferences.update { it.copy(webDavConfig = config) }
+    }
+
+    override fun setAiConfig(config: AiConfig) {
+        _preferences.update { it.copy(aiConfig = config) }
     }
 }

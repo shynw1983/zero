@@ -124,6 +124,7 @@ fun MonolithThemeView(
     onUpdateFirstStep: (TaskItem, String?) -> Unit,
     onCompleteFirstStepAndStartFlow: (TaskItem) -> Unit,
     onOpenTaskDetail: (TaskItem) -> Unit,
+    onOpenAiBreakdown: (TaskItem) -> Unit = {},
     onOpenTriage: () -> Unit,
     onSwitchToVault: () -> Unit,
     modifier: Modifier = Modifier
@@ -634,6 +635,10 @@ fun MonolithThemeView(
             onOpenDetail = {
                 showTaskSheet = false
                 onOpenTaskDetail(activeTask)
+            },
+            onOpenAiBreakdown = {
+                showTaskSheet = false
+                onOpenAiBreakdown(activeTask)
             }
         )
     }
@@ -692,7 +697,8 @@ private fun MonolithTaskActionSheet(
     onStartTwoMin: () -> Unit,
     onComplete: () -> Unit,
     onDefer: () -> Unit,
-    onOpenDetail: () -> Unit
+    onOpenDetail: () -> Unit,
+    onOpenAiBreakdown: () -> Unit = {}
 ) {
     val colors = ZeroTheme.colors
     val tabular = ZeroTheme.tabularTypography
@@ -737,6 +743,26 @@ private fun MonolithTaskActionSheet(
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f)
                 )
+                Box(
+                    modifier = Modifier
+                        .size(44.dp)
+                        .clip(ZeroSmallShape)
+                        .background(MonolithBlack)
+                        .hairlineBorder(shape = ZeroSmallShape, color = Color(0xFF27272A))
+                        .clickable {
+                            haptics.reorderTick()
+                            onOpenAiBreakdown()
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.AutoAwesome,
+                        contentDescription = stringResource(R.string.detail_ai_breakdown_btn),
+                        tint = SignalOrange,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.width(6.dp))
                 Box(
                     modifier = Modifier
                         .size(44.dp)

@@ -455,4 +455,30 @@
     <string name="folder_color_label">Project Color</string>
     <string name="folder_color_none">None</string>
     <string name="folder_color_inherited_hint">Inherits color from %1$s</string>
+
+    <!-- v2.9.0: Built-in BYOK AI Engine (Gemini & OpenAI) -->
+    <string name="settings_section_ai">AI Engine (Gemini / OpenAI)</string>
+    <string name="settings_ai_desc">Optional BYOK AI for photo/note capture and instant task breakdown. Stored locally on this device only.</string>
+    <string name="ai_provider_gemini">Gemini</string>
+    <string name="ai_provider_openai">OpenAI</string>
+    <string name="settings_ai_gemini_key_placeholder">Gemini API Key (AIza...)</string>
+    <string name="settings_ai_openai_key_placeholder">OpenAI API Key (sk-...)</string>
+    <string name="settings_ai_test_btn">Test AI Connection</string>
+    <string name="settings_ai_test_ok">Connected · Ready (%1$s)</string>
+    <string name="settings_ai_test_err">Connection failed: %1$s</string>
+    <string name="ai_capture_title">AI Smart Capture</string>
+    <string name="ai_capture_camera_btn">Take Photo</string>
+    <string name="ai_capture_gallery_btn">Screenshot / Photo</string>
+    <string name="ai_capture_image_attached">Image attached for visual analysis</string>
+    <string name="ai_capture_input_placeholder">Paste chat text, voice note, or extra instruction for the photo…</string>
+    <string name="ai_capture_analyze_btn">Extract Tasks</string>
+    <string name="ai_capture_apply_count">Add %1$d Task(s)</string>
+    <string name="ai_analyzing">Analyzing…</string>
+    <string name="ai_retry">Retry</string>
+    <string name="ai_not_configured_desc">Add your Gemini or OpenAI API key in Settings to unlock photo OCR, chat extraction, and instant task breakdown.</string>
+    <string name="ai_open_settings_btn">Open AI Settings</string>
+    <string name="detail_ai_breakdown_btn">AI Split</string>
+    <string name="ai_breakdown_subtasks_label">Parallel Prerequisite Subtasks</string>
+    <string name="ai_breakdown_checklist_label">Same-Sitting Checklist</string>
+    <string name="ai_breakdown_apply_btn">Apply Selected</string>
 </resources>
