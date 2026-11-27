@@ -502,6 +502,6 @@
     <string name="ai_voice_stop_and_analyze">Done &amp; Extract</string>
     <string name="ai_voice_permission_denied">Microphone permission is required for voice capture</string>
     <string name="ai_voice_recording_failed">Recording too short or failed, please try again</string>
-    <string name="settings_ai_custom_instructions_label">Personal AI Glossary &amp; Rules (Optional)</string>
-    <string name="settings_ai_custom_instructions_placeholder">e.g. 煤炉=メルカリ, 上架=出品, 支付=支払い方法</string>
+    <string name="settings_ai_custom_instructions_label">Custom AI Style Instructions (Optional)</string>
+    <string name="settings_ai_custom_instructions_placeholder">e.g. Keep titles under 4 words, headline tone</string>
 </resources>

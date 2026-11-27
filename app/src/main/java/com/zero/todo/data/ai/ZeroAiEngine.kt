@@ -378,16 +378,13 @@ object ZeroAiJsonParser {
         val styleSpec = when (primaryLang) {
             "ja" -> """
                 - 出力言語（最重要）: 必ず自然な「日本語」のみ（locale=$languageTag）。
-                - 簡体字・中国語熟語の残留完全禁止: 入力（音声・メモ・画像）が中国語・英語・韓国語・多言語混在であっても、`title` / `firstStep` / `description` / `subtasks[].title` / `checklistItems[]` のすべてを完全に自然な日本語へ意訳・要約すること。中国語の漢字をそのまま並べたり（例：「煤炉商品上架」「支付方式变更」「後備箱整理」）、簡体字を残すことは絶対禁止。
-                - 日本在住者の日常語彙・スラング意訳辞書（必ず現地の表現へ変換）:
-                  * 煤炉 → メルカリ / 上架 → 出品（「已经拍完照的商品 煤炉上架」→「撮影済み商品 メルカリ出品」）
-                  * 支付方式变更 → 支払い方法変更 / 取消・退订 → 解約
-                  * 后备箱 → トランク / 手机 → スマホ / 快递 → 宅配便・荷物 / 电脑 → PC / 物业 → 管理会社
-                  * 日亚 → Amazon / 乐天 → 楽天 / 大创 → ダイソー / 唐吉诃德 → ドンキ / 转运 → 転送便
-                - 文体（新聞見出し・体言止め・常体）: 最小限の文字数で一目で動作が分かる見出しにする。
-                - 敬語・丁寧語禁止: 「です」「ます」「してください」「しましょう」「お願いします」「確認が必要です」「〜すること」は絶対使わない。
-                - 良い例 -> title: "撮影済み商品 メルカリ出品", "支払い方法変更", "仕訳資料送付", "レターパック購入", "トランク整理"; checklist: "枚数確認", "送料確認"。
-                - 自己検証: JSON を返す直前に、各テキストに中国語の言い回しや不自然な直訳漢字が残っていないか確認し、残っていれば自然な日本語へ書き直すこと。
+                - 翻訳の原則（文字流用禁止・意味から再構築）:
+                  1. 入力が他言語（中国語・英語・韓国語等）や口語・通称・当て字であっても、元の文字や熟語をそのまま流用・簡繁変換せず、話し手が現実世界で何をしようとしているか（対象のサービス・モノ・行動）を文脈から正確に理解すること。
+                  2. 「日本語ネイティブが同じ用事を自分のメモに書くならどう書くか」を基準に、ゼロから自然な日本語（適切なカタカナ語・和語・一般的な日本語表現）で書き直すこと。
+                  3. 簡体字・中国語特有の熟語・不自然な直訳漢字を1文字も残さないこと。
+                - 文体（新聞見出し・体言止め・常体）: 最小限の文字数で一目で動作が分かる簡潔な見出しにする。
+                - 敬語・丁寧語禁止: 「です」「ます」「してください」「しましょう」「お願いします」「確認が必要です」「〜すること」は絶対に使わない。
+                - 出力前チェック: JSON を返す直前に、生成した全テキストを日本語ネイティブの目線で読み直し、他言語の熟語や直訳の不自然さが残っていれば自然な日本語へ書き直すこと。
             """.trimIndent()
 
             "zh" -> """
@@ -429,7 +426,7 @@ object ZeroAiJsonParser {
             "You convert natural text, chat screenshots, bills, letters, or voice notes into structured tasks for ZERO.\nAlways reply strictly with JSON matching:"
         }
         val customSection = context.customInstructions.trim().takeIf { it.isNotEmpty() }?.let {
-            "\n- USER CUSTOM GLOSSARY / RULES (HIGHEST PRIORITY):\n${it.take(600)}"
+            "\n- USER CUSTOM INSTRUCTIONS (HIGHEST PRIORITY):\n${it.take(600)}"
         }.orEmpty()
         return """
 $header
@@ -461,7 +458,7 @@ ${buildLanguageStyleDirective(context.languageTag)}$customSection
 - Existing folders: ${context.folderPaths.take(40).joinToString(", ").ifBlank { "(none)" }}
 - Existing tags: ${context.tagPaths.take(40).joinToString(", ").ifBlank { "(none)" }}
 - Prefer reusing existing folderPaths and tags accurately.
-- FIRST STEP DISCIPLINE: Default "firstStep" to JSON null for straightforward or single-action physical tasks (e.g., "トランク整理", "ゴミ出し", "牛乳購入", "薬を飲む"). ONLY set "firstStep" when the task is heavy/multi-step/vague AND the starter action genuinely lowers mental friction (e.g., "確定申告" → "領収書フォルダを開く"). NEVER output obvious tautologies like "トランクを開く" for "トランク整理" or "電話を取る" for "電話する".
+- FIRST STEP DISCIPLINE: Default "firstStep" to JSON null for straightforward, self-explanatory, or single-action physical tasks. ONLY set "firstStep" when a task is multi-step, cognitively heavy, or procrastination-prone AND the starter action genuinely lowers mental friction. NEVER output trivial tautologies that merely restate opening or starting the task's object.
 - Never include the final completion step itself as a subtask; if the task is small/single-sitting, keep subtasks empty.
         """.trimIndent()
     }
@@ -474,7 +471,7 @@ ${buildLanguageStyleDirective(context.languageTag)}$customSection
             "You help break down a task for ZERO (an anti-procrastination GTD app).\nReply strictly with JSON:"
         }
         val customSection = context.customInstructions.trim().takeIf { it.isNotEmpty() }?.let {
-            "\n- USER CUSTOM GLOSSARY / RULES (HIGHEST PRIORITY):\n${it.take(600)}"
+            "\n- USER CUSTOM INSTRUCTIONS (HIGHEST PRIORITY):\n${it.take(600)}"
         }.orEmpty()
         return """
 $header
@@ -497,7 +494,7 @@ ${buildLanguageStyleDirective(context.languageTag)}$customSection
 - Context date: ${context.currentDateIso}.
 - Existing tags: ${context.tagPaths.take(40).joinToString(", ").ifBlank { "(none)" }}
 - Keep subtasks focused (0-4 items) ONLY for genuine separate prerequisites; put quick in-sitting verification steps into checklistItems (0-5 items).
-- Avoid obvious tautologies in firstStep (never output trivial restatements of the task title like "トランクを開く" for "トランク整理").
+- Avoid obvious tautologies in firstStep (never output trivial restatements of starting/opening the task itself).
         """.trimIndent()
     }
 
@@ -511,7 +508,7 @@ ${buildLanguageStyleDirective(context.languageTag)}$customSection
         return buildString {
             if (effectiveText.isNotBlank()) {
                 when (primaryLang) {
-                    "ja" -> append("以下の内容を、中国語表現や簡体字を一切残さず自然な日本語（新聞見出し風・敬語なし）へ意訳してタスクJSONにしてください。\n\nメモ:\n")
+                    "ja" -> append("以下の内容を、他言語の表現や簡体字を残さず、日本語ネイティブの自然な表現（新聞見出し風・敬語なし）でタスクJSONにしてください。\n\nメモ:\n")
                     "zh" -> append("请将以下内容精准提炼为极简简体中文动宾短语任务 JSON：\n\n记录：\n")
                     "ko" -> append("아래 내용을 간결한 한국어 명사형·개조식(존댓말 금지) 태스크 JSON으로 번역·요약하세요.\n\n메모:\n")
                     else -> append("Translate and summarize the following into concise newspaper-headline English tasks JSON:\n\nNote:\n")

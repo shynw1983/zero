@@ -166,21 +166,23 @@ class ZeroAiEngineTest {
             .edit().clear().commit()
 
         val repo = SharedPrefsUserPreferencesRepository(ctx)
-        repo.setAiConfig(AiConfig(customInstructions = "煤炉=メルカリ, 上架=出品"))
+        repo.setAiConfig(AiConfig(customInstructions = "Keep titles under 12 chars"))
         val loaded = SharedPrefsUserPreferencesRepository(ctx).preferences.value.aiConfig
-        assertEquals("煤炉=メルカリ, 上架=出品", loaded.customInstructions)
+        assertEquals("Keep titles under 12 chars", loaded.customInstructions)
     }
 
     @Test
     fun languageStyleDirectiveEnforcesUiTranslationAndNoHonorificsAcrossLocales() {
         val jaDirective = ZeroAiJsonParser.buildLanguageStyleDirective("ja-JP")
-        assertTrue(jaDirective.contains("簡体字・中国語熟語の残留完全禁止"))
-        assertTrue(jaDirective.contains("メルカリ"))
-        assertTrue(jaDirective.contains("出品"))
-        assertTrue(jaDirective.contains("支払い方法変更"))
-        assertTrue(jaDirective.contains("トランク"))
+        assertTrue(jaDirective.contains("翻訳の原則"))
+        assertTrue(jaDirective.contains("日本語ネイティブ"))
+        assertTrue(jaDirective.contains("簡体字"))
         assertTrue(jaDirective.contains("敬語・丁寧語禁止"))
         assertTrue(jaDirective.contains("してください"))
+        assertFalse(jaDirective.contains("煤炉"))
+        assertFalse(jaDirective.contains("后备箱"))
+        assertFalse(jaDirective.contains("メルカリ"))
+        assertFalse(jaDirective.contains("トランク"))
 
         val zhDirective = ZeroAiJsonParser.buildLanguageStyleDirective("zh-CN")
         assertTrue(zhDirective.contains("Simplified Chinese"))
@@ -208,7 +210,7 @@ class ZeroAiEngineTest {
             currentWeekday = "Friday",
             folderPaths = listOf("丸九/経理"),
             tagPaths = listOf("外出/コンビニ"),
-            customInstructions = "煤炉=メルカリ"
+            customInstructions = "Keep titles under 12 chars"
         )
         val capturePrompt = ZeroAiJsonParser.buildCaptureSystemPrompt(ctx)
         assertTrue(capturePrompt.contains("タスク構造化アシスタント"))
@@ -217,24 +219,26 @@ class ZeroAiEngineTest {
         assertTrue(capturePrompt.contains("do NOT translate existing folderPath or existing tag paths"))
         assertTrue(capturePrompt.contains("FIRST STEP DISCIPLINE"))
         assertTrue(capturePrompt.contains("JSON null for simple/obvious/physical tasks"))
-        assertTrue(capturePrompt.contains("USER CUSTOM GLOSSARY / RULES"))
-        assertTrue(capturePrompt.contains("煤炉=メルカリ"))
+        assertTrue(capturePrompt.contains("USER CUSTOM INSTRUCTIONS"))
+        assertTrue(capturePrompt.contains("Keep titles under 12 chars"))
+        assertFalse(capturePrompt.contains("トランク"))
 
         val userPrompt = ZeroAiJsonParser.buildCaptureUserPrompt(
-            effectiveText = "已经拍完照的商品 煤炉上架",
+            effectiveText = "买牛奶",
             hasImage = false,
             hasAudio = false,
             languageTag = "ja"
         )
-        assertTrue(userPrompt.contains("簡体字を一切残さず自然な日本語"))
-        assertTrue(userPrompt.contains("已经拍完照的商品 煤炉上架"))
+        assertTrue(userPrompt.contains("日本語ネイティブの自然な表現"))
+        assertTrue(userPrompt.contains("买牛奶"))
 
         val breakdownPrompt = ZeroAiJsonParser.buildBreakdownSystemPrompt(ctx)
         assertTrue(breakdownPrompt.contains("新聞見出し・体言止め"))
         assertTrue(breakdownPrompt.contains("敬語・丁寧語禁止"))
         assertTrue(breakdownPrompt.contains("外出/コンビニ"))
         assertTrue(breakdownPrompt.contains("Avoid obvious tautologies in firstStep"))
-        assertTrue(breakdownPrompt.contains("煤炉=メルカリ"))
+        assertTrue(breakdownPrompt.contains("Keep titles under 12 chars"))
+        assertFalse(breakdownPrompt.contains("トランク"))
     }
 
     @Test
