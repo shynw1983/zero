@@ -15,6 +15,8 @@ data class TagEntity(
     val name: String,
     val colorHex: String? = null,
     val isExpanded: Boolean = true,
+    val isPlaceTag: Boolean = false,
+    val placeTriggerMode: String = "ENTER",
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis(),
     val isDeleted: Boolean = false

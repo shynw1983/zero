@@ -11,6 +11,7 @@ import com.zero.todo.data.local.dao.TaskDao
 import com.zero.todo.data.local.entity.FocusSessionEntity
 import com.zero.todo.data.local.entity.FolderEntity
 import com.zero.todo.data.local.entity.TagEntity
+import com.zero.todo.data.local.entity.TagPlaceEntity
 import com.zero.todo.data.local.entity.TaskEntity
 import com.zero.todo.data.local.entity.TaskTagCrossRef
 
@@ -19,10 +20,11 @@ import com.zero.todo.data.local.entity.TaskTagCrossRef
         FolderEntity::class,
         TaskEntity::class,
         TagEntity::class,
+        TagPlaceEntity::class,
         TaskTagCrossRef::class,
         FocusSessionEntity::class
     ],
-    version = 3,
+    version = 4,
     exportSchema = true
 )
 abstract class ZeroDatabase : RoomDatabase() {
@@ -47,6 +49,31 @@ abstract class ZeroDatabase : RoomDatabase() {
                 db.execSQL("ALTER TABLE tags ADD COLUMN parentId TEXT DEFAULT NULL")
                 db.execSQL("ALTER TABLE tags ADD COLUMN isExpanded INTEGER NOT NULL DEFAULT 1")
                 db.execSQL("CREATE INDEX IF NOT EXISTS index_tags_parentId ON tags(parentId)")
+            }
+        }
+
+        val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE tags ADD COLUMN isPlaceTag INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE tags ADD COLUMN placeTriggerMode TEXT NOT NULL DEFAULT 'ENTER'")
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS tag_places (
+                        id TEXT NOT NULL PRIMARY KEY,
+                        tagId TEXT NOT NULL,
+                        label TEXT NOT NULL,
+                        address TEXT NOT NULL DEFAULT '',
+                        latitude REAL NOT NULL,
+                        longitude REAL NOT NULL,
+                        radiusMeters INTEGER NOT NULL DEFAULT 150,
+                        isEnabled INTEGER NOT NULL DEFAULT 1,
+                        createdAt INTEGER NOT NULL,
+                        updatedAt INTEGER NOT NULL,
+                        FOREIGN KEY(tagId) REFERENCES tags(id) ON DELETE CASCADE
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_tag_places_tagId ON tag_places(tagId)")
             }
         }
     }

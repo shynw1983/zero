@@ -35,12 +35,39 @@ data class TaskItem(
     val tags: List<TagItem> = emptyList()
 )
 
+enum class PlaceTriggerMode(val storageValue: String) {
+    ENTER("ENTER"),
+    EXIT("EXIT"),
+    BOTH("BOTH");
+
+    companion object {
+        fun fromStorage(raw: String?): PlaceTriggerMode =
+            entries.firstOrNull { it.storageValue.equals(raw, ignoreCase = true) } ?: ENTER
+    }
+}
+
+data class TagPlace(
+    val id: String,
+    val tagId: String,
+    val label: String,
+    val address: String = "",
+    val latitude: Double,
+    val longitude: Double,
+    val radiusMeters: Int = 150,
+    val isEnabled: Boolean = true,
+    val createdAt: Long = 0L,
+    val updatedAt: Long = 0L
+)
+
 data class TagItem(
     val id: String,
     val parentId: String? = null,
     val name: String,
     val colorHex: String? = null,
     val isExpanded: Boolean = true,
+    val isPlaceTag: Boolean = false,
+    val placeTriggerMode: PlaceTriggerMode = PlaceTriggerMode.ENTER,
+    val places: List<TagPlace> = emptyList(),
     val createdAt: Long = 0L,
     val updatedAt: Long = 0L,
     val isDeleted: Boolean = false

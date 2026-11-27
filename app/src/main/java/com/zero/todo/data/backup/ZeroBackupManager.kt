@@ -11,6 +11,7 @@ import com.zero.todo.data.local.dao.TaskDao
 import com.zero.todo.data.local.entity.FocusSessionEntity
 import com.zero.todo.data.local.entity.FolderEntity
 import com.zero.todo.data.local.entity.TagEntity
+import com.zero.todo.data.local.entity.TagPlaceEntity
 import com.zero.todo.data.local.entity.TaskEntity
 import com.zero.todo.data.local.entity.TaskTagCrossRef
 import org.json.JSONArray
@@ -65,6 +66,7 @@ class ZeroBackupManager @Inject constructor(
         val folders = folderDao.getAllFoldersSnapshot()
         val tasks = taskDao.getAllTasksSnapshot()
         val tags = tagDao.getAllTagsSnapshot()
+        val tagPlaces = tagDao.getAllTagPlacesSnapshot()
         val crossRefs = tagDao.getAllCrossRefsSnapshot()
         val sessions = focusSessionDao.getAllSessionsSnapshot()
 
@@ -80,6 +82,9 @@ class ZeroBackupManager @Inject constructor(
             })
             put("tags", JSONArray().apply {
                 tags.forEach { put(it.toJson()) }
+            })
+            put("tagPlaces", JSONArray().apply {
+                tagPlaces.forEach { put(it.toJson()) }
             })
             put("taskTagCrossRefs", JSONArray().apply {
                 crossRefs.forEach { put(it.toJson()) }
@@ -105,6 +110,7 @@ class ZeroBackupManager @Inject constructor(
         val rawFolders = parseArray(root.optJSONArray("folders")) { it.toFolderEntity() }
         val rawTasks = parseArray(root.optJSONArray("tasks")) { it.toTaskEntity() }
         val rawTags = parseArray(root.optJSONArray("tags")) { it.toTagEntity() }
+        val rawTagPlaces = parseArray(root.optJSONArray("tagPlaces")) { it.toTagPlaceEntity() }
         val rawCrossRefs = parseArray(root.optJSONArray("taskTagCrossRefs")) { it.toCrossRef() }
         val rawSessions = parseArray(root.optJSONArray("focusSessions")) { it.toFocusSessionEntity() }
 
@@ -144,6 +150,7 @@ class ZeroBackupManager @Inject constructor(
             idSelector = { it.id },
             parentSelector = { it.parentId }
         )
+        val validTagPlaces = rawTagPlaces.filter { it.tagId in tagIds }
         val validCrossRefs = rawCrossRefs.filter { it.taskId in taskIds && it.tagId in tagIds }
         val validSessions = rawSessions.map { session ->
             val validTaskId = session.taskId?.takeIf { it in taskIds }
@@ -153,18 +160,22 @@ class ZeroBackupManager @Inject constructor(
         database.withTransaction {
             if (replaceExisting) {
                 tagDao.clearAllCrossRefs()
+                tagDao.clearAllTagPlaces()
                 focusSessionDao.clearAllSessions()
                 taskDao.clearAllTasks()
                 tagDao.clearAllTags()
                 folderDao.clearAllFolders()
             }
 
-            // Insert in strict FK order: folders -> tags -> tasks -> crossRefs -> focusSessions
+            // Insert in strict FK order: folders -> tags -> tagPlaces -> tasks -> crossRefs -> focusSessions
             for (folder in sanitizedFolders) {
                 folderDao.upsertFolder(folder)
             }
             if (sanitizedTags.isNotEmpty()) {
                 tagDao.upsertTags(sanitizedTags)
+            }
+            if (validTagPlaces.isNotEmpty()) {
+                tagDao.upsertTagPlaces(validTagPlaces)
             }
             for (task in sanitizedTasks) {
                 taskDao.upsertTask(task)
@@ -428,6 +439,8 @@ class ZeroBackupManager @Inject constructor(
         put("name", name)
         put("colorHex", colorHex ?: JSONObject.NULL)
         put("isExpanded", isExpanded)
+        put("isPlaceTag", isPlaceTag)
+        put("placeTriggerMode", placeTriggerMode)
         put("createdAt", createdAt)
         put("updatedAt", updatedAt)
         put("isDeleted", isDeleted)
@@ -439,9 +452,37 @@ class ZeroBackupManager @Inject constructor(
         name = getString("name"),
         colorHex = optNullableString("colorHex"),
         isExpanded = optBoolean("isExpanded", true),
+        isPlaceTag = optBoolean("isPlaceTag", false),
+        placeTriggerMode = optNullableString("placeTriggerMode") ?: "ENTER",
         createdAt = optLong("createdAt", System.currentTimeMillis()),
         updatedAt = optLong("updatedAt", System.currentTimeMillis()),
         isDeleted = optBoolean("isDeleted", false)
+    )
+
+    private fun TagPlaceEntity.toJson(): JSONObject = JSONObject().apply {
+        put("id", id)
+        put("tagId", tagId)
+        put("label", label)
+        put("address", address)
+        put("latitude", latitude)
+        put("longitude", longitude)
+        put("radiusMeters", radiusMeters)
+        put("isEnabled", isEnabled)
+        put("createdAt", createdAt)
+        put("updatedAt", updatedAt)
+    }
+
+    private fun JSONObject.toTagPlaceEntity(): TagPlaceEntity = TagPlaceEntity(
+        id = getString("id"),
+        tagId = getString("tagId"),
+        label = getString("label"),
+        address = optString("address", ""),
+        latitude = getDouble("latitude"),
+        longitude = getDouble("longitude"),
+        radiusMeters = optInt("radiusMeters", 150),
+        isEnabled = optBoolean("isEnabled", true),
+        createdAt = optLong("createdAt", System.currentTimeMillis()),
+        updatedAt = optLong("updatedAt", System.currentTimeMillis())
     )
 
     private fun TaskTagCrossRef.toJson(): JSONObject = JSONObject().apply {
@@ -489,6 +530,6 @@ class ZeroBackupManager @Inject constructor(
         if (isNull(key) || !has(key)) null else optInt(key)
 
     companion object {
-        const val CURRENT_SCHEMA_VERSION = 2
+        const val CURRENT_SCHEMA_VERSION = 3
     }
 }

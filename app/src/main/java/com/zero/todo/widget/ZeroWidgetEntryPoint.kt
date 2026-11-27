@@ -2,6 +2,7 @@ package com.zero.todo.widget
 
 import android.content.Context
 import androidx.glance.appwidget.updateAll
+import com.zero.todo.core.geofence.GeofenceSyncController
 import com.zero.todo.core.notification.ReminderScheduler
 import com.zero.todo.data.local.dao.FolderDao
 import com.zero.todo.data.local.dao.TagDao
@@ -21,6 +22,7 @@ interface ZeroWidgetEntryPoint {
     fun tagDao(): TagDao
     fun taskRepository(): TaskRepository
     fun reminderScheduler(): ReminderScheduler
+    fun geofenceController(): GeofenceSyncController
     fun userPreferencesRepository(): UserPreferencesRepository
 }
 

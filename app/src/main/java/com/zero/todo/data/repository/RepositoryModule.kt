@@ -2,6 +2,8 @@ package com.zero.todo.data.repository
 
 import com.zero.todo.core.designsystem.AndroidAppIconSwitcher
 import com.zero.todo.core.designsystem.AppIconSwitcher
+import com.zero.todo.core.geofence.AndroidGeofenceSyncController
+import com.zero.todo.core.geofence.GeofenceSyncController
 import com.zero.todo.core.notification.AlarmReminderScheduler
 import com.zero.todo.core.notification.ReminderScheduler
 import com.zero.todo.data.preferences.SharedPrefsUserPreferencesRepository
@@ -45,6 +47,10 @@ abstract class RepositoryModule {
     @Binds
     @Singleton
     abstract fun bindReminderScheduler(impl: AlarmReminderScheduler): ReminderScheduler
+
+    @Binds
+    @Singleton
+    abstract fun bindGeofenceSyncController(impl: AndroidGeofenceSyncController): GeofenceSyncController
 
     @Binds
     @Singleton

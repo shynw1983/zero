@@ -37,6 +37,7 @@ import androidx.compose.material.icons.rounded.GridView
 import androidx.compose.material.icons.rounded.Inbox
 import androidx.compose.material.icons.rounded.Layers
 import androidx.compose.material.icons.rounded.LightMode
+import androidx.compose.material.icons.rounded.LocationOn
 import androidx.compose.material.icons.rounded.MoreHoriz
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.Tag
@@ -656,10 +657,16 @@ private fun TagTreeRow(
             }
         }
 
+        val isPlaceTag = node.tag.isPlaceTag
+        val enabledPlacesCount = node.tag.places.count { it.isEnabled }
         Icon(
-            imageVector = Icons.Rounded.Tag,
+            imageVector = if (isPlaceTag) Icons.Rounded.LocationOn else Icons.Rounded.Tag,
             contentDescription = null,
-            tint = if (selected) colors.accent else colors.textSecondary,
+            tint = when {
+                selected -> colors.accent
+                isPlaceTag && enabledPlacesCount > 0 -> colors.accent
+                else -> colors.textSecondary
+            },
             modifier = Modifier.size(16.dp)
         )
         Spacer(modifier = Modifier.width(8.dp))
@@ -688,6 +695,14 @@ private fun TagTreeRow(
                 color = if (selected) colors.textPrimary else colors.textSecondary,
                 maxLines = 1,
                 softWrap = false
+            )
+        }
+        if (isPlaceTag && enabledPlacesCount > 0) {
+            Text(
+                text = "📍$enabledPlacesCount",
+                style = tabular.dateCompact,
+                color = colors.accent,
+                modifier = Modifier.padding(horizontal = 3.dp)
             )
         }
         if (displayedCount > 0) {

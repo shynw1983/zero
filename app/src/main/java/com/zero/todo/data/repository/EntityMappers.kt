@@ -3,12 +3,15 @@ package com.zero.todo.data.repository
 import com.zero.todo.data.local.entity.FocusSessionEntity
 import com.zero.todo.data.local.entity.FolderEntity
 import com.zero.todo.data.local.entity.TagEntity
+import com.zero.todo.data.local.entity.TagPlaceEntity
 import com.zero.todo.data.local.entity.TaskEntity
 import com.zero.todo.data.local.entity.TaskWithTags
 import com.zero.todo.domain.model.FocusMode
 import com.zero.todo.domain.model.FocusSession
 import com.zero.todo.domain.model.Folder
+import com.zero.todo.domain.model.PlaceTriggerMode
 import com.zero.todo.domain.model.TagItem
+import com.zero.todo.domain.model.TagPlace
 import com.zero.todo.domain.model.TaskItem
 import com.zero.todo.domain.model.TaskPriority
 
@@ -38,15 +41,44 @@ fun Folder.toEntity(): FolderEntity = FolderEntity(
     isDeleted = isDeleted
 )
 
-fun TagEntity.toDomain(): TagItem = TagItem(
+fun TagEntity.toDomain(places: List<TagPlace> = emptyList()): TagItem = TagItem(
     id = id,
     parentId = parentId,
     name = name,
     colorHex = colorHex,
     isExpanded = isExpanded,
+    isPlaceTag = isPlaceTag,
+    placeTriggerMode = PlaceTriggerMode.fromStorage(placeTriggerMode),
+    places = places,
     createdAt = createdAt,
     updatedAt = updatedAt,
     isDeleted = isDeleted
+)
+
+fun TagPlaceEntity.toDomain(): TagPlace = TagPlace(
+    id = id,
+    tagId = tagId,
+    label = label,
+    address = address,
+    latitude = latitude,
+    longitude = longitude,
+    radiusMeters = radiusMeters,
+    isEnabled = isEnabled,
+    createdAt = createdAt,
+    updatedAt = updatedAt
+)
+
+fun TagPlace.toEntity(): TagPlaceEntity = TagPlaceEntity(
+    id = id,
+    tagId = tagId,
+    label = label,
+    address = address,
+    latitude = latitude,
+    longitude = longitude,
+    radiusMeters = radiusMeters,
+    isEnabled = isEnabled,
+    createdAt = createdAt,
+    updatedAt = updatedAt
 )
 
 fun TaskEntity.toDomain(tags: List<TagItem> = emptyList()): TaskItem = TaskItem(

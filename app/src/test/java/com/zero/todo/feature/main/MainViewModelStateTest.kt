@@ -11,6 +11,7 @@ import com.zero.todo.core.common.RecurrenceRule
 import com.zero.todo.core.common.ZeroDateFormatter
 import com.zero.todo.core.designsystem.AppIconSwitcher
 import com.zero.todo.core.designsystem.ZeroAccent
+import com.zero.todo.core.geofence.NoOpGeofenceSyncController
 import com.zero.todo.core.nlp.QuickInputParser
 import com.zero.todo.core.notification.NoOpReminderScheduler
 import com.zero.todo.data.backup.WebDavSyncManager
@@ -120,6 +121,7 @@ class MainViewModelStateTest {
             webDavSyncManager = webDavSyncManager,
             aiEngine = com.zero.todo.data.ai.ZeroAiEngine(),
             reminderScheduler = NoOpReminderScheduler,
+            geofenceController = NoOpGeofenceSyncController,
             widgetRefresher = NoOpWidgetRefresher,
             getFolderTreeUseCase = getFolderTreeUseCase,
             appIconSwitcher = iconSwitcher

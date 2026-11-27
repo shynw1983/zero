@@ -5,6 +5,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.zero.todo.core.common.ZeroDateFormatter
 import com.zero.todo.core.designsystem.ZeroAccent
+import com.zero.todo.core.geofence.GeofencePermissionState
+import com.zero.todo.core.geofence.GeofenceSyncController
 import com.zero.todo.core.nlp.ParsedQuickInput
 import com.zero.todo.core.nlp.QuickInputParser
 import com.zero.todo.core.notification.ReminderScheduler
@@ -42,7 +44,10 @@ import com.zero.todo.domain.model.FolderNode
 import com.zero.todo.domain.model.FolderPathDisplayMode
 import com.zero.todo.domain.model.FolderPathFormatter
 import com.zero.todo.domain.model.PriorityDisplayStyle
+import com.zero.todo.domain.model.PlaceTriggerMode
 import com.zero.todo.domain.model.RunwayQueueBuilder
+import com.zero.todo.domain.model.TagItem
+import com.zero.todo.domain.model.TagPlace
 import com.zero.todo.domain.model.TaskItem
 import com.zero.todo.domain.model.TaskPlacementChange
 import com.zero.todo.domain.model.TaskPriority
@@ -171,6 +176,7 @@ class MainViewModel @Inject constructor(
     private val webDavSyncManager: WebDavSyncManager,
     private val aiEngine: ZeroAiEngine,
     private val reminderScheduler: ReminderScheduler,
+    private val geofenceController: GeofenceSyncController,
     private val widgetRefresher: WidgetRefresher,
     getFolderTreeUseCase: GetFolderTreeUseCase,
     private val appIconSwitcher: AppIconSwitcher
@@ -249,10 +255,11 @@ class MainViewModel @Inject constructor(
     val aiBreakdownState = _aiBreakdownState.asStateFlow()
 
     init {
-        // Re-sync upcoming task alarms & daily briefings on startup
+        // Re-sync upcoming task alarms, daily briefings & active geofences on startup
         viewModelScope.launch {
             rescheduleAllUpcomingReminders()
             reminderScheduler.syncDailyBriefings(userPreferencesRepository.preferences.value.notifications)
+            geofenceController.syncAllGeofences()
         }
 
         // Keep today's focus total synced even when crossing midnight
@@ -1058,9 +1065,87 @@ class MainViewModel @Inject constructor(
             ) {
                 selectDestination(NavigationDestination.Inbox)
             }
+            geofenceController.syncAllGeofences()
             widgetRefresher.refreshAll()
         }
     }
+
+    fun updateTagPlaceConfig(tagId: String, isPlaceTag: Boolean, triggerMode: PlaceTriggerMode) {
+        viewModelScope.launch {
+            tagRepository.updateTagPlaceConfig(tagId, isPlaceTag, triggerMode)
+            geofenceController.syncAllGeofences()
+            widgetRefresher.refreshAll()
+        }
+    }
+
+    fun addTagPlace(
+        tagId: String,
+        label: String,
+        address: String,
+        latitude: Double,
+        longitude: Double,
+        radiusMeters: Int
+    ) {
+        viewModelScope.launch {
+            val tag = uiState.value.tagsWithCounts.firstOrNull { it.tag.id == tagId }?.tag
+            if (tag != null && !tag.isPlaceTag) {
+                tagRepository.updateTagPlaceConfig(tagId, true, tag.placeTriggerMode)
+            }
+            tagRepository.addTagPlace(
+                tagId = tagId,
+                label = label,
+                address = address,
+                latitude = latitude,
+                longitude = longitude,
+                radiusMeters = radiusMeters
+            )
+            geofenceController.syncAllGeofences()
+            widgetRefresher.refreshAll()
+        }
+    }
+
+    fun updateTagPlace(place: TagPlace) {
+        viewModelScope.launch {
+            tagRepository.updateTagPlace(place)
+            geofenceController.syncAllGeofences()
+            widgetRefresher.refreshAll()
+        }
+    }
+
+    fun deleteTagPlace(placeId: String) {
+        viewModelScope.launch {
+            tagRepository.deleteTagPlace(placeId)
+            geofenceController.syncAllGeofences()
+            widgetRefresher.refreshAll()
+        }
+    }
+
+    fun resyncGeofences() {
+        viewModelScope.launch {
+            geofenceController.syncAllGeofences()
+        }
+    }
+
+    fun testPlaceReminder(tag: TagItem, place: TagPlace) {
+        val isEnter = tag.placeTriggerMode != PlaceTriggerMode.EXIT
+        val matchingIds = TagTreeBuilder.collectDescendantIds(
+            rootTagId = tag.id,
+            tags = uiState.value.tagsWithCounts.map { it.tag }
+        ) + tag.id
+        val titles = uiState.value.allActiveTasks
+            .filter { task -> !task.isCompleted && task.tags.any { it.id in matchingIds } }
+            .map { it.title }
+        if (titles.isEmpty()) return
+        geofenceController.triggerTestNotification(
+            tag = tag,
+            place = place,
+            isEnter = isEnter,
+            taskTitles = titles
+        )
+    }
+
+    fun geofencePermissionState(): GeofencePermissionState =
+        geofenceController.permissionState()
 
     fun updateWebDavConfig(config: WebDavConfig) {
         userPreferencesRepository.setWebDavConfig(config)
@@ -1103,6 +1188,7 @@ class MainViewModel @Inject constructor(
                 selectTask(null)
                 selectDestination(NavigationDestination.Inbox)
                 rescheduleAllUpcomingReminders()
+                geofenceController.syncAllGeofences()
                 widgetRefresher.refreshAll()
                 webDavStatusFlow.value = WebDavUiStatus.PullSuccess(summary)
             }.onFailure { err ->
@@ -1127,6 +1213,7 @@ class MainViewModel @Inject constructor(
                 selectTask(null)
                 selectDestination(NavigationDestination.Inbox)
                 rescheduleAllUpcomingReminders()
+                geofenceController.syncAllGeofences()
                 backupStatusFlow.value = BackupUiStatus.ImportSuccess(summary)
                 widgetRefresher.refreshAll()
             }.onFailure { err ->

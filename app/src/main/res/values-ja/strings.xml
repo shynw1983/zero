@@ -508,4 +508,42 @@
     <string name="settings_ai_reasoning_none">オフ（高速）</string>
     <string name="settings_ai_reasoning_low">低</string>
     <string name="settings_ai_reasoning_medium">中</string>
+
+    <!-- v2.12.0: 場所タグ・マルチ地点ジオフェンス -->
+    <string name="notif_channel_places">場所リマインダー</string>
+    <string name="notif_channel_places_desc">登録した場所に近づいた・離れた時に通知します</string>
+    <string name="notif_place_enter_title">%1$s 付近 · %2$s</string>
+    <string name="notif_place_exit_title">%1$s を出発 · %2$s</string>
+    <string name="notif_place_tasks_summary">未完了 %1$d 件：%2$s</string>
+    <string name="place_tag_menu_action">場所・ジオフェンス設定</string>
+    <string name="place_tag_menu_active">場所・ジオフェンス（%1$d件）</string>
+    <string name="place_tag_dialog_title">場所設定 · %1$s</string>
+    <string name="place_tag_enable_label">場所タグとして使う</string>
+    <string name="place_tag_enable_desc">登録したいずれかの地点への接近・離脱で未完了タスクを通知</string>
+    <string name="place_trigger_mode_label">通知タイミング</string>
+    <string name="place_trigger_enter">近づいた時</string>
+    <string name="place_trigger_exit">離れた時</string>
+    <string name="place_trigger_both">接近・離脱</string>
+    <string name="place_perm_bg_ok">バックグラウンド位置情報 OK · 監視有効</string>
+    <string name="place_perm_fg_only">バックグラウンドで確実に通知するには位置情報権限を「常に許可」にしてください。</string>
+    <string name="place_perm_denied">場所リマインダーには位置情報権限が必要です。</string>
+    <string name="place_perm_grant_fg">位置情報を許可</string>
+    <string name="place_perm_grant_bg">常に許可にする</string>
+    <string name="place_perm_settings">アプリ設定</string>
+    <string name="place_saved_locations_title">登録済み地点（%1$d）</string>
+    <string name="place_saved_locations_empty">地点が未登録です。自宅・職場など1地点、またはよく行くコンビニなど複数地点を登録できます。</string>
+    <string name="place_use_current_btn">現在地を追加</string>
+    <string name="place_fetching_location">現在地を取得中…</string>
+    <string name="place_location_unavailable">現在地を取得できませんでした。GPS をオンにして再試行してください。</string>
+    <string name="place_search_placeholder">住所・店名を検索、またはマップURL / 緯度経度を入力…</string>
+    <string name="place_search_btn">検索</string>
+    <string name="place_searching">検索中…</string>
+    <string name="place_search_empty">一致する場所が見つかりません</string>
+    <string name="place_search_results_hint">タップしてこのタグに追加：</string>
+    <string name="place_label_placeholder">表示名（任意・例：ローソン駅前店）…</string>
+    <string name="place_radius_label">半径</string>
+    <string name="place_test_alert">通知テスト</string>
+    <string name="place_no_active_tasks">このタグに未完了タスクがないため通知テストできません。</string>
+    <string name="place_distance_away">約 %1$d m</string>
+    <string name="place_disabled_badge">停止中</string>
 </resources>

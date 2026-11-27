@@ -6,6 +6,7 @@ import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.zero.todo.core.designsystem.AppIconSwitcher
 import com.zero.todo.core.designsystem.ZeroAccent
+import com.zero.todo.core.geofence.NoOpGeofenceSyncController
 import com.zero.todo.core.notification.NoOpReminderScheduler
 import com.zero.todo.data.backup.WebDavSyncManager
 import com.zero.todo.data.backup.ZeroBackupManager
@@ -76,6 +77,7 @@ class SubtaskInheritanceTest {
             webDavSyncManager = WebDavSyncManager(),
             aiEngine = com.zero.todo.data.ai.ZeroAiEngine(),
             reminderScheduler = NoOpReminderScheduler,
+            geofenceController = NoOpGeofenceSyncController,
             widgetRefresher = object : WidgetRefresher { override suspend fun refreshAll() = Unit },
             getFolderTreeUseCase = GetFolderTreeUseCase(folderRepository, taskRepository),
             appIconSwitcher = object : AppIconSwitcher { override fun syncAccentIcon(accent: ZeroAccent) = Unit }

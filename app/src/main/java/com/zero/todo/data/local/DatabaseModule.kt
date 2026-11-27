@@ -25,7 +25,11 @@ object DatabaseModule {
             ZeroDatabase::class.java,
             ZeroDatabase.DATABASE_NAME
         )
-            .addMigrations(ZeroDatabase.MIGRATION_1_2, ZeroDatabase.MIGRATION_2_3)
+            .addMigrations(
+                ZeroDatabase.MIGRATION_1_2,
+                ZeroDatabase.MIGRATION_2_3,
+                ZeroDatabase.MIGRATION_3_4
+            )
             .build()
 
     @Provides

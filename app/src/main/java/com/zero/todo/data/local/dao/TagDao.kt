@@ -7,6 +7,8 @@ import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Transaction
 import com.zero.todo.data.local.entity.TagEntity
+import com.zero.todo.data.local.entity.TagPlaceEntity
+import com.zero.todo.data.local.entity.TaskEntity
 import com.zero.todo.data.local.entity.TaskTagCrossRef
 import com.zero.todo.data.local.entity.TaskWithTags
 import kotlinx.coroutines.flow.Flow
@@ -140,4 +142,56 @@ interface TagDao {
 
     @Query("DELETE FROM tags")
     suspend fun clearAllTags()
+
+    @Query("UPDATE tags SET isPlaceTag = :isPlaceTag, placeTriggerMode = :placeTriggerMode, updatedAt = :updatedAt WHERE id = :tagId AND isDeleted = 0")
+    suspend fun updateTagPlaceConfig(tagId: String, isPlaceTag: Boolean, placeTriggerMode: String, updatedAt: Long)
+
+    @Query("SELECT * FROM tag_places ORDER BY createdAt ASC")
+    fun observeAllTagPlaces(): Flow<List<TagPlaceEntity>>
+
+    @Query("SELECT * FROM tag_places ORDER BY createdAt ASC")
+    suspend fun getAllTagPlacesSnapshot(): List<TagPlaceEntity>
+
+    @Query(
+        """
+        SELECT tp.* FROM tag_places tp
+        INNER JOIN tags tg ON tp.tagId = tg.id
+        WHERE tg.isDeleted = 0 AND tg.isPlaceTag = 1 AND tp.isEnabled = 1
+        ORDER BY tp.createdAt ASC
+        """
+    )
+    suspend fun getActiveGeofencePlaces(): List<TagPlaceEntity>
+
+    @Query("SELECT * FROM tag_places WHERE id = :placeId LIMIT 1")
+    suspend fun getTagPlaceById(placeId: String): TagPlaceEntity?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertTagPlace(place: TagPlaceEntity)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertTagPlaces(places: List<TagPlaceEntity>)
+
+    @Query("DELETE FROM tag_places WHERE id = :placeId")
+    suspend fun deleteTagPlace(placeId: String)
+
+    @Query("DELETE FROM tag_places")
+    suspend fun clearAllTagPlaces()
+
+    @Query(
+        """
+        WITH RECURSIVE tag_tree(id) AS (
+            SELECT id FROM tags WHERE id = :tagId AND isDeleted = 0
+            UNION ALL
+            SELECT tg.id FROM tags tg
+            INNER JOIN tag_tree tt ON tg.parentId = tt.id
+            WHERE tg.isDeleted = 0
+        )
+        SELECT DISTINCT t.* FROM tasks t
+        INNER JOIN task_tag_cross_ref ref ON t.id = ref.taskId
+        INNER JOIN tag_tree tt ON ref.tagId = tt.id
+        WHERE t.isDeleted = 0 AND t.isCompleted = 0
+        ORDER BY t.priority ASC, t.sortOrder ASC, t.createdAt ASC
+        """
+    )
+    suspend fun getActiveIncompleteTasksForTagTree(tagId: String): List<TaskEntity>
 }

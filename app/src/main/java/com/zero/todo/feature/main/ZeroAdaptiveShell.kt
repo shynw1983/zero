@@ -84,6 +84,7 @@ import com.zero.todo.core.designsystem.hairlineDividerEnd
 import com.zero.todo.core.designsystem.hairlineDividerStart
 import com.zero.todo.core.designsystem.hairlineDividerTop
 import com.zero.todo.core.designsystem.rememberZeroHaptics
+import com.zero.todo.core.geofence.GeofencePermissionState
 import com.zero.todo.core.nlp.QuickInputParser
 import com.zero.todo.data.ai.AiAudioPayload
 import com.zero.todo.data.ai.AiBreakdownDialogState
@@ -102,8 +103,10 @@ import com.zero.todo.domain.model.FocusMode
 import com.zero.todo.domain.model.Folder
 import com.zero.todo.domain.model.FolderNode
 import com.zero.todo.domain.model.FolderPathDisplayMode
+import com.zero.todo.domain.model.PlaceTriggerMode
 import com.zero.todo.domain.model.PriorityDisplayStyle
 import com.zero.todo.domain.model.TagItem
+import com.zero.todo.domain.model.TagPlace
 import com.zero.todo.domain.model.TaskItem
 import com.zero.todo.domain.model.TaskPriority
 import com.zero.todo.domain.model.TaskSortMode
@@ -128,6 +131,7 @@ import com.zero.todo.feature.folder.RenameFolderDialog
 import com.zero.todo.feature.folder.RenameTagDialog
 import com.zero.todo.feature.folder.SmartViewCounts
 import com.zero.todo.feature.folder.TagActionMenuDialog
+import com.zero.todo.feature.folder.TagPlaceConfigDialog
 import com.zero.todo.feature.matrix.MatrixPane
 import com.zero.todo.feature.execute.ExecuteHostScreen
 import com.zero.todo.feature.execute.ExecuteUiState
@@ -166,6 +170,13 @@ data class ZeroShellCallbacks(
     val onMoveTag: (tagId: String, newParentId: String?) -> Unit = { _, _ -> },
     val onRenameTag: (tagId: String, newName: String) -> Unit = { _, _ -> },
     val onDeleteTag: (tagId: String) -> Unit = {},
+    val onUpdateTagPlaceConfig: (tagId: String, isPlaceTag: Boolean, triggerMode: PlaceTriggerMode) -> Unit = { _, _, _ -> },
+    val onAddTagPlace: (tagId: String, label: String, address: String, lat: Double, lng: Double, radiusMeters: Int) -> Unit = { _, _, _, _, _, _ -> },
+    val onUpdateTagPlace: (TagPlace) -> Unit = {},
+    val onDeleteTagPlace: (String) -> Unit = {},
+    val onResyncGeofences: () -> Unit = {},
+    val onTestPlaceReminder: (TagItem, TagPlace) -> Unit = { _, _ -> },
+    val geofencePermissionStateProvider: () -> GeofencePermissionState = { GeofencePermissionState.DENIED },
     val onSelectDestination: (NavigationDestination) -> Unit = {},
     val onSelectCalendarDate: (LocalDate) -> Unit = {},
     val onSelectCalendarViewMode: (CalendarViewMode) -> Unit = {},
@@ -283,6 +294,7 @@ fun ZeroAdaptiveShell(
     var moveTargetTag by remember { mutableStateOf<TagItem?>(null) }
     var renameTargetTag by remember { mutableStateOf<TagItem?>(null) }
     var deleteTargetTag by remember { mutableStateOf<TagItem?>(null) }
+    var placeConfigTargetTagId by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(uiState.quickInputFocusRequestTick) {
         if (uiState.quickInputFocusRequestTick > 0L) {
@@ -777,11 +789,31 @@ fun ZeroAdaptiveShell(
         TagActionMenuDialog(
             tag = menuTag,
             displayTitle = "#${uiState.tagPathById[menuTag.id] ?: menuTag.name}",
+            onConfigurePlace = { placeConfigTargetTagId = menuTag.id },
             onCreateSubtag = { openCreateTagDialog(menuTag) },
             onRename = { renameTargetTag = menuTag },
             onMove = { moveTargetTag = menuTag },
             onDelete = { deleteTargetTag = menuTag },
             onDismiss = { tagMenuTarget = null }
+        )
+    }
+
+    val placeTagWithCount = placeConfigTargetTagId?.let { id ->
+        uiState.tagsWithCounts.firstOrNull { it.tag.id == id }
+    }
+    if (placeTagWithCount != null) {
+        TagPlaceConfigDialog(
+            tag = placeTagWithCount.tag,
+            displayPath = uiState.tagPathById[placeTagWithCount.tag.id] ?: placeTagWithCount.tag.name,
+            activeTaskCount = placeTagWithCount.activeTaskCount,
+            permissionStateProvider = callbacks.geofencePermissionStateProvider,
+            onUpdatePlaceConfig = callbacks.onUpdateTagPlaceConfig,
+            onAddPlace = callbacks.onAddTagPlace,
+            onUpdatePlace = callbacks.onUpdateTagPlace,
+            onDeletePlace = callbacks.onDeleteTagPlace,
+            onResyncGeofences = callbacks.onResyncGeofences,
+            onTestPlaceReminder = callbacks.onTestPlaceReminder,
+            onDismiss = { placeConfigTargetTagId = null }
         )
     }
 

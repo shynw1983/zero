@@ -188,6 +188,7 @@ class ZeroReminderReceiver : BroadcastReceiver() {
                             scheduler.scheduleTaskReminder(task.id, task.title, triggerAt)
                         }
                         scheduler.syncDailyBriefings(ep.userPreferencesRepository().preferences.value.notifications)
+                        ep.geofenceController().syncAllGeofences()
                     } finally {
                         pendingResult.finish()
                     }

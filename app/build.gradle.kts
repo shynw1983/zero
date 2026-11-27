@@ -14,8 +14,8 @@ android {
         applicationId = "com.zero.todo"
         minSdk = 26
         targetSdk = 35
-        versionCode = 38
-        versionName = "2.11.2"
+        versionCode = 39
+        versionName = "2.12.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -97,6 +97,9 @@ dependencies {
     // Jetpack Glance (Home Screen Widgets)
     implementation(libs.androidx.glance.appwidget)
     implementation(libs.androidx.glance.material3)
+
+    // Location & Geofencing (with LocationManager fallback on non-GMS devices)
+    implementation(libs.play.services.location)
 
     // Unit Tests (JVM + Robolectric for in-memory Room DB verification)
     testImplementation(libs.junit)

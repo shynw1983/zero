@@ -508,4 +508,42 @@
     <string name="settings_ai_reasoning_none">끄기 (빠름)</string>
     <string name="settings_ai_reasoning_low">낮음</string>
     <string name="settings_ai_reasoning_medium">보통</string>
+
+    <!-- v2.12.0: 장소 태그 및 다중 위치 지오펜싱 -->
+    <string name="notif_channel_places">장소 알림</string>
+    <string name="notif_channel_places_desc">등록된 장소에 접근하거나 떠날 때 할 일 알림을 보냅니다</string>
+    <string name="notif_place_enter_title">%1$s 근처 · %2$s</string>
+    <string name="notif_place_exit_title">%1$s 출발 · %2$s</string>
+    <string name="notif_place_tasks_summary">남은 할 일 %1$d개: %2$s</string>
+    <string name="place_tag_menu_action">장소 · 지오펜스 설정</string>
+    <string name="place_tag_menu_active">장소 · 지오펜스 (%1$d)</string>
+    <string name="place_tag_dialog_title">장소 설정 · %1$s</string>
+    <string name="place_tag_enable_label">장소 태그로 사용</string>
+    <string name="place_tag_enable_desc">연결된 위치에 접근하거나 떠날 때 미완료 할 일 알림</string>
+    <string name="place_trigger_mode_label">알림 조건</string>
+    <string name="place_trigger_enter">도착 시</string>
+    <string name="place_trigger_exit">출발 시</string>
+    <string name="place_trigger_both">도착 · 출발</string>
+    <string name="place_perm_bg_ok">백그라운드 위치 권한 활성 · 지오펜스 동작 중</string>
+    <string name="place_perm_fg_only">백그라운드에서 안정적으로 알림을 받으려면 위치 권한을 &quot;항상 허용&quot;으로 설정하세요.</string>
+    <string name="place_perm_denied">장소 알림을 사용하려면 위치 권한이 필요합니다.</string>
+    <string name="place_perm_grant_fg">위치 권한 허용</string>
+    <string name="place_perm_grant_bg">항상 허용 설정</string>
+    <string name="place_perm_settings">앱 설정</string>
+    <string name="place_saved_locations_title">등록된 위치 (%1$d)</string>
+    <string name="place_saved_locations_empty">등록된 위치가 없습니다. 집/직장처럼 1곳만 지정하거나 편의점처럼 여러 지점을 추가할 수 있습니다.</string>
+    <string name="place_use_current_btn">현재 위치 추가</string>
+    <string name="place_fetching_location">현재 위치 확인 중…</string>
+    <string name="place_location_unavailable">현재 위치를 가져오지 못했습니다. GPS 상태를 확인한 뒤 다시 시도하세요.</string>
+    <string name="place_search_placeholder">주소·매장명 검색 또는 지도 URL / 위도,경도 붙여넣기…</string>
+    <string name="place_search_btn">검색</string>
+    <string name="place_searching">검색 중…</string>
+    <string name="place_search_empty">일치하는 장소를 찾을 수 없습니다</string>
+    <string name="place_search_results_hint">결과를 탭하여 이 태그에 추가:</string>
+    <string name="place_label_placeholder">장소 이름 (선택 · 예: GS25 역전점)…</string>
+    <string name="place_radius_label">반경</string>
+    <string name="place_test_alert">알림 테스트</string>
+    <string name="place_no_active_tasks">이 태그에 미완료 할 일이 없어 알림을 테스트할 수 없습니다.</string>
+    <string name="place_distance_away">약 %1$d m</string>
+    <string name="place_disabled_badge">일시중지</string>
 </resources>

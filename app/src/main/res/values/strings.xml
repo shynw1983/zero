@@ -508,4 +508,42 @@
     <string name="settings_ai_reasoning_none">Off (Fast)</string>
     <string name="settings_ai_reasoning_low">Low</string>
     <string name="settings_ai_reasoning_medium">Medium</string>
+
+    <!-- v2.12.0: Place Tags & Multi-Location Geofencing -->
+    <string name="notif_channel_places">Place &amp; Geofence Reminders</string>
+    <string name="notif_channel_places_desc">Triggers task alerts when approaching or leaving saved place locations</string>
+    <string name="notif_place_enter_title">Arrived near %1$s · %2$s</string>
+    <string name="notif_place_exit_title">Leaving %1$s · %2$s</string>
+    <string name="notif_place_tasks_summary">%1$d open task(s): %2$s</string>
+    <string name="place_tag_menu_action">Place &amp; Geofence Alerts</string>
+    <string name="place_tag_menu_active">Place &amp; Geofence (%1$d)</string>
+    <string name="place_tag_dialog_title">Place &amp; Geofence · %1$s</string>
+    <string name="place_tag_enable_label">Enable as Place Tag</string>
+    <string name="place_tag_enable_desc">Push reminders when entering or leaving any linked address</string>
+    <string name="place_trigger_mode_label">Trigger When</string>
+    <string name="place_trigger_enter">Arrive</string>
+    <string name="place_trigger_exit">Leave</string>
+    <string name="place_trigger_both">Arrive &amp; Leave</string>
+    <string name="place_perm_bg_ok">Background geofence monitoring active</string>
+    <string name="place_perm_fg_only">Set location permission to Allow all the time for background geofence alerts.</string>
+    <string name="place_perm_denied">Location permission is required for place geofence reminders.</string>
+    <string name="place_perm_grant_fg">Grant Location</string>
+    <string name="place_perm_grant_bg">Allow All the Time</string>
+    <string name="place_perm_settings">App Settings</string>
+    <string name="place_saved_locations_title">Linked Locations (%1$d)</string>
+    <string name="place_saved_locations_empty">No locations added yet. Add 1 specific address (e.g. Home) or multiple branches (e.g. convenience stores).</string>
+    <string name="place_use_current_btn">Add Current GPS Location</string>
+    <string name="place_fetching_location">Getting current location…</string>
+    <string name="place_location_unavailable">Could not read current location yet. Make sure GPS is on and try again.</string>
+    <string name="place_search_placeholder">Search address, store name, or paste Maps URL / lat,lng…</string>
+    <string name="place_search_btn">Search</string>
+    <string name="place_searching">Searching…</string>
+    <string name="place_search_empty">No matching locations found</string>
+    <string name="place_search_results_hint">Tap a result to link it to this tag:</string>
+    <string name="place_label_placeholder">Optional custom name (e.g. Lawson Station)…</string>
+    <string name="place_radius_label">Radius</string>
+    <string name="place_test_alert">Test Alert</string>
+    <string name="place_no_active_tasks">This tag has no incomplete tasks to trigger an alert yet.</string>
+    <string name="place_distance_away">~%1$d m</string>
+    <string name="place_disabled_badge">Paused</string>
 </resources>

@@ -30,6 +30,7 @@ import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Folder
 import androidx.compose.material.icons.rounded.Inbox
+import androidx.compose.material.icons.rounded.LocationOn
 import androidx.compose.material.icons.rounded.SwapVert
 import androidx.compose.material.icons.rounded.Tag
 import androidx.compose.material3.Icon
@@ -812,6 +813,7 @@ fun FolderColorSwatchRow(
 fun TagActionMenuDialog(
     tag: TagItem,
     displayTitle: String = "#${tag.name}",
+    onConfigurePlace: () -> Unit = {},
     onCreateSubtag: () -> Unit,
     onRename: () -> Unit,
     onMove: () -> Unit,
@@ -836,6 +838,19 @@ fun TagActionMenuDialog(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.padding(bottom = 4.dp)
+            )
+            TactileMenuRow(
+                icon = Icons.Rounded.LocationOn,
+                label = if (tag.isPlaceTag) {
+                    stringResource(R.string.place_tag_menu_active, tag.places.count { it.isEnabled })
+                } else {
+                    stringResource(R.string.place_tag_menu_action)
+                },
+                tint = if (tag.isPlaceTag) colors.accent else colors.textPrimary,
+                onClick = {
+                    onDismiss()
+                    onConfigurePlace()
+                }
             )
             TactileMenuRow(
                 icon = Icons.Rounded.Add,

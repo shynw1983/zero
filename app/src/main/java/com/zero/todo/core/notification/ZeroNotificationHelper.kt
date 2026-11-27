@@ -26,6 +26,7 @@ object ZeroNotificationHelper {
     const val CHANNEL_TASK_REMINDERS = "zero_task_reminders"
     const val CHANNEL_FOCUS_ALERTS = "zero_focus_alerts"
     const val CHANNEL_DAILY_BRIEFING = "zero_daily_briefing"
+    const val CHANNEL_PLACE_REMINDERS = "zero_place_reminders"
 
     private const val FOCUS_NOTIFICATION_ID = 900_001
     private const val MORNING_BRIEFING_NOTIFICATION_ID = 900_101
@@ -61,9 +62,18 @@ object ZeroNotificationHelper {
             description = loc.getString(R.string.notif_channel_briefing_desc)
             enableVibration(true)
         }
+        val placeChannel = NotificationChannel(
+            CHANNEL_PLACE_REMINDERS,
+            loc.getString(R.string.notif_channel_places),
+            NotificationManager.IMPORTANCE_HIGH
+        ).apply {
+            description = loc.getString(R.string.notif_channel_places_desc)
+            enableVibration(true)
+        }
         manager.createNotificationChannel(reminderChannel)
         manager.createNotificationChannel(focusChannel)
         manager.createNotificationChannel(briefingChannel)
+        manager.createNotificationChannel(placeChannel)
     }
 
     fun canPostNotifications(context: Context): Boolean {
@@ -367,6 +377,64 @@ object ZeroNotificationHelper {
     fun cancelNotification(context: Context, notificationId: Int) {
         runCatching {
             NotificationManagerCompat.from(context).cancel(notificationId)
+        }
+    }
+
+    fun showPlaceReminder(
+        context: Context,
+        tagId: String,
+        tagName: String,
+        placeLabel: String,
+        isEnter: Boolean,
+        taskTitles: List<String>
+    ) {
+        if (taskTitles.isEmpty()) return
+        ensureChannels(context)
+        if (!canPostNotifications(context)) return
+
+        val loc = localizedWidgetContext(context)
+        val notificationId = 200_000 + (tagId.hashCode() and 0x0FFFFFFF)
+        val openIntent = Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            data = Uri.parse("zero://notif-place/$tagId")
+            putExtra(ZeroWidgetIntents.EXTRA_DESTINATION_KEY, NavigationDestination.TagView(tagId).toStorageKey())
+        }
+        val openPending = PendingIntent.getActivity(
+            context,
+            notificationId,
+            openIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val title = loc.getString(
+            if (isEnter) R.string.notif_place_enter_title else R.string.notif_place_exit_title,
+            placeLabel,
+            "#$tagName"
+        )
+        val summary = loc.getString(
+            R.string.notif_place_tasks_summary,
+            taskTitles.size,
+            taskTitles.first()
+        )
+        val inboxStyle = NotificationCompat.InboxStyle().setSummaryText(summary)
+        for (taskTitle in taskTitles.take(5)) {
+            inboxStyle.addLine("• $taskTitle")
+        }
+
+        val notification = NotificationCompat.Builder(context, CHANNEL_PLACE_REMINDERS)
+            .setSmallIcon(R.drawable.ic_stat_zero)
+            .setColor(ACCENT_ARGB)
+            .setContentTitle(title)
+            .setContentText(summary)
+            .setStyle(if (taskTitles.size > 1) inboxStyle else NotificationCompat.BigTextStyle().bigText(summary))
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setCategory(NotificationCompat.CATEGORY_REMINDER)
+            .setAutoCancel(true)
+            .setContentIntent(openPending)
+            .build()
+
+        runCatching {
+            NotificationManagerCompat.from(context).notify(notificationId, notification)
         }
     }
 }
