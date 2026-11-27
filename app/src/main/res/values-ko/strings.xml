@@ -504,4 +504,8 @@
     <string name="ai_voice_recording_failed">녹음이 너무 짧거나 시작할 수 없습니다</string>
     <string name="settings_ai_custom_instructions_label">사용자 지정 AI 스타일 규칙 (선택)</string>
     <string name="settings_ai_custom_instructions_placeholder">예: 제목 12자 이내, 간결한 명사형 중심 등</string>
+    <string name="settings_ai_reasoning_label">추론 사고 모드 (Reasoning)</string>
+    <string name="settings_ai_reasoning_none">끄기 (빠름)</string>
+    <string name="settings_ai_reasoning_low">낮음</string>
+    <string name="settings_ai_reasoning_medium">보통</string>
 </resources>

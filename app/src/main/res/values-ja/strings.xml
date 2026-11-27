@@ -504,4 +504,8 @@
     <string name="ai_voice_recording_failed">録音が短すぎるか開始できませんでした</string>
     <string name="settings_ai_custom_instructions_label">カスタム AI 指示（任意）</string>
     <string name="settings_ai_custom_instructions_placeholder">例：タイトルは12文字以内、体言止め重視など</string>
+    <string name="settings_ai_reasoning_label">思考モード（Reasoning）</string>
+    <string name="settings_ai_reasoning_none">オフ（高速）</string>
+    <string name="settings_ai_reasoning_low">低</string>
+    <string name="settings_ai_reasoning_medium">中</string>
 </resources>

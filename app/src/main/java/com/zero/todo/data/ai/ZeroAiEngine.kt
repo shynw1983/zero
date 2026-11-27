@@ -240,7 +240,9 @@ object ZeroAiJsonParser {
         userPrompt: String,
         image: AiImagePayload?,
         audio: AiAudioPayload? = null,
-        expectJson: Boolean = true
+        expectJson: Boolean = true,
+        model: String = "",
+        reasoningEffort: AiReasoningEffort = AiReasoningEffort.NONE
     ): JSONObject {
         val parts = JSONArray().put(JSONObject().put("text", userPrompt))
         if (image != null) {
@@ -267,6 +269,15 @@ object ZeroAiJsonParser {
         if (expectJson) {
             genConfig.put("response_mime_type", "application/json")
         }
+        if (model.lowercase().contains("2.5-flash")) {
+            when (reasoningEffort) {
+                AiReasoningEffort.NONE ->
+                    genConfig.put("thinkingConfig", JSONObject().put("thinkingBudget", 0))
+                AiReasoningEffort.LOW ->
+                    genConfig.put("thinkingConfig", JSONObject().put("thinkingBudget", 1024))
+                AiReasoningEffort.MEDIUM -> Unit
+            }
+        }
         return JSONObject()
             .put("system_instruction", JSONObject().put("parts", JSONArray().put(JSONObject().put("text", systemPrompt))))
             .put("contents", JSONArray().put(JSONObject().put("role", "user").put("parts", parts)))
@@ -278,7 +289,8 @@ object ZeroAiJsonParser {
         systemPrompt: String,
         userPrompt: String,
         image: AiImagePayload?,
-        expectJson: Boolean = true
+        expectJson: Boolean = true,
+        reasoningEffort: AiReasoningEffort = AiReasoningEffort.NONE
     ): JSONObject {
         val userMessage = if (image != null) {
             JSONObject()
@@ -301,10 +313,16 @@ object ZeroAiJsonParser {
                 .put("role", "user")
                 .put("content", userPrompt)
         }
+        val normalized = model.trim().lowercase()
         return JSONObject()
             .put("model", model)
             .apply {
-                if (supportsCustomOpenAiTemperature(model)) {
+                if (normalized.startsWith("gpt-6") || normalized.startsWith("gpt-5")) {
+                    put("reasoning_effort", reasoningEffort.openAiValue)
+                } else if (isOpenAiOSeriesModel(normalized) && reasoningEffort != AiReasoningEffort.NONE) {
+                    put("reasoning_effort", reasoningEffort.openAiValue)
+                }
+                if (supportsCustomOpenAiTemperature(model, reasoningEffort)) {
                     put("temperature", 0.2)
                 }
                 if (expectJson) {
@@ -319,13 +337,22 @@ object ZeroAiJsonParser {
             )
     }
 
-    fun supportsCustomOpenAiTemperature(model: String): Boolean {
+    private fun isOpenAiOSeriesModel(normalizedLower: String): Boolean =
+        normalizedLower.startsWith("o1") ||
+            normalizedLower.startsWith("o3") ||
+            normalizedLower.startsWith("o4")
+
+    fun supportsCustomOpenAiTemperature(
+        model: String,
+        reasoningEffort: AiReasoningEffort = AiReasoningEffort.MEDIUM
+    ): Boolean {
         val normalized = model.trim().lowercase()
-        return !(normalized.startsWith("gpt-6") ||
-            normalized.startsWith("gpt-5") ||
-            normalized.startsWith("o1") ||
-            normalized.startsWith("o3") ||
-            normalized.startsWith("o4"))
+        return when {
+            normalized.startsWith("gpt-6") || normalized.startsWith("gpt-5") ->
+                reasoningEffort == AiReasoningEffort.NONE
+            isOpenAiOSeriesModel(normalized) -> false
+            else -> true
+        }
     }
 
     fun extractGeminiText(responseBody: String): String {
@@ -665,7 +692,15 @@ class ZeroAiEngine @Inject constructor() {
                 val encodedModel = URLEncoder.encode(model, "UTF-8")
                 val encodedKey = URLEncoder.encode(apiKey, "UTF-8")
                 val url = "https://generativelanguage.googleapis.com/v1beta/models/$encodedModel:generateContent?key=$encodedKey"
-                val body = ZeroAiJsonParser.buildGeminiRequestJson(systemPrompt, userPrompt, image, audio, expectJson)
+                val body = ZeroAiJsonParser.buildGeminiRequestJson(
+                    systemPrompt = systemPrompt,
+                    userPrompt = userPrompt,
+                    image = image,
+                    audio = audio,
+                    expectJson = expectJson,
+                    model = model,
+                    reasoningEffort = config.reasoningEffort
+                )
                 val response = postJson(url, body.toString(), headers = emptyMap())
                 ZeroAiJsonParser.extractGeminiText(response)
             }
@@ -673,7 +708,14 @@ class ZeroAiEngine @Inject constructor() {
             AiProvider.OPENAI -> {
                 val base = config.openAiBaseUrl.trim().ifBlank { AiConfig.DEFAULT_OPENAI_BASE_URL }.trimEnd('/')
                 val url = if (base.endsWith("/chat/completions")) base else "$base/chat/completions"
-                val body = ZeroAiJsonParser.buildOpenAiRequestJson(model, systemPrompt, userPrompt, image, expectJson)
+                val body = ZeroAiJsonParser.buildOpenAiRequestJson(
+                    model = model,
+                    systemPrompt = systemPrompt,
+                    userPrompt = userPrompt,
+                    image = image,
+                    expectJson = expectJson,
+                    reasoningEffort = config.reasoningEffort
+                )
                 val response = postJson(url, body.toString(), headers = mapOf("Authorization" to "Bearer $apiKey"))
                 ZeroAiJsonParser.extractOpenAiText(response)
             }

@@ -4,6 +4,7 @@ import android.content.Context
 import com.zero.todo.core.designsystem.ZeroAccent
 import com.zero.todo.data.ai.AiConfig
 import com.zero.todo.data.ai.AiProvider
+import com.zero.todo.data.ai.AiReasoningEffort
 import com.zero.todo.data.backup.WebDavConfig
 import com.zero.todo.domain.model.AntiMisclickMode
 import com.zero.todo.domain.model.AppLanguage
@@ -188,6 +189,7 @@ class SharedPrefsUserPreferencesRepository @Inject constructor(
             .putString(KEY_AI_OPENAI_MODEL, config.openAiModel)
             .putString(KEY_AI_OPENAI_BASE_URL, config.openAiBaseUrl)
             .putString(KEY_AI_CUSTOM_INSTRUCTIONS, config.customInstructions)
+            .putString(KEY_AI_REASONING_EFFORT, config.reasoningEffort.name)
             .apply()
         _preferences.update { it.copy(aiConfig = config) }
     }
@@ -247,7 +249,10 @@ class SharedPrefsUserPreferencesRepository @Inject constructor(
             openAiBaseUrl = prefs.getString(KEY_AI_OPENAI_BASE_URL, AiConfig.DEFAULT_OPENAI_BASE_URL)
                 .orEmpty()
                 .ifBlank { AiConfig.DEFAULT_OPENAI_BASE_URL },
-            customInstructions = prefs.getString(KEY_AI_CUSTOM_INSTRUCTIONS, "").orEmpty()
+            customInstructions = prefs.getString(KEY_AI_CUSTOM_INSTRUCTIONS, "").orEmpty(),
+            reasoningEffort = AiReasoningEffort.fromStorage(
+                prefs.getString(KEY_AI_REASONING_EFFORT, AiReasoningEffort.NONE.name)
+            )
         )
         return UserPreferences(
             isDarkTheme = isDark,
@@ -302,6 +307,7 @@ class SharedPrefsUserPreferencesRepository @Inject constructor(
         private const val KEY_AI_OPENAI_MODEL = "ai_openai_model"
         private const val KEY_AI_OPENAI_BASE_URL = "ai_openai_base_url"
         private const val KEY_AI_CUSTOM_INSTRUCTIONS = "ai_custom_instructions"
+        private const val KEY_AI_REASONING_EFFORT = "ai_reasoning_effort"
     }
 }
 

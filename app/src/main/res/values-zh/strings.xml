@@ -504,4 +504,8 @@
     <string name="ai_voice_recording_failed">录音过短或启动失败，请重试</string>
     <string name="settings_ai_custom_instructions_label">自定义 AI 风格规则（选填）</string>
     <string name="settings_ai_custom_instructions_placeholder">例：标题尽量控制在10字以内、偏向行动短语…</string>
+    <string name="settings_ai_reasoning_label">模型深度思考（Reasoning）</string>
+    <string name="settings_ai_reasoning_none">关闭（更快）</string>
+    <string name="settings_ai_reasoning_low">轻度</string>
+    <string name="settings_ai_reasoning_medium">中等</string>
 </resources>

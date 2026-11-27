@@ -504,4 +504,8 @@
     <string name="ai_voice_recording_failed">Recording too short or failed, please try again</string>
     <string name="settings_ai_custom_instructions_label">Custom AI Style Instructions (Optional)</string>
     <string name="settings_ai_custom_instructions_placeholder">e.g. Keep titles under 4 words, headline tone</string>
+    <string name="settings_ai_reasoning_label">Thinking / Reasoning</string>
+    <string name="settings_ai_reasoning_none">Off (Fast)</string>
+    <string name="settings_ai_reasoning_low">Low</string>
+    <string name="settings_ai_reasoning_medium">Medium</string>
 </resources>

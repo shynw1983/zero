@@ -85,6 +85,7 @@ import com.zero.todo.core.designsystem.rememberZeroHaptics
 import com.zero.todo.core.notification.ZeroNotificationHelper
 import com.zero.todo.data.ai.AiConfig
 import com.zero.todo.data.ai.AiProvider
+import com.zero.todo.data.ai.AiReasoningEffort
 import com.zero.todo.data.ai.AiTestStatus
 import com.zero.todo.data.backup.BackupSummary
 import com.zero.todo.data.backup.WebDavConfig
@@ -1580,9 +1581,13 @@ private fun AiEngineSettingsCard(
     var openAiModelDraft by remember(aiConfig.openAiModel) { mutableStateOf(aiConfig.openAiModel) }
     var openAiBaseUrlDraft by remember(aiConfig.openAiBaseUrl) { mutableStateOf(aiConfig.openAiBaseUrl) }
     var customInstructionsDraft by remember(aiConfig.customInstructions) { mutableStateOf(aiConfig.customInstructions) }
+    var reasoningDraft by remember(aiConfig.reasoningEffort) { mutableStateOf(aiConfig.reasoningEffort) }
     var showKey by remember { mutableStateOf(false) }
 
-    fun pushCurrentDraft(providerOverride: AiProvider = aiConfig.provider) {
+    fun pushCurrentDraft(
+        providerOverride: AiProvider = aiConfig.provider,
+        reasoningOverride: AiReasoningEffort = reasoningDraft
+    ) {
         onUpdateConfig(
             AiConfig(
                 provider = providerOverride,
@@ -1591,7 +1596,8 @@ private fun AiEngineSettingsCard(
                 openAiApiKey = openAiKeyDraft,
                 openAiModel = openAiModelDraft.trim().ifBlank { AiConfig.DEFAULT_OPENAI_MODEL },
                 openAiBaseUrl = openAiBaseUrlDraft.trim().ifBlank { AiConfig.DEFAULT_OPENAI_BASE_URL },
-                customInstructions = customInstructionsDraft.trim()
+                customInstructions = customInstructionsDraft.trim(),
+                reasoningEffort = reasoningOverride
             )
         )
     }
@@ -1772,6 +1778,51 @@ private fun AiEngineSettingsCard(
                         pushCurrentDraft()
                     }
                 )
+            }
+
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(
+                    text = stringResource(R.string.settings_ai_reasoning_label),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = colors.textMuted
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    AiReasoningEffort.entries.forEach { effort ->
+                        val selected = reasoningDraft == effort
+                        val labelRes = when (effort) {
+                            AiReasoningEffort.NONE -> R.string.settings_ai_reasoning_none
+                            AiReasoningEffort.LOW -> R.string.settings_ai_reasoning_low
+                            AiReasoningEffort.MEDIUM -> R.string.settings_ai_reasoning_medium
+                        }
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(34.dp)
+                                .clip(ZeroSmallShape)
+                                .background(if (selected) colors.accentSubtle else colors.background)
+                                .hairlineBorder(
+                                    shape = ZeroSmallShape,
+                                    color = if (selected) colors.accent else colors.hairlineBorder
+                                )
+                                .clickable {
+                                    haptics.reorderTick()
+                                    reasoningDraft = effort
+                                    pushCurrentDraft(reasoningOverride = effort)
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = stringResource(labelRes),
+                                style = MaterialTheme.typography.labelMedium,
+                                color = if (selected) colors.accent else colors.textSecondary,
+                                maxLines = 1
+                            )
+                        }
+                    }
+                }
             }
 
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {

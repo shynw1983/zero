@@ -13,6 +13,17 @@ enum class AiProvider {
     }
 }
 
+enum class AiReasoningEffort(val openAiValue: String) {
+    NONE("none"),
+    LOW("low"),
+    MEDIUM("medium");
+
+    companion object {
+        fun fromStorage(raw: String?): AiReasoningEffort =
+            entries.firstOrNull { it.name.equals(raw, ignoreCase = true) } ?: NONE
+    }
+}
+
 data class AiConfig(
     val provider: AiProvider = AiProvider.GEMINI,
     val geminiApiKey: String = "",
@@ -20,7 +31,8 @@ data class AiConfig(
     val openAiApiKey: String = "",
     val openAiModel: String = DEFAULT_OPENAI_MODEL,
     val openAiBaseUrl: String = DEFAULT_OPENAI_BASE_URL,
-    val customInstructions: String = ""
+    val customInstructions: String = "",
+    val reasoningEffort: AiReasoningEffort = AiReasoningEffort.NONE
 ) {
     val activeApiKey: String
         get() = when (provider) {

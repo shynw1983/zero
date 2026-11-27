@@ -166,9 +166,16 @@ class ZeroAiEngineTest {
             .edit().clear().commit()
 
         val repo = SharedPrefsUserPreferencesRepository(ctx)
-        repo.setAiConfig(AiConfig(customInstructions = "Keep titles under 12 chars"))
+        assertEquals(AiReasoningEffort.NONE, repo.preferences.value.aiConfig.reasoningEffort)
+        repo.setAiConfig(
+            AiConfig(
+                customInstructions = "Keep titles under 12 chars",
+                reasoningEffort = AiReasoningEffort.LOW
+            )
+        )
         val loaded = SharedPrefsUserPreferencesRepository(ctx).preferences.value.aiConfig
         assertEquals("Keep titles under 12 chars", loaded.customInstructions)
+        assertEquals(AiReasoningEffort.LOW, loaded.reasoningEffort)
     }
 
     @Test
@@ -436,23 +443,65 @@ class ZeroAiEngineTest {
     }
 
     @Test
-    fun omitsTemperatureForGpt6LunaAndOtherReasoningModels() {
-        val lunaReq = ZeroAiJsonParser.buildOpenAiRequestJson(
+    fun reasoningEffortControlsOpenAiGpt6AndGeminiFlashThinkingPayloads() {
+        val lunaOff = ZeroAiJsonParser.buildOpenAiRequestJson(
             model = "gpt-6-luna",
             systemPrompt = "sys",
             userPrompt = "usr",
-            image = null
+            image = null,
+            reasoningEffort = AiReasoningEffort.NONE
         )
-        assertEquals("gpt-6-luna", lunaReq.getString("model"))
-        assertFalse(lunaReq.has("temperature"))
-        assertTrue(lunaReq.has("response_format"))
+        assertEquals("gpt-6-luna", lunaOff.getString("model"))
+        assertEquals("none", lunaOff.getString("reasoning_effort"))
+        assertEquals(0.2, lunaOff.getDouble("temperature"), 0.0001)
+        assertTrue(lunaOff.has("response_format"))
+
+        val lunaLow = ZeroAiJsonParser.buildOpenAiRequestJson(
+            model = "gpt-6-luna",
+            systemPrompt = "sys",
+            userPrompt = "usr",
+            image = null,
+            reasoningEffort = AiReasoningEffort.LOW
+        )
+        assertEquals("low", lunaLow.getString("reasoning_effort"))
+        assertFalse(lunaLow.has("temperature"))
+
+        val lunaMed = ZeroAiJsonParser.buildOpenAiRequestJson(
+            model = "gpt-6-luna",
+            systemPrompt = "sys",
+            userPrompt = "usr",
+            image = null,
+            reasoningEffort = AiReasoningEffort.MEDIUM
+        )
+        assertEquals("medium", lunaMed.getString("reasoning_effort"))
+        assertFalse(lunaMed.has("temperature"))
 
         val miniReq = ZeroAiJsonParser.buildOpenAiRequestJson(
             model = "gpt-4o-mini",
             systemPrompt = "sys",
             userPrompt = "usr",
-            image = null
+            image = null,
+            reasoningEffort = AiReasoningEffort.NONE
         )
+        assertFalse(miniReq.has("reasoning_effort"))
         assertEquals(0.2, miniReq.getDouble("temperature"), 0.0001)
+
+        val flashOff = ZeroAiJsonParser.buildGeminiRequestJson(
+            systemPrompt = "sys",
+            userPrompt = "usr",
+            image = null,
+            model = "gemini-2.5-flash",
+            reasoningEffort = AiReasoningEffort.NONE
+        )
+        assertEquals(0, flashOff.getJSONObject("generationConfig").getJSONObject("thinkingConfig").getInt("thinkingBudget"))
+
+        val proReq = ZeroAiJsonParser.buildGeminiRequestJson(
+            systemPrompt = "sys",
+            userPrompt = "usr",
+            image = null,
+            model = "gemini-2.5-pro",
+            reasoningEffort = AiReasoningEffort.NONE
+        )
+        assertFalse(proReq.getJSONObject("generationConfig").has("thinkingConfig"))
     }
 }
