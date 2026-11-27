@@ -569,4 +569,6 @@
     <string name="atlas_empty_desc">보관함 태그에서 장소 · 지오펜스를 켜고 주소를 연결하면 3D 지도에 퀘스트 마커가 표시됩니다.</string>
     <string name="atlas_open_vault_tags">보관함에서 장소 태그 설정</string>
     <string name="atlas_open_tasks_at_place">%1$d/%2$d</string>
+    <string name="atlas_header_title">ATLAS · 3D 지도</string>
+    <string name="atlas_toggle_compass_follow">나침반 카메라 추적 전환</string>
 </resources>

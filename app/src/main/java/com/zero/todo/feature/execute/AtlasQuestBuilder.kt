@@ -187,6 +187,23 @@ object AtlasQuestBuilder {
     fun formatDistance(meters: Int): String =
         if (meters < 1000) "${meters}m" else "%.1fkm".format(Locale.US, meters / 1000.0)
 
+    fun computeBearingDegrees(lat1: Double, lng1: Double, lat2: Double, lng2: Double): Float {
+        val phi1 = Math.toRadians(lat1)
+        val phi2 = Math.toRadians(lat2)
+        val dLambda = Math.toRadians(lng2 - lng1)
+        val y = sin(dLambda) * cos(phi2)
+        val x = cos(phi1) * sin(phi2) - sin(phi1) * cos(phi2) * cos(dLambda)
+        val deg = Math.toDegrees(atan2(y, x)).toFloat()
+        return ((deg % 360f) + 360f) % 360f
+    }
+
+    fun cardinalDirection(bearingDegrees: Float): String {
+        val norm = ((bearingDegrees % 360f) + 360f) % 360f
+        val dirs = arrayOf("N", "NE", "E", "SE", "S", "SW", "W", "NW")
+        val idx = (((norm + 22.5f) % 360f) / 45f).toInt().coerceIn(0, 7)
+        return dirs[idx]
+    }
+
     private fun offsetLatLng(
         latDeg: Double,
         lngDeg: Double,

@@ -147,19 +147,21 @@ fun ExecuteHostScreen(
     )
 
     if (state.executeTheme == ExecuteTheme.ATLAS) {
-        val glassBg = if (isAtlasMapDark) Color(0xB3141822) else Color(0xD4FFFFFF)
-        val glassSheen = Color.White.copy(alpha = if (isAtlasMapDark) 0.09f else 0.36f)
-        val glassBorder = if (isAtlasMapDark) Color.White.copy(alpha = 0.16f) else Color.Black.copy(alpha = 0.10f)
+        val glassBg = if (isAtlasMapDark) Color(0xD90F1420) else Color(0xEBFFFFFF)
+        val glassSheen = Color.White.copy(alpha = if (isAtlasMapDark) 0.11f else 0.45f)
+        val glassBorder = if (isAtlasMapDark) Color.White.copy(alpha = 0.18f) else Color.Black.copy(alpha = 0.09f)
         val glassPrimary = if (isAtlasMapDark) Color(0xFFF4F4F5) else Color(0xFF111827)
         val glassSecondary = if (isAtlasMapDark) Color(0xFFC0C6D4) else Color(0xFF52525B)
-        val topScrim = if (isAtlasMapDark) Color(0x880D1017) else Color(0x80F4F6FA)
-        val bottomScrim = if (isAtlasMapDark) Color(0x990D1017) else Color(0x8AF4F6FA)
+        val topStrong = if (isAtlasMapDark) Color(0xD6090D15) else Color(0xCCF2F4F8)
+        val topMid = if (isAtlasMapDark) Color(0x66090D15) else Color(0x5CEAEDF3)
+        val bottomStrong = if (isAtlasMapDark) Color(0xE0090D15) else Color(0xD4F2F4F8)
+        val bottomMid = if (isAtlasMapDark) Color(0x70090D15) else Color(0x66EAEDF3)
         val activeAccent = colors.accent
 
         Box(
             modifier = modifier
                 .fillMaxSize()
-                .background(if (isAtlasMapDark) Color(0xFF141822) else Color(0xFFF3F4F7))
+                .background(if (isAtlasMapDark) Color(0xFF0F141E) else Color(0xFFEAEDF3))
                 .imePadding()
         ) {
             // Layer 0: Full-Screen 100% 3D Google Map Viewport
@@ -167,46 +169,53 @@ fun ExecuteHostScreen(
                 state = state,
                 isMapDark = isAtlasMapDark,
                 onToggleMapDark = onToggleAtlasMapDark,
-                topContentPadding = 68.dp,
-                bottomContentPadding = 82.dp + atlasBottomModeBarHeight,
+                topContentPadding = 64.dp,
+                bottomContentPadding = 74.dp + atlasBottomModeBarHeight,
                 onCompleteTask = onCompleteTask,
                 onOpenTaskDetail = onOpenTaskDetail,
                 onSwitchToVault = onSwitchToVault,
                 modifier = Modifier.fillMaxSize()
             )
 
-            // Layer 1: Top Floating Frosted Glass Status Header
+            // Layer 1: Top Atmospheric Vignette + Floating Frosted Glass Header
             Box(
                 modifier = Modifier
                     .align(Alignment.TopCenter)
                     .fillMaxWidth()
-                    .background(Brush.verticalGradient(listOf(topScrim, Color.Transparent)))
+                    .background(
+                        Brush.verticalGradient(
+                            0.0f to topStrong,
+                            0.62f to topMid,
+                            1.0f to Color.Transparent
+                        )
+                    )
                     .statusBarsPadding()
                     .padding(horizontal = 12.dp, vertical = 8.dp),
                 contentAlignment = Alignment.Center
             ) {
                 NowHeaderBar(
                     state = state,
+                    titleRes = R.string.atlas_header_title,
                     primaryColor = glassPrimary,
                     secondaryColor = glassSecondary,
-                    buttonBg = if (isAtlasMapDark) Color(0x18FFFFFF) else Color(0x12000000),
+                    buttonBg = if (isAtlasMapDark) Color(0x1CFFFFFF) else Color(0x12000000),
                     settingsBorderColor = glassBorder,
-                    buttonSize = 40.dp,
+                    buttonSize = 38.dp,
                     onOpenTriage = onOpenTriage,
                     onOpenThemePicker = { showThemePicker = true },
                     onOpenSettings = onOpenSettings,
                     modifier = Modifier
                         .widthIn(max = ExecuteMaxContentWidth)
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(18.dp))
+                        .clip(RoundedCornerShape(16.dp))
                         .background(glassBg)
                         .background(Brush.verticalGradient(listOf(glassSheen, Color.Transparent)))
-                        .hairlineBorder(shape = RoundedCornerShape(18.dp), color = glassBorder)
-                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                        .hairlineBorder(shape = RoundedCornerShape(16.dp), color = glassBorder)
+                        .padding(horizontal = 12.dp, vertical = 5.dp)
                 )
             }
 
-            // Layer 2: Bottom Floating Frosted Glass Quick Capture Dock
+            // Layer 2: Bottom Atmospheric Vignette + Floating Frosted Glass Quick Capture Dock
             ZeroTheme(
                 darkTheme = isAtlasMapDark,
                 accent = ZeroAccent.entries.firstOrNull { it.colorFor(isAtlasMapDark) == activeAccent } ?: ZeroAccent.SlateBlue,
@@ -216,7 +225,13 @@ fun ExecuteHostScreen(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .fillMaxWidth()
-                        .background(Brush.verticalGradient(listOf(Color.Transparent, bottomScrim)))
+                        .background(
+                            Brush.verticalGradient(
+                                0.0f to Color.Transparent,
+                                0.35f to bottomMid,
+                                1.0f to bottomStrong
+                            )
+                        )
                         .navigationBarsPadding()
                         .padding(bottom = atlasBottomModeBarHeight)
                         .padding(horizontal = 14.dp, vertical = 6.dp),
@@ -397,7 +412,8 @@ private fun NowHeaderBar(
     onOpenTriage: () -> Unit,
     onOpenThemePicker: () -> Unit,
     onOpenSettings: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    titleRes: Int = R.string.now_header_title
 ) {
     val tabular = ZeroTheme.tabularTypography
     val haptics = rememberZeroHaptics()
@@ -418,7 +434,7 @@ private fun NowHeaderBar(
                     .background(SignalOrange)
             )
             Text(
-                text = stringResource(R.string.now_header_title),
+                text = stringResource(titleRes),
                 style = MaterialTheme.typography.titleMedium,
                 color = primaryColor
             )

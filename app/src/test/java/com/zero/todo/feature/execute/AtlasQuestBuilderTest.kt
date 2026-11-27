@@ -134,5 +134,21 @@ class AtlasQuestBuilderTest {
         assertEquals("240m", AtlasQuestBuilder.formatDistance(240))
         assertEquals("1.5km", AtlasQuestBuilder.formatDistance(1500))
         assertEquals(ExecuteTheme.ATLAS, ExecuteTheme.fromStorage("ATLAS"))
+
+        // Bearing calculations: N ~0, E ~90, S ~180, W ~270
+        val north = AtlasQuestBuilder.computeBearingDegrees(35.6595, 139.7004, 35.6695, 139.7004)
+        val east = AtlasQuestBuilder.computeBearingDegrees(35.6595, 139.7004, 35.6595, 139.7104)
+        val south = AtlasQuestBuilder.computeBearingDegrees(35.6595, 139.7004, 35.6495, 139.7004)
+        val west = AtlasQuestBuilder.computeBearingDegrees(35.6595, 139.7004, 35.6595, 139.6904)
+        assertTrue(north < 2f || north > 358f)
+        assertEquals(90f, east, 2f)
+        assertEquals(180f, south, 2f)
+        assertEquals(270f, west, 2f)
+
+        assertEquals("N", AtlasQuestBuilder.cardinalDirection(0f))
+        assertEquals("NE", AtlasQuestBuilder.cardinalDirection(45f))
+        assertEquals("E", AtlasQuestBuilder.cardinalDirection(90f))
+        assertEquals("SW", AtlasQuestBuilder.cardinalDirection(225f))
+        assertEquals("N", AtlasQuestBuilder.cardinalDirection(350f))
     }
 }

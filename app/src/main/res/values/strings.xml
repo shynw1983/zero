@@ -569,4 +569,6 @@
     <string name="atlas_empty_desc">Enable Place &amp; Geofence on any tag in VAULT, link one or more addresses, and attach open tasks to see them on the 3D map.</string>
     <string name="atlas_open_vault_tags">Configure Place Tags in VAULT</string>
     <string name="atlas_open_tasks_at_place">%1$d/%2$d</string>
+    <string name="atlas_header_title">ATLAS · 3D MAP</string>
+    <string name="atlas_toggle_compass_follow">Toggle compass camera follow</string>
 </resources>

@@ -569,4 +569,6 @@
     <string name="atlas_empty_desc">在整理库长按任意标签进入「场所与电子围栏」，绑定 1 个或多个地址并关联未完成任务后，这里将亮起 3D 任务信标。</string>
     <string name="atlas_open_vault_tags">前往整理库配置场所标签</string>
     <string name="atlas_open_tasks_at_place">%1$d/%2$d</string>
+    <string name="atlas_header_title">ATLAS · 3D 地图</string>
+    <string name="atlas_toggle_compass_follow">开关朝向跟随视角</string>
 </resources>
