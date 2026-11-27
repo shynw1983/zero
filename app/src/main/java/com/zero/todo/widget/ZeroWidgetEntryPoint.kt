@@ -6,6 +6,7 @@ import com.zero.todo.core.notification.ReminderScheduler
 import com.zero.todo.data.local.dao.FolderDao
 import com.zero.todo.data.local.dao.TagDao
 import com.zero.todo.data.local.dao.TaskDao
+import com.zero.todo.data.preferences.UserPreferencesRepository
 import com.zero.todo.data.repository.TaskRepository
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
@@ -20,6 +21,7 @@ interface ZeroWidgetEntryPoint {
     fun tagDao(): TagDao
     fun taskRepository(): TaskRepository
     fun reminderScheduler(): ReminderScheduler
+    fun userPreferencesRepository(): UserPreferencesRepository
 }
 
 object ZeroWidgetIntents {

@@ -159,6 +159,7 @@ fun TaskDetailPane(
     onDeleteTask: (TaskItem) -> Unit,
     tagPathById: Map<String, String> = emptyMap(),
     allTags: List<TagItem> = emptyList(),
+    defaultAllDayReminderMinutes: Int = 9 * 60,
     modifier: Modifier = Modifier
 ) {
     val colors = ZeroTheme.colors
@@ -835,35 +836,66 @@ fun TaskDetailPane(
 
                 // System Notification Reminder Row
                 if (task.dueDate != null) {
+                    val defaultReminderTime = LocalTime.of(
+                        (defaultAllDayReminderMinutes / 60).coerceIn(0, 23),
+                        (defaultAllDayReminderMinutes % 60).coerceIn(0, 59)
+                    )
+                    val baseDate = currentDueDateTime?.toLocalDate() ?: currentDate
                     val baseTrigger = if (task.isAllDay) {
-                        val date = currentDueDateTime?.toLocalDate() ?: currentDate
-                        LocalDateTime.of(date, LocalTime.of(9, 0)).atZone(zoneId).toInstant().toEpochMilli()
+                        LocalDateTime.of(baseDate, defaultReminderTime).atZone(zoneId).toInstant().toEpochMilli()
                     } else {
                         task.dueDate
                     }
                     val activeOffset = task.reminderAt?.let { baseTrigger - it }
-                    Row(
+                    val reminderTimeText = task.reminderAt?.let { millis ->
+                        Instant.ofEpochMilli(millis)
+                            .atZone(zoneId)
+                            .toLocalDateTime()
+                            .format(DateTimeFormatter.ofPattern("MM/dd HH:mm"))
+                    }
+                    val presetOffsets = listOf(0L, 5L * 60_000L, 15L * 60_000L, 60L * 60_000L, 24L * 60L * 60_000L)
+                    val isCustomSelected = task.reminderAt != null && activeOffset !in presetOffsets
+
+                    Column(
                         modifier = Modifier
                             .fillMaxWidth()
                             .hairlineDividerTop()
                             .padding(top = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        Icon(
-                            imageVector = Icons.Rounded.NotificationsActive,
-                            contentDescription = null,
-                            tint = if (task.reminderAt != null) colors.accent else colors.textMuted,
-                            modifier = Modifier.size(14.dp)
-                        )
-                        Text(
-                            text = stringResource(R.string.detail_reminder),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = colors.textSecondary
-                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.NotificationsActive,
+                                    contentDescription = null,
+                                    tint = if (task.reminderAt != null) colors.accent else colors.textMuted,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Text(
+                                    text = stringResource(R.string.detail_reminder),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = colors.textSecondary
+                                )
+                            }
+                            if (reminderTimeText != null) {
+                                Text(
+                                    text = reminderTimeText,
+                                    style = tabular.dateCompact,
+                                    color = colors.accent
+                                )
+                            }
+                        }
+
                         Row(
                             modifier = Modifier
-                                .weight(1f)
+                                .fillMaxWidth()
                                 .horizontalScroll(rememberScrollState()),
                             horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
@@ -882,6 +914,13 @@ fun TaskDetailPane(
                                 applyReminderWithPermission(task, baseTrigger)
                             }
                             QuickChip(
+                                label = stringResource(R.string.reminder_5m_before),
+                                selected = activeOffset == 5L * 60_000L
+                            ) {
+                                haptics.reorderTick()
+                                applyReminderWithPermission(task, baseTrigger - 5L * 60_000L)
+                            }
+                            QuickChip(
                                 label = stringResource(R.string.reminder_15m_before),
                                 selected = activeOffset == 15L * 60_000L
                             ) {
@@ -894,6 +933,44 @@ fun TaskDetailPane(
                             ) {
                                 haptics.reorderTick()
                                 applyReminderWithPermission(task, baseTrigger - 60L * 60_000L)
+                            }
+                            QuickChip(
+                                label = stringResource(R.string.reminder_1d_before),
+                                selected = activeOffset == 24L * 60L * 60_000L
+                            ) {
+                                haptics.reorderTick()
+                                applyReminderWithPermission(task, baseTrigger - 24L * 60L * 60_000L)
+                            }
+                            val customLabel = if (isCustomSelected && task.reminderAt != null) {
+                                Instant.ofEpochMilli(task.reminderAt)
+                                    .atZone(zoneId)
+                                    .toLocalTime()
+                                    .format(timeFmt)
+                            } else {
+                                stringResource(R.string.reminder_custom_time)
+                            }
+                            QuickChip(
+                                label = customLabel,
+                                selected = isCustomSelected,
+                                useTabular = isCustomSelected
+                            ) {
+                                val initTime = task.reminderAt?.let {
+                                    Instant.ofEpochMilli(it).atZone(zoneId).toLocalTime()
+                                } ?: defaultReminderTime
+                                android.app.TimePickerDialog(
+                                    context,
+                                    { _, hour, minute ->
+                                        val pickedMillis = LocalDateTime.of(baseDate, LocalTime.of(hour, minute))
+                                            .atZone(zoneId)
+                                            .toInstant()
+                                            .toEpochMilli()
+                                        haptics.confirm()
+                                        applyReminderWithPermission(task, pickedMillis)
+                                    },
+                                    initTime.hour,
+                                    initTime.minute,
+                                    true
+                                ).show()
                             }
                         }
                     }

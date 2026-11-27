@@ -410,4 +410,37 @@
     <string name="dialog_move_tag_title">Move %1$s</string>
     <string name="dialog_move_tag_root">Top Level</string>
     <string name="dialog_move_tag_hint">Choose new parent tag</string>
+
+    <!-- v2.6.0: Notifications & Reminders Control Center -->
+    <string name="notif_channel_briefing">Daily Briefing</string>
+    <string name="notif_channel_briefing_desc">Morning agenda briefing and evening review reminders</string>
+    <string name="notif_action_snooze_15m">Snooze 15m</string>
+    <string name="notif_morning_title">Good Morning · Today\'s Runway</string>
+    <string name="notif_morning_empty">Runway clear · Enjoy a calm, focused day</string>
+    <string name="notif_morning_summary">%1$d tasks today · %2$s budgeted</string>
+    <string name="notif_morning_summary_overdue">%1$d today · %2$d overdue · %3$s</string>
+    <string name="notif_evening_title">Evening Wrap-Up</string>
+    <string name="notif_evening_summary">%1$d tasks still open today — finish or defer</string>
+    <string name="notif_test_title">ZERO Notifications Active</string>
+    <string name="notif_test_body">System push, quick actions, and exact timing are ready on this device.</string>
+    <string name="reminder_5m_before">5m before</string>
+    <string name="reminder_1d_before">1d before</string>
+    <string name="reminder_custom_time">Custom</string>
+    <string name="settings_section_notifications">Notifications &amp; Reminders</string>
+    <string name="settings_notif_perm_title">System Notifications</string>
+    <string name="settings_notif_exact_title">Exact Alarm Timing</string>
+    <string name="settings_notif_battery_title">Background Survival</string>
+    <string name="settings_notif_status_granted">Enabled</string>
+    <string name="settings_notif_status_denied">Missing</string>
+    <string name="settings_notif_status_battery_ok">Unrestricted</string>
+    <string name="settings_notif_status_battery_limited">Restricted</string>
+    <string name="settings_notif_action_enable">Enable</string>
+    <string name="settings_notif_all_day_title">Default All-Day Reminder Time</string>
+    <string name="settings_notif_morning_title">Morning Briefing Push</string>
+    <string name="settings_notif_morning_desc">Summarize today\'s tasks &amp; overdue backlog every morning</string>
+    <string name="settings_notif_evening_title">Evening Review Push</string>
+    <string name="settings_notif_evening_desc">Gentle nudge if today\'s tasks are still pending</string>
+    <string name="settings_notif_test_btn">Send Test Notification</string>
+    <string name="settings_notif_test_sent">Test notification sent — check your status bar</string>
+    <string name="settings_notif_test_blocked">System notification permission required first</string>
 </resources>

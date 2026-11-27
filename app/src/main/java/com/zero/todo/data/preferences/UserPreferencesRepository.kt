@@ -19,6 +19,23 @@ import kotlinx.coroutines.flow.update
 import javax.inject.Inject
 import javax.inject.Singleton
 
+data class NotificationPreferences(
+    val defaultAllDayReminderMinutes: Int = 9 * 60,
+    val morningBriefingEnabled: Boolean = false,
+    val morningBriefingMinutes: Int = 8 * 60 + 30,
+    val eveningReviewEnabled: Boolean = false,
+    val eveningReviewMinutes: Int = 21 * 60
+) {
+    companion object {
+        fun formatMinutes(totalMinutes: Int): String {
+            val clamped = totalMinutes.coerceIn(0, 23 * 60 + 59)
+            val h = clamped / 60
+            val m = clamped % 60
+            return "%02d:%02d".format(h, m)
+        }
+    }
+}
+
 data class UserPreferences(
     val isDarkTheme: Boolean = true,
     val accent: ZeroAccent = ZeroAccent.SlateBlue,
@@ -30,6 +47,7 @@ data class UserPreferences(
     val workspaceMode: WorkspaceMode = WorkspaceMode.NOW,
     val executeTheme: ExecuteTheme = ExecuteTheme.MONOLITH,
     val dailyCapacityMinutes: Int = 240,
+    val notifications: NotificationPreferences = NotificationPreferences(),
     val webDavConfig: WebDavConfig = WebDavConfig()
 )
 
@@ -46,6 +64,7 @@ interface UserPreferencesRepository {
     fun setWorkspaceMode(mode: WorkspaceMode)
     fun setExecuteTheme(theme: ExecuteTheme)
     fun setDailyCapacityMinutes(minutes: Int)
+    fun setNotificationPreferences(config: NotificationPreferences)
     fun setWebDavConfig(config: WebDavConfig)
 }
 
@@ -114,6 +133,22 @@ class SharedPrefsUserPreferencesRepository @Inject constructor(
         _preferences.update { it.copy(dailyCapacityMinutes = clamped) }
     }
 
+    override fun setNotificationPreferences(config: NotificationPreferences) {
+        val normalized = config.copy(
+            defaultAllDayReminderMinutes = config.defaultAllDayReminderMinutes.coerceIn(0, 23 * 60 + 59),
+            morningBriefingMinutes = config.morningBriefingMinutes.coerceIn(0, 23 * 60 + 59),
+            eveningReviewMinutes = config.eveningReviewMinutes.coerceIn(0, 23 * 60 + 59)
+        )
+        prefs.edit()
+            .putInt(KEY_NOTIF_ALL_DAY_MINUTES, normalized.defaultAllDayReminderMinutes)
+            .putBoolean(KEY_NOTIF_MORNING_ENABLED, normalized.morningBriefingEnabled)
+            .putInt(KEY_NOTIF_MORNING_MINUTES, normalized.morningBriefingMinutes)
+            .putBoolean(KEY_NOTIF_EVENING_ENABLED, normalized.eveningReviewEnabled)
+            .putInt(KEY_NOTIF_EVENING_MINUTES, normalized.eveningReviewMinutes)
+            .apply()
+        _preferences.update { it.copy(notifications = normalized) }
+    }
+
     override fun setWebDavConfig(config: WebDavConfig) {
         prefs.edit()
             .putString(KEY_WEBDAV_URL, config.serverUrl)
@@ -145,6 +180,13 @@ class SharedPrefsUserPreferencesRepository @Inject constructor(
             prefs.getString(KEY_EXECUTE_THEME, ExecuteTheme.MONOLITH.name)
         )
         val dailyCapacityMinutes = prefs.getInt(KEY_DAILY_CAPACITY_MINUTES, 240).coerceIn(60, 720)
+        val notifications = NotificationPreferences(
+            defaultAllDayReminderMinutes = prefs.getInt(KEY_NOTIF_ALL_DAY_MINUTES, 9 * 60).coerceIn(0, 23 * 60 + 59),
+            morningBriefingEnabled = prefs.getBoolean(KEY_NOTIF_MORNING_ENABLED, false),
+            morningBriefingMinutes = prefs.getInt(KEY_NOTIF_MORNING_MINUTES, 8 * 60 + 30).coerceIn(0, 23 * 60 + 59),
+            eveningReviewEnabled = prefs.getBoolean(KEY_NOTIF_EVENING_ENABLED, false),
+            eveningReviewMinutes = prefs.getInt(KEY_NOTIF_EVENING_MINUTES, 21 * 60).coerceIn(0, 23 * 60 + 59)
+        )
         val webDavConfig = WebDavConfig(
             serverUrl = prefs.getString(KEY_WEBDAV_URL, "").orEmpty(),
             username = prefs.getString(KEY_WEBDAV_USER, "").orEmpty(),
@@ -167,6 +209,7 @@ class SharedPrefsUserPreferencesRepository @Inject constructor(
             workspaceMode = workspaceMode,
             executeTheme = executeTheme,
             dailyCapacityMinutes = dailyCapacityMinutes,
+            notifications = notifications,
             webDavConfig = webDavConfig
         )
     }
@@ -184,6 +227,11 @@ class SharedPrefsUserPreferencesRepository @Inject constructor(
         private const val KEY_WORKSPACE_MODE = "workspace_mode"
         private const val KEY_EXECUTE_THEME = "execute_theme"
         private const val KEY_DAILY_CAPACITY_MINUTES = "daily_capacity_minutes"
+        private const val KEY_NOTIF_ALL_DAY_MINUTES = "notif_all_day_minutes"
+        private const val KEY_NOTIF_MORNING_ENABLED = "notif_morning_enabled"
+        private const val KEY_NOTIF_MORNING_MINUTES = "notif_morning_minutes"
+        private const val KEY_NOTIF_EVENING_ENABLED = "notif_evening_enabled"
+        private const val KEY_NOTIF_EVENING_MINUTES = "notif_evening_minutes"
         private const val KEY_WEBDAV_URL = "webdav_url"
         private const val KEY_WEBDAV_USER = "webdav_user"
         private const val KEY_WEBDAV_PASS = "webdav_pass"
@@ -235,6 +283,10 @@ class InMemoryUserPreferencesRepository(
 
     override fun setDailyCapacityMinutes(minutes: Int) {
         _preferences.update { it.copy(dailyCapacityMinutes = minutes.coerceIn(60, 720)) }
+    }
+
+    override fun setNotificationPreferences(config: NotificationPreferences) {
+        _preferences.update { it.copy(notifications = config) }
     }
 
     override fun setWebDavConfig(config: WebDavConfig) {

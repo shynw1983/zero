@@ -410,4 +410,37 @@
     <string name="dialog_move_tag_title">%1$s を移動</string>
     <string name="dialog_move_tag_root">最上位タグ</string>
     <string name="dialog_move_tag_hint">移動先の親タグを選択</string>
+
+    <!-- v2.6.0: リマインダー＆プッシュ通知設定 -->
+    <string name="notif_channel_briefing">デイリーブリーフィング</string>
+    <string name="notif_channel_briefing_desc">毎朝の予定サマリーと夜の振り返り通知</string>
+    <string name="notif_action_snooze_15m">15分スヌーズ</string>
+    <string name="notif_morning_title">おはようございます · 今日の予定</string>
+    <string name="notif_morning_empty">本日のタスクはゼロ · 自分のペースで一日を</string>
+    <string name="notif_morning_summary">本日 %1$d 件 · 合計 %2$s</string>
+    <string name="notif_morning_summary_overdue">本日 %1$d 件 · 期限切れ %2$d 件 · %3$s</string>
+    <string name="notif_evening_title">夜の振り返り</string>
+    <string name="notif_evening_summary">本日の未完了タスクが %1$d 件残っています</string>
+    <string name="notif_test_title">ZERO 通知テスト成功</string>
+    <string name="notif_test_body">この端末でのプッシュ通知・操作ボタン・定時アラームの準備が完了しています。</string>
+    <string name="reminder_5m_before">5分前</string>
+    <string name="reminder_1d_before">1日前</string>
+    <string name="reminder_custom_time">時刻指定</string>
+    <string name="settings_section_notifications">通知・リマインダー</string>
+    <string name="settings_notif_perm_title">システム通知権限</string>
+    <string name="settings_notif_exact_title">正確なアラーム時刻</string>
+    <string name="settings_notif_battery_title">バッテリー最適化の解除</string>
+    <string name="settings_notif_status_granted">有効</string>
+    <string name="settings_notif_status_denied">未許可</string>
+    <string name="settings_notif_status_battery_ok">制限なし</string>
+    <string name="settings_notif_status_battery_limited">制限あり</string>
+    <string name="settings_notif_action_enable">設定する</string>
+    <string name="settings_notif_all_day_title">終日タスクの既定通知時刻</string>
+    <string name="settings_notif_morning_title">朝のブリーフィング通知</string>
+    <string name="settings_notif_morning_desc">毎朝今日のタスク数と期限切れをまとめて通知</string>
+    <string name="settings_notif_evening_title">夜の振り返り通知</string>
+    <string name="settings_notif_evening_desc">当日の未完了タスクが残っている場合に夜にお知らせ</string>
+    <string name="settings_notif_test_btn">テスト通知を送信</string>
+    <string name="settings_notif_test_sent">テスト通知を送信しました（ステータスバーをご確認ください）</string>
+    <string name="settings_notif_test_blocked">先にシステム通知権限を有効にしてください</string>
 </resources>

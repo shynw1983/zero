@@ -16,7 +16,9 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
@@ -82,6 +84,27 @@ fun ZeroAppRoot(
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    var promptedNotifPermission by remember { mutableStateOf(false) }
+    val startupNotifLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        contract = androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
+    ) { _ -> }
+
+    LaunchedEffect(
+        uiState.allActiveTasks,
+        uiState.notificationPreferences.morningBriefingEnabled,
+        uiState.notificationPreferences.eveningReviewEnabled
+    ) {
+        if (promptedNotifPermission || Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return@LaunchedEffect
+        val now = System.currentTimeMillis()
+        val hasScheduledWork = uiState.notificationPreferences.morningBriefingEnabled ||
+            uiState.notificationPreferences.eveningReviewEnabled ||
+            uiState.allActiveTasks.any { !it.isCompleted && (it.reminderAt ?: 0L) > now }
+        if (hasScheduledWork && !com.zero.todo.core.notification.ZeroNotificationHelper.canPostNotifications(baseContext)) {
+            promptedNotifPermission = true
+            startupNotifLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+        }
     }
 
     LaunchedEffect(widgetLaunchArgs?.id) {
@@ -220,6 +243,7 @@ fun ZeroAppRoot(
                 }
             },
             onUpdateWebDavConfig = viewModel::updateWebDavConfig,
+            onUpdateNotificationPreferences = viewModel::updateNotificationPreferences,
             onTestWebDav = viewModel::testWebDavConnection,
             onPushWebDav = viewModel::pushWebDavBackup,
             onPullWebDav = viewModel::pullWebDavBackup,

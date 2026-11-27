@@ -86,6 +86,7 @@ import com.zero.todo.core.designsystem.hairlineDividerTop
 import com.zero.todo.core.designsystem.rememberZeroHaptics
 import com.zero.todo.core.nlp.QuickInputParser
 import com.zero.todo.data.backup.WebDavConfig
+import com.zero.todo.data.preferences.NotificationPreferences
 import com.zero.todo.domain.model.AntiMisclickMode
 import com.zero.todo.domain.model.AppLanguage
 import com.zero.todo.domain.model.ExecuteTheme
@@ -205,6 +206,7 @@ data class ZeroShellCallbacks(
     val onSetTaskSwipeAction: (TaskSwipeDirection, TaskSwipeAction) -> Unit = { _, _ -> },
     val onSetHapticsEnabled: (Boolean) -> Unit = {},
     val onSetAppLanguage: (AppLanguage) -> Unit = {},
+    val onUpdateNotificationPreferences: (NotificationPreferences) -> Unit = {},
     val onUpdateWebDavConfig: (WebDavConfig) -> Unit = {},
     val onTestWebDav: () -> Unit = {},
     val onPushWebDav: () -> Unit = {},
@@ -595,6 +597,7 @@ fun ZeroAdaptiveShell(
                 hapticsEnabled = uiState.hapticsEnabled,
                 appLanguage = uiState.appLanguage,
                 dailyCapacityMinutes = uiState.dailyCapacityMinutes,
+                notificationPreferences = uiState.notificationPreferences,
                 webDavConfig = uiState.webDavConfig,
                 webDavStatus = uiState.webDavStatus,
                 backupStatus = uiState.backupStatus,
@@ -605,6 +608,7 @@ fun ZeroAdaptiveShell(
                 onSetHapticsEnabled = callbacks.onSetHapticsEnabled,
                 onSetAppLanguage = callbacks.onSetAppLanguage,
                 onSetDailyCapacityMinutes = callbacks.onSetDailyCapacityMinutes,
+                onUpdateNotificationPreferences = callbacks.onUpdateNotificationPreferences,
                 onUpdateWebDavConfig = callbacks.onUpdateWebDavConfig,
                 onTestWebDav = callbacks.onTestWebDav,
                 onPushWebDav = callbacks.onPushWebDav,
@@ -1057,6 +1061,7 @@ private fun BoundTaskDetailPane(
         onDeleteTask = callbacks.onDeleteTask,
         tagPathById = uiState.tagPathById,
         allTags = uiState.tagsWithCounts.map { it.tag },
+        defaultAllDayReminderMinutes = uiState.notificationPreferences.defaultAllDayReminderMinutes,
         modifier = modifier
     )
 }

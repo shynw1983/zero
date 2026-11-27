@@ -410,4 +410,37 @@
     <string name="dialog_move_tag_title">移动 %1$s</string>
     <string name="dialog_move_tag_root">顶层标签</string>
     <string name="dialog_move_tag_hint">选择新的上级标签</string>
+
+    <!-- v2.6.0: 提醒与消息推送中心 -->
+    <string name="notif_channel_briefing">每日规划与复盘</string>
+    <string name="notif_channel_briefing_desc">每日晨间待办简报与晚间复盘提醒</string>
+    <string name="notif_action_snooze_15m">延迟 15 分钟</string>
+    <string name="notif_morning_title">早安 · 今日执行跑道</string>
+    <string name="notif_morning_empty">今日暂无待办 · 按你的节奏保持专注</string>
+    <string name="notif_morning_summary">今日 %1$d 项待办 · 预计 %2$s</string>
+    <string name="notif_morning_summary_overdue">今日 %1$d 项 · 逾期 %2$d 项 · 预计 %3$s</string>
+    <string name="notif_evening_title">晚间待办复盘</string>
+    <string name="notif_evening_summary">今日仍有 %1$d 项待处理 — 趁现在收尾或推迟</string>
+    <string name="notif_test_title">ZERO 消息推送正常</string>
+    <string name="notif_test_body">当前设备的系统通知、快捷按钮与精确定时均已就绪。</string>
+    <string name="reminder_5m_before">提前 5 分钟</string>
+    <string name="reminder_1d_before">提前 1 天</string>
+    <string name="reminder_custom_time">自定义时间</string>
+    <string name="settings_section_notifications">提醒与消息推送</string>
+    <string name="settings_notif_perm_title">系统通知权限</string>
+    <string name="settings_notif_exact_title">精确定时闹钟（防延迟）</string>
+    <string name="settings_notif_battery_title">后台保活（忽略电池优化）</string>
+    <string name="settings_notif_status_granted">已开启</string>
+    <string name="settings_notif_status_denied">未开启</string>
+    <string name="settings_notif_status_battery_ok">无限制</string>
+    <string name="settings_notif_status_battery_limited">受系统限制</string>
+    <string name="settings_notif_action_enable">去开启</string>
+    <string name="settings_notif_all_day_title">全天任务默认提醒时间</string>
+    <string name="settings_notif_morning_title">每日晨间简报推送</string>
+    <string name="settings_notif_morning_desc">每天早上定时推送今日任务与逾期汇总</string>
+    <string name="settings_notif_evening_title">每日晚间复盘推送</string>
+    <string name="settings_notif_evening_desc">若当天仍有未完成任务，晚间发送柔和整理提醒</string>
+    <string name="settings_notif_test_btn">发送测试通知</string>
+    <string name="settings_notif_test_sent">测试通知已发出，请查看系统状态栏</string>
+    <string name="settings_notif_test_blocked">请先开启上方的系统通知权限</string>
 </resources>

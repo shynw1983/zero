@@ -13,6 +13,7 @@ import com.zero.todo.data.backup.WebDavConfig
 import com.zero.todo.data.backup.WebDavSyncManager
 import com.zero.todo.data.backup.ZeroBackupManager
 import com.zero.todo.data.preferences.UserPreferences
+import com.zero.todo.data.preferences.NotificationPreferences
 import com.zero.todo.data.preferences.UserPreferencesRepository
 import com.zero.todo.data.repository.FocusRepository
 import com.zero.todo.data.repository.FolderRepository
@@ -114,6 +115,7 @@ data class MainUiState(
     val taskSwipeActions: TaskSwipeActions = TaskSwipeActions(),
     val hapticsEnabled: Boolean = true,
     val appLanguage: AppLanguage = AppLanguage.SYSTEM,
+    val notificationPreferences: NotificationPreferences = NotificationPreferences(),
     val webDavConfig: WebDavConfig = WebDavConfig(),
     val webDavStatus: WebDavUiStatus? = null,
     val isMediumTreeExpanded: Boolean = true,
@@ -210,6 +212,12 @@ class MainViewModel @Inject constructor(
     val taskParentPicker = _taskParentPicker.asStateFlow()
 
     init {
+        // Re-sync upcoming task alarms & daily briefings on startup
+        viewModelScope.launch {
+            rescheduleAllUpcomingReminders()
+            reminderScheduler.syncDailyBriefings(userPreferencesRepository.preferences.value.notifications)
+        }
+
         // Keep today's focus total synced even when crossing midnight
         viewModelScope.launch {
             currentDateFlow.flatMapLatest { today ->
@@ -598,6 +606,7 @@ class MainViewModel @Inject constructor(
             taskSwipeActions = ui.preferences.taskSwipeActions,
             hapticsEnabled = ui.preferences.hapticsEnabled,
             appLanguage = ui.preferences.appLanguage,
+            notificationPreferences = ui.preferences.notifications,
             webDavConfig = ui.preferences.webDavConfig,
             webDavStatus = searchTrash.webDavStatus,
             isMediumTreeExpanded = ui.isMediumTreeExpanded,
@@ -623,6 +632,7 @@ class MainViewModel @Inject constructor(
         hapticsEnabled = prefs.hapticsEnabled,
         appLanguage = prefs.appLanguage,
         taskSortMode = prefs.taskSortMode,
+        notificationPreferences = prefs.notifications,
         webDavConfig = prefs.webDavConfig
     )
 
@@ -801,6 +811,11 @@ class MainViewModel @Inject constructor(
 
     fun setDailyCapacityMinutes(minutes: Int) {
         userPreferencesRepository.setDailyCapacityMinutes(minutes)
+    }
+
+    fun updateNotificationPreferences(config: NotificationPreferences) {
+        userPreferencesRepository.setNotificationPreferences(config)
+        reminderScheduler.syncDailyBriefings(config)
     }
 
     override fun openTriage() {

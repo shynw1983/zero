@@ -1,6 +1,10 @@
 package com.zero.todo.feature.settings
 
+import android.app.TimePickerDialog
+import android.content.Intent
 import android.net.Uri
+import android.os.Build
+import android.provider.Settings
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -34,6 +38,7 @@ import androidx.compose.material.icons.rounded.Description
 import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.Link
+import androidx.compose.material.icons.rounded.NotificationsActive
 import androidx.compose.material.icons.rounded.Upload
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -43,7 +48,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -69,8 +78,10 @@ import com.zero.todo.core.designsystem.ZeroTheme
 import com.zero.todo.core.designsystem.hairlineBorder
 import com.zero.todo.core.designsystem.hairlineDividerBottom
 import com.zero.todo.core.designsystem.rememberZeroHaptics
+import com.zero.todo.core.notification.ZeroNotificationHelper
 import com.zero.todo.data.backup.BackupSummary
 import com.zero.todo.data.backup.WebDavConfig
+import com.zero.todo.data.preferences.NotificationPreferences
 import com.zero.todo.domain.model.AntiMisclickMode
 import com.zero.todo.domain.model.AppLanguage
 import com.zero.todo.domain.model.TaskSwipeAction
@@ -106,6 +117,7 @@ fun SettingsOverlay(
     hapticsEnabled: Boolean,
     appLanguage: AppLanguage,
     dailyCapacityMinutes: Int,
+    notificationPreferences: NotificationPreferences = NotificationPreferences(),
     webDavConfig: WebDavConfig,
     webDavStatus: WebDavUiStatus?,
     backupStatus: BackupUiStatus?,
@@ -116,6 +128,7 @@ fun SettingsOverlay(
     onSetHapticsEnabled: (Boolean) -> Unit,
     onSetAppLanguage: (AppLanguage) -> Unit,
     onSetDailyCapacityMinutes: (Int) -> Unit,
+    onUpdateNotificationPreferences: (NotificationPreferences) -> Unit = {},
     onUpdateWebDavConfig: (WebDavConfig) -> Unit,
     onTestWebDav: () -> Unit,
     onPushWebDav: () -> Unit,
@@ -494,6 +507,12 @@ fun SettingsOverlay(
                         }
                     }
                 }
+
+                // 4c. Reminders & Push Notifications Center
+                NotificationsSettingsCard(
+                    preferences = notificationPreferences,
+                    onUpdate = onUpdateNotificationPreferences
+                )
 
                 // 5. Local Data Backup & Export (JSON + Hierarchical Markdown)
                 SettingsSectionCard(title = stringResource(R.string.settings_section_backup)) {
@@ -989,5 +1008,420 @@ private fun ShortcutRow(keys: String, description: String) {
                 .hairlineBorder(shape = ZeroSmallShape)
                 .padding(horizontal = 7.dp, vertical = 3.dp)
         )
+    }
+}
+
+@Composable
+private fun NotificationsSettingsCard(
+    preferences: NotificationPreferences,
+    onUpdate: (NotificationPreferences) -> Unit
+) {
+    val colors = ZeroTheme.colors
+    val tabular = ZeroTheme.tabularTypography
+    val haptics = rememberZeroHaptics()
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+
+    var notificationsGranted by remember { mutableStateOf(ZeroNotificationHelper.canPostNotifications(context)) }
+    var exactAlarmsGranted by remember { mutableStateOf(ZeroNotificationHelper.canScheduleExactAlarms(context)) }
+    var batteryUnrestricted by remember { mutableStateOf(ZeroNotificationHelper.isIgnoringBatteryOptimizations(context)) }
+    var testFeedbackRes by remember { mutableStateOf<Int?>(null) }
+
+    DisposableEffect(lifecycleOwner, context) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                notificationsGranted = ZeroNotificationHelper.canPostNotifications(context)
+                exactAlarmsGranted = ZeroNotificationHelper.canScheduleExactAlarms(context)
+                batteryUnrestricted = ZeroNotificationHelper.isIgnoringBatteryOptimizations(context)
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    val permLauncher = rememberLauncherForActivityResult(
+        contract = androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        notificationsGranted = ZeroNotificationHelper.canPostNotifications(context)
+        if (granted && testFeedbackRes == R.string.settings_notif_test_blocked) {
+            testFeedbackRes = null
+        }
+    }
+
+    fun requestOrOpenNotificationSettings() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            androidx.core.content.ContextCompat.checkSelfPermission(
+                context,
+                android.Manifest.permission.POST_NOTIFICATIONS
+            ) != android.content.pm.PackageManager.PERMISSION_GRANTED
+        ) {
+            permLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+        } else {
+            val intent = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
+                putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+            }
+            runCatching { context.startActivity(intent) }
+        }
+    }
+
+    SettingsSectionCard(title = stringResource(R.string.settings_section_notifications)) {
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            // Permission & Health Indicators
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(ZeroSmallShape)
+                    .background(colors.background)
+                    .hairlineBorder(shape = ZeroSmallShape)
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                PermissionStatusRow(
+                    title = stringResource(R.string.settings_notif_perm_title),
+                    statusText = stringResource(
+                        if (notificationsGranted) R.string.settings_notif_status_granted
+                        else R.string.settings_notif_status_denied
+                    ),
+                    isHealthy = notificationsGranted,
+                    onAction = ::requestOrOpenNotificationSettings
+                )
+                PermissionStatusRow(
+                    title = stringResource(R.string.settings_notif_exact_title),
+                    statusText = stringResource(
+                        if (exactAlarmsGranted) R.string.settings_notif_status_granted
+                        else R.string.settings_notif_status_denied
+                    ),
+                    isHealthy = exactAlarmsGranted,
+                    onAction = {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                            val intent = Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM).apply {
+                                data = Uri.parse("package:${context.packageName}")
+                            }
+                            runCatching { context.startActivity(intent) }
+                        }
+                    }
+                )
+                PermissionStatusRow(
+                    title = stringResource(R.string.settings_notif_battery_title),
+                    statusText = stringResource(
+                        if (batteryUnrestricted) R.string.settings_notif_status_battery_ok
+                        else R.string.settings_notif_status_battery_limited
+                    ),
+                    isHealthy = batteryUnrestricted,
+                    onAction = {
+                        val intent = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
+                        runCatching { context.startActivity(intent) }
+                    }
+                )
+            }
+
+            // Default All-Day Reminder Time
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(
+                    text = stringResource(R.string.settings_notif_all_day_title),
+                    style = MaterialTheme.typography.titleSmall,
+                    color = colors.textPrimary
+                )
+                val presets = listOf(8 * 60, 9 * 60, 10 * 60, 18 * 60)
+                val isCustomDefault = preferences.defaultAllDayReminderMinutes !in presets
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    presets.forEach { mins ->
+                        val selected = preferences.defaultAllDayReminderMinutes == mins
+                        Box(
+                            modifier = Modifier
+                                .clip(ZeroSmallShape)
+                                .background(if (selected) colors.accentSubtle else colors.background)
+                                .hairlineBorder(
+                                    shape = ZeroSmallShape,
+                                    color = if (selected) colors.accent else colors.hairlineBorder
+                                )
+                                .clickable {
+                                    haptics.reorderTick()
+                                    onUpdate(preferences.copy(defaultAllDayReminderMinutes = mins))
+                                }
+                                .padding(horizontal = 12.dp, vertical = 7.dp)
+                        ) {
+                            Text(
+                                text = NotificationPreferences.formatMinutes(mins),
+                                style = tabular.dateCompact,
+                                color = if (selected) colors.accent else colors.textPrimary
+                            )
+                        }
+                    }
+                    Box(
+                        modifier = Modifier
+                            .clip(ZeroSmallShape)
+                            .background(if (isCustomDefault) colors.accentSubtle else colors.background)
+                            .hairlineBorder(
+                                shape = ZeroSmallShape,
+                                color = if (isCustomDefault) colors.accent else colors.hairlineBorder
+                            )
+                            .clickable {
+                                TimePickerDialog(
+                                    context,
+                                    { _, h, m ->
+                                        haptics.confirm()
+                                        onUpdate(preferences.copy(defaultAllDayReminderMinutes = h * 60 + m))
+                                    },
+                                    preferences.defaultAllDayReminderMinutes / 60,
+                                    preferences.defaultAllDayReminderMinutes % 60,
+                                    true
+                                ).show()
+                            }
+                            .padding(horizontal = 12.dp, vertical = 7.dp)
+                    ) {
+                        Text(
+                            text = if (isCustomDefault) {
+                                NotificationPreferences.formatMinutes(preferences.defaultAllDayReminderMinutes)
+                            } else {
+                                stringResource(R.string.reminder_custom_time)
+                            },
+                            style = if (isCustomDefault) tabular.dateCompact else MaterialTheme.typography.labelSmall,
+                            color = if (isCustomDefault) colors.accent else colors.textSecondary
+                        )
+                    }
+                }
+            }
+
+            // Morning Briefing Push Row
+            DailyBriefingRow(
+                title = stringResource(R.string.settings_notif_morning_title),
+                description = stringResource(R.string.settings_notif_morning_desc),
+                enabled = preferences.morningBriefingEnabled,
+                minutesOfDay = preferences.morningBriefingMinutes,
+                onToggle = { enable ->
+                    if (enable && !notificationsGranted) {
+                        requestOrOpenNotificationSettings()
+                    }
+                    onUpdate(preferences.copy(morningBriefingEnabled = enable))
+                },
+                onPickTime = {
+                    TimePickerDialog(
+                        context,
+                        { _, h, m ->
+                            haptics.confirm()
+                            onUpdate(
+                                preferences.copy(
+                                    morningBriefingEnabled = true,
+                                    morningBriefingMinutes = h * 60 + m
+                                )
+                            )
+                        },
+                        preferences.morningBriefingMinutes / 60,
+                        preferences.morningBriefingMinutes % 60,
+                        true
+                    ).show()
+                }
+            )
+
+            // Evening Review Push Row
+            DailyBriefingRow(
+                title = stringResource(R.string.settings_notif_evening_title),
+                description = stringResource(R.string.settings_notif_evening_desc),
+                enabled = preferences.eveningReviewEnabled,
+                minutesOfDay = preferences.eveningReviewMinutes,
+                onToggle = { enable ->
+                    if (enable && !notificationsGranted) {
+                        requestOrOpenNotificationSettings()
+                    }
+                    onUpdate(preferences.copy(eveningReviewEnabled = enable))
+                },
+                onPickTime = {
+                    TimePickerDialog(
+                        context,
+                        { _, h, m ->
+                            haptics.confirm()
+                            onUpdate(
+                                preferences.copy(
+                                    eveningReviewEnabled = true,
+                                    eveningReviewMinutes = h * 60 + m
+                                )
+                            )
+                        },
+                        preferences.eveningReviewMinutes / 60,
+                        preferences.eveningReviewMinutes % 60,
+                        true
+                    ).show()
+                }
+            )
+
+            // One-tap Test Notification
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(ZeroSmallShape)
+                        .background(colors.background)
+                        .hairlineBorder(shape = ZeroSmallShape, color = colors.accent.copy(alpha = 0.55f))
+                        .clickable {
+                            val posted = ZeroNotificationHelper.showTestNotification(context)
+                            if (posted) {
+                                haptics.confirm()
+                                testFeedbackRes = R.string.settings_notif_test_sent
+                            } else {
+                                haptics.reject()
+                                testFeedbackRes = R.string.settings_notif_test_blocked
+                                requestOrOpenNotificationSettings()
+                            }
+                        }
+                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.NotificationsActive,
+                        contentDescription = null,
+                        tint = colors.accent,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = stringResource(R.string.settings_notif_test_btn),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = colors.accent
+                    )
+                }
+                testFeedbackRes?.let { resId ->
+                    Text(
+                        text = stringResource(resId),
+                        style = tabular.dateCompact,
+                        color = if (resId == R.string.settings_notif_test_sent) colors.accent else colors.priorityUrgent
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PermissionStatusRow(
+    title: String,
+    statusText: String,
+    isHealthy: Boolean,
+    onAction: () -> Unit
+) {
+    val colors = ZeroTheme.colors
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.bodySmall,
+            color = colors.textPrimary,
+            modifier = Modifier.weight(1f)
+        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                text = statusText,
+                style = MaterialTheme.typography.labelSmall,
+                color = if (isHealthy) colors.accent else colors.priorityHigh
+            )
+            if (!isHealthy) {
+                Box(
+                    modifier = Modifier
+                        .clip(ZeroSmallShape)
+                        .background(colors.accentSubtle)
+                        .hairlineBorder(shape = ZeroSmallShape, color = colors.accent)
+                        .clickable(onClick = onAction)
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                ) {
+                    Text(
+                        text = stringResource(R.string.settings_notif_action_enable),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = colors.accent
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DailyBriefingRow(
+    title: String,
+    description: String,
+    enabled: Boolean,
+    minutesOfDay: Int,
+    onToggle: (Boolean) -> Unit,
+    onPickTime: () -> Unit
+) {
+    val colors = ZeroTheme.colors
+    val tabular = ZeroTheme.tabularTypography
+    val haptics = rememberZeroHaptics()
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleSmall,
+                color = colors.textPrimary
+            )
+            Text(
+                text = description,
+                style = MaterialTheme.typography.bodySmall,
+                color = colors.textSecondary
+            )
+        }
+        Spacer(modifier = Modifier.width(8.dp))
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .clip(ZeroSmallShape)
+                    .background(if (enabled) colors.accentSubtle else colors.background)
+                    .hairlineBorder(
+                        shape = ZeroSmallShape,
+                        color = if (enabled) colors.accent else colors.hairlineBorder
+                    )
+                    .clickable(onClick = onPickTime)
+                    .padding(horizontal = 10.dp, vertical = 6.dp)
+            ) {
+                Text(
+                    text = NotificationPreferences.formatMinutes(minutesOfDay),
+                    style = tabular.dateCompact,
+                    color = if (enabled) colors.accent else colors.textSecondary
+                )
+            }
+            Row(
+                modifier = Modifier
+                    .clip(ZeroSmallShape)
+                    .background(colors.background)
+                    .hairlineBorder(shape = ZeroSmallShape)
+                    .padding(2.dp),
+                horizontalArrangement = Arrangement.spacedBy(2.dp)
+            ) {
+                ToggleChip(
+                    label = stringResource(R.string.settings_toggle_on),
+                    selected = enabled
+                ) {
+                    onToggle(true)
+                    haptics.confirm()
+                }
+                ToggleChip(
+                    label = stringResource(R.string.settings_toggle_off),
+                    selected = !enabled
+                ) {
+                    onToggle(false)
+                }
+            }
+        }
     }
 }
