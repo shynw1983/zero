@@ -254,6 +254,7 @@ fun ZeroAppRoot(
             },
             onUpdateWebDavConfig = viewModel::updateWebDavConfig,
             onSetFolderPathDisplayMode = viewModel::setFolderPathDisplayMode,
+            onSetPriorityDisplayStyle = viewModel::setPriorityDisplayStyle,
             onUpdateNotificationPreferences = viewModel::updateNotificationPreferences,
             onUpdateAiConfig = viewModel::updateAiConfig,
             onTestAiConnection = viewModel::testAiConnection,
@@ -299,7 +300,8 @@ fun ZeroAppRoot(
         ZeroTheme(
             darkTheme = uiState.isDarkTheme,
             accent = uiState.activeAccent,
-            hapticsEnabled = uiState.hapticsEnabled
+            hapticsEnabled = uiState.hapticsEnabled,
+            priorityDisplayStyle = uiState.priorityDisplayStyle
         ) {
             Surface(
                 modifier = Modifier.fillMaxSize(),

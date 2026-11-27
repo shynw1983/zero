@@ -2,6 +2,7 @@ package com.zero.todo.data.ai
 
 import androidx.test.core.app.ApplicationProvider
 import com.zero.todo.data.preferences.SharedPrefsUserPreferencesRepository
+import com.zero.todo.domain.model.PriorityDisplayStyle
 import com.zero.todo.domain.model.TaskPriority
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -197,5 +198,91 @@ class ZeroAiEngineTest {
         assertTrue(breakdownPrompt.contains("新聞見出し・体言止め"))
         assertTrue(breakdownPrompt.contains("敬語・丁寧語禁止"))
         assertTrue(breakdownPrompt.contains("外出/コンビニ"))
+    }
+
+    @Test
+    fun ignoresJsonNullAndLiteralNullSentinelsAndSanitizesUnmatchedFoldersToInbox() {
+        val raw = """
+            {
+              "tasks": [
+                {
+                  "title": "トランク整理",
+                  "folderPath": null,
+                  "tags": [null, "null", "#none"],
+                  "dueDate": null,
+                  "priority": null,
+                  "estimatedMinutes": 25,
+                  "firstStep": null,
+                  "description": null
+                },
+                {
+                  "title": "別タスク",
+                  "folderPath": "/null",
+                  "dueDate": "null",
+                  "priority": 4,
+                  "firstStep": "null",
+                  "description": "none",
+                  "subtasks": [
+                    {
+                      "title": "ツール準備",
+                      "dueDate": "null",
+                      "tags": ["null"]
+                    }
+                  ]
+                }
+              ]
+            }
+        """.trimIndent()
+
+        val parsed = ZeroAiJsonParser.parseCapturedTasks(raw)
+        assertEquals(2, parsed.size)
+        val first = parsed[0]
+        assertEquals(null, first.folderPath)
+        assertEquals(null, first.dueDateIso)
+        assertEquals(TaskPriority.NONE, first.priority)
+        assertEquals(null, first.firstStep)
+        assertEquals("", first.description)
+        assertTrue(first.tags.isEmpty())
+
+        val second = parsed[1]
+        assertEquals(null, second.folderPath)
+        assertEquals(null, second.dueDateIso)
+        assertEquals(TaskPriority.NONE, second.priority)
+        assertEquals(null, second.firstStep)
+        assertEquals("", second.description)
+        assertEquals(null, second.subtasks.first().dueDateIso)
+        assertTrue(second.subtasks.first().tags.isEmpty())
+
+        val sanitized = ZeroAiJsonParser.sanitizeCapturedDrafts(
+            drafts = listOf(
+                first.copy(folderPath = "車"),
+                first.copy(folderPath = "経理"),
+                first.copy(folderPath = "丸九/コンサルティング/経理"),
+                first.copy(folderPath = "Inbox")
+            ),
+            existingFolderPaths = listOf("丸九/コンサルティング/経理", "個人/家事")
+        )
+        assertEquals(null, sanitized[0].folderPath)
+        assertEquals("丸九/コンサルティング/経理", sanitized[1].folderPath)
+        assertEquals("丸九/コンサルティング/経理", sanitized[2].folderPath)
+        assertEquals(null, sanitized[3].folderPath)
+    }
+
+    @Test
+    fun priorityDisplayStyleDefaultsToDotsAndPersistsInSharedPrefs() {
+        val ctx = ApplicationProvider.getApplicationContext<android.content.Context>()
+        ctx.getSharedPreferences(SharedPrefsUserPreferencesRepository.PREFS_NAME, android.content.Context.MODE_PRIVATE)
+            .edit().clear().commit()
+
+        val repo1 = SharedPrefsUserPreferencesRepository(ctx)
+        assertEquals(PriorityDisplayStyle.DOTS, repo1.preferences.value.priorityDisplayStyle)
+
+        repo1.setPriorityDisplayStyle(PriorityDisplayStyle.WORDS)
+        assertEquals(PriorityDisplayStyle.WORDS, SharedPrefsUserPreferencesRepository(ctx).preferences.value.priorityDisplayStyle)
+
+        repo1.setPriorityDisplayStyle(PriorityDisplayStyle.MARKS)
+        assertEquals(PriorityDisplayStyle.MARKS, SharedPrefsUserPreferencesRepository(ctx).preferences.value.priorityDisplayStyle)
+
+        assertEquals(PriorityDisplayStyle.DOTS, PriorityDisplayStyle.fromStorage("unknown"))
     }
 }

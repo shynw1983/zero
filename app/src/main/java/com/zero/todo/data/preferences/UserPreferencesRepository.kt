@@ -9,6 +9,7 @@ import com.zero.todo.domain.model.AntiMisclickMode
 import com.zero.todo.domain.model.AppLanguage
 import com.zero.todo.domain.model.ExecuteTheme
 import com.zero.todo.domain.model.FolderPathDisplayMode
+import com.zero.todo.domain.model.PriorityDisplayStyle
 import com.zero.todo.domain.model.TaskSortMode
 import com.zero.todo.domain.model.TaskSwipeAction
 import com.zero.todo.domain.model.TaskSwipeActions
@@ -51,6 +52,7 @@ data class UserPreferences(
     val executeTheme: ExecuteTheme = ExecuteTheme.MONOLITH,
     val dailyCapacityMinutes: Int = 240,
     val folderPathDisplayMode: FolderPathDisplayMode = FolderPathDisplayMode.SMART_DISAMBIGUATE,
+    val priorityDisplayStyle: PriorityDisplayStyle = PriorityDisplayStyle.DOTS,
     val notifications: NotificationPreferences = NotificationPreferences(),
     val webDavConfig: WebDavConfig = WebDavConfig(),
     val aiConfig: AiConfig = AiConfig()
@@ -70,6 +72,7 @@ interface UserPreferencesRepository {
     fun setExecuteTheme(theme: ExecuteTheme)
     fun setDailyCapacityMinutes(minutes: Int)
     fun setFolderPathDisplayMode(mode: FolderPathDisplayMode)
+    fun setPriorityDisplayStyle(style: PriorityDisplayStyle)
     fun setNotificationPreferences(config: NotificationPreferences)
     fun setWebDavConfig(config: WebDavConfig)
     fun setAiConfig(config: AiConfig)
@@ -145,6 +148,11 @@ class SharedPrefsUserPreferencesRepository @Inject constructor(
         _preferences.update { it.copy(folderPathDisplayMode = mode) }
     }
 
+    override fun setPriorityDisplayStyle(style: PriorityDisplayStyle) {
+        prefs.edit().putString(KEY_PRIORITY_DISPLAY_STYLE, style.name).apply()
+        _preferences.update { it.copy(priorityDisplayStyle = style) }
+    }
+
     override fun setNotificationPreferences(config: NotificationPreferences) {
         val normalized = config.copy(
             defaultAllDayReminderMinutes = config.defaultAllDayReminderMinutes.coerceIn(0, 23 * 60 + 59),
@@ -207,6 +215,9 @@ class SharedPrefsUserPreferencesRepository @Inject constructor(
         val folderPathDisplayMode = FolderPathDisplayMode.fromStorage(
             prefs.getString(KEY_FOLDER_PATH_DISPLAY_MODE, FolderPathDisplayMode.SMART_DISAMBIGUATE.name)
         )
+        val priorityDisplayStyle = PriorityDisplayStyle.fromStorage(
+            prefs.getString(KEY_PRIORITY_DISPLAY_STYLE, PriorityDisplayStyle.DOTS.name)
+        )
         val notifications = NotificationPreferences(
             defaultAllDayReminderMinutes = prefs.getInt(KEY_NOTIF_ALL_DAY_MINUTES, 9 * 60).coerceIn(0, 23 * 60 + 59),
             morningBriefingEnabled = prefs.getBoolean(KEY_NOTIF_MORNING_ENABLED, false),
@@ -251,6 +262,7 @@ class SharedPrefsUserPreferencesRepository @Inject constructor(
             executeTheme = executeTheme,
             dailyCapacityMinutes = dailyCapacityMinutes,
             folderPathDisplayMode = folderPathDisplayMode,
+            priorityDisplayStyle = priorityDisplayStyle,
             notifications = notifications,
             webDavConfig = webDavConfig,
             aiConfig = aiConfig
@@ -271,6 +283,7 @@ class SharedPrefsUserPreferencesRepository @Inject constructor(
         private const val KEY_EXECUTE_THEME = "execute_theme"
         private const val KEY_DAILY_CAPACITY_MINUTES = "daily_capacity_minutes"
         private const val KEY_FOLDER_PATH_DISPLAY_MODE = "folder_path_display_mode"
+        private const val KEY_PRIORITY_DISPLAY_STYLE = "priority_display_style"
         private const val KEY_NOTIF_ALL_DAY_MINUTES = "notif_all_day_minutes"
         private const val KEY_NOTIF_MORNING_ENABLED = "notif_morning_enabled"
         private const val KEY_NOTIF_MORNING_MINUTES = "notif_morning_minutes"
@@ -337,6 +350,10 @@ class InMemoryUserPreferencesRepository(
 
     override fun setFolderPathDisplayMode(mode: FolderPathDisplayMode) {
         _preferences.update { it.copy(folderPathDisplayMode = mode) }
+    }
+
+    override fun setPriorityDisplayStyle(style: PriorityDisplayStyle) {
+        _preferences.update { it.copy(priorityDisplayStyle = style) }
     }
 
     override fun setNotificationPreferences(config: NotificationPreferences) {

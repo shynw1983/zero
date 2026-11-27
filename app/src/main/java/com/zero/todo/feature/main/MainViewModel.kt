@@ -40,6 +40,7 @@ import com.zero.todo.domain.model.FolderBadgeDisplay
 import com.zero.todo.domain.model.FolderNode
 import com.zero.todo.domain.model.FolderPathDisplayMode
 import com.zero.todo.domain.model.FolderPathFormatter
+import com.zero.todo.domain.model.PriorityDisplayStyle
 import com.zero.todo.domain.model.RunwayQueueBuilder
 import com.zero.todo.domain.model.TaskItem
 import com.zero.todo.domain.model.TaskPlacementChange
@@ -104,6 +105,7 @@ data class MainUiState(
     val folderTree: List<FolderNode> = emptyList(),
     val folderNameById: Map<String, String> = emptyMap(),
     val folderPathDisplayMode: FolderPathDisplayMode = FolderPathDisplayMode.SMART_DISAMBIGUATE,
+    val priorityDisplayStyle: PriorityDisplayStyle = PriorityDisplayStyle.DOTS,
     val folderBadgeById: Map<String, FolderBadgeDisplay> = emptyMap(),
     val relativeFolderBadgeById: Map<String, FolderBadgeDisplay> = emptyMap(),
     val monolithFolderBadgeById: Map<String, FolderBadgeDisplay> = emptyMap(),
@@ -630,6 +632,7 @@ class MainViewModel @Inject constructor(
             folderTree = nav.folderTree,
             folderNameById = folderNameById,
             folderPathDisplayMode = pathMode,
+            priorityDisplayStyle = ui.preferences.priorityDisplayStyle,
             folderBadgeById = folderBadgeById,
             relativeFolderBadgeById = relativeFolderBadgeById,
             monolithFolderBadgeById = monolithFolderBadgeById,
@@ -692,6 +695,7 @@ class MainViewModel @Inject constructor(
         appLanguage = prefs.appLanguage,
         taskSortMode = prefs.taskSortMode,
         folderPathDisplayMode = prefs.folderPathDisplayMode,
+        priorityDisplayStyle = prefs.priorityDisplayStyle,
         notificationPreferences = prefs.notifications,
         webDavConfig = prefs.webDavConfig,
         aiConfig = prefs.aiConfig
@@ -881,6 +885,10 @@ class MainViewModel @Inject constructor(
     fun setFolderPathDisplayMode(mode: FolderPathDisplayMode) {
         userPreferencesRepository.setFolderPathDisplayMode(mode)
         viewModelScope.launch { widgetRefresher.refreshAll() }
+    }
+
+    fun setPriorityDisplayStyle(style: PriorityDisplayStyle) {
+        userPreferencesRepository.setPriorityDisplayStyle(style)
     }
 
     fun updateNotificationPreferences(config: NotificationPreferences) {
@@ -1796,7 +1804,7 @@ class MainViewModel @Inject constructor(
                 val resolvedFolderId = if (folderSegments.isNotEmpty()) {
                     resolveOrCreateFolderPath(folderSegments)
                 } else {
-                    fallbackFolderId
+                    null
                 }
 
                 val parsedDue = ZeroAiJsonParser.parseIsoDueDate(draft.dueDateIso, zoneId)

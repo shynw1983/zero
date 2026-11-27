@@ -452,6 +452,17 @@
     <string name="settings_folder_path_desc_smart">同名フォルダがある場合のみ親プロジェクトを自動補完し、重複がない場合は簡潔に表示</string>
     <string name="settings_folder_path_desc_root_leaf">常に最上位プロジェクトと対象フォルダを併記（例：プロジェクト/…/子フォルダ）</string>
     <string name="settings_folder_path_desc_full">常に完全な階層パスを表示</string>
+    <string name="priority_label_urgent">緊急</string>
+    <string name="priority_label_high">高</string>
+    <string name="priority_label_medium">中</string>
+    <string name="priority_label_none">なし</string>
+    <string name="settings_priority_style_title">緊急度の表示スタイル</string>
+    <string name="settings_priority_style_dots">シグナルドット</string>
+    <string name="settings_priority_style_words">言葉</string>
+    <string name="settings_priority_style_marks">感嘆符 (!)</string>
+    <string name="settings_priority_style_desc_dots">ドットの数で強弱を直感表示（●●● / ●● / ●）・未設定は静かに非表示</string>
+    <string name="settings_priority_style_desc_words">分かりやすい言葉で表示（緊急 / 高 / 中 / なし）</string>
+    <string name="settings_priority_style_desc_marks">感嘆符の数で表示（!!! / !! / !）・未設定は非表示</string>
     <string name="folder_color_label">プロジェクトカラー</string>
     <string name="folder_color_none">なし</string>
     <string name="folder_color_inherited_hint">「%1$s」のカラーを継承</string>

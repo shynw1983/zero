@@ -34,6 +34,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.zero.todo.R
 import com.zero.todo.core.designsystem.ZeroCardShape
+import com.zero.todo.core.designsystem.ZeroPriorityBadge
 import com.zero.todo.core.designsystem.ZeroSmallShape
 import com.zero.todo.core.designsystem.ZeroTheme
 import com.zero.todo.core.designsystem.hairlineBorder
@@ -127,7 +128,7 @@ fun MatrixPane(
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 QuadrantCard(
-                    code = "P1",
+                    priority = TaskPriority.URGENT,
                     title = stringResource(R.string.matrix_q1_title),
                     accent = colors.priorityUrgent,
                     tasks = p1,
@@ -137,7 +138,7 @@ fun MatrixPane(
                     modifier = Modifier.weight(1f)
                 )
                 QuadrantCard(
-                    code = "P2",
+                    priority = TaskPriority.HIGH,
                     title = stringResource(R.string.matrix_q2_title),
                     accent = colors.priorityHigh,
                     tasks = p2,
@@ -154,7 +155,7 @@ fun MatrixPane(
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 QuadrantCard(
-                    code = "P3",
+                    priority = TaskPriority.MEDIUM,
                     title = stringResource(R.string.matrix_q3_title),
                     accent = colors.priorityMedium,
                     tasks = p3,
@@ -164,7 +165,7 @@ fun MatrixPane(
                     modifier = Modifier.weight(1f)
                 )
                 QuadrantCard(
-                    code = "P4",
+                    priority = TaskPriority.NONE,
                     title = stringResource(R.string.matrix_q4_title),
                     accent = colors.textMuted,
                     tasks = p4,
@@ -180,7 +181,7 @@ fun MatrixPane(
 
 @Composable
 private fun QuadrantCard(
-    code: String,
+    priority: TaskPriority,
     title: String,
     accent: Color,
     tasks: List<TaskItem>,
@@ -212,9 +213,8 @@ private fun QuadrantCard(
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                 modifier = Modifier.weight(1f)
             ) {
-                Text(
-                    text = code,
-                    style = tabular.priorityTag,
+                ZeroPriorityBadge(
+                    priority = priority,
                     color = accent
                 )
                 Text(

@@ -60,6 +60,7 @@ import androidx.compose.ui.window.DialogProperties
 import com.zero.todo.R
 import com.zero.todo.core.common.AiImageEncoder
 import com.zero.todo.core.designsystem.ZeroCardShape
+import com.zero.todo.core.designsystem.ZeroPriorityBadge
 import com.zero.todo.core.designsystem.ZeroSmallShape
 import com.zero.todo.core.designsystem.ZeroTheme
 import com.zero.todo.core.designsystem.hairlineBorder
@@ -518,17 +519,21 @@ private fun AiCapturedTaskPreviewCard(
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f)
             )
-            if (draft.priority != TaskPriority.NONE) {
-                Text(
-                    text = "P${draft.priority.value}",
-                    style = tabular.priorityTag,
-                    color = colors.accent
-                )
+            val pColor = when (draft.priority) {
+                TaskPriority.URGENT -> colors.priorityUrgent
+                TaskPriority.HIGH -> colors.priorityHigh
+                TaskPriority.MEDIUM -> colors.priorityMedium
+                TaskPriority.NONE -> colors.textMuted
             }
+            ZeroPriorityBadge(
+                priority = draft.priority,
+                color = pColor
+            )
         }
 
+        val inboxLabel = stringResource(R.string.nav_inbox)
         val metaParts = buildList {
-            draft.folderPath?.let { add("/$it") }
+            add(draft.folderPath?.let { "/$it" } ?: inboxLabel)
             draft.dueDateIso?.let { add(it) }
             draft.estimatedMinutes?.let { add("${it}m") }
             draft.tags.forEach { add("#$it") }

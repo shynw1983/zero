@@ -452,6 +452,17 @@
     <string name="settings_folder_path_desc_smart">Shows parent project automatically only when folder names collide</string>
     <string name="settings_folder_path_desc_root_leaf">Always pairs top-level project with leaf folder (e.g. Project/…/Sub)</string>
     <string name="settings_folder_path_desc_full">Always shows the complete nested hierarchy path</string>
+    <string name="priority_label_urgent">Urgent</string>
+    <string name="priority_label_high">High</string>
+    <string name="priority_label_medium">Medium</string>
+    <string name="priority_label_none">None</string>
+    <string name="settings_priority_style_title">Priority Indicator</string>
+    <string name="settings_priority_style_dots">Signal Dots</string>
+    <string name="settings_priority_style_words">Action Words</string>
+    <string name="settings_priority_style_marks">Marks (!)</string>
+    <string name="settings_priority_style_desc_dots">Clean dot intensity (●●● / ●● / ●); unprioritized tasks stay silent</string>
+    <string name="settings_priority_style_desc_words">Plain personal labels (Urgent / High / Medium / None)</string>
+    <string name="settings_priority_style_desc_marks">Compact exclamation marks (!!! / !! / !); unprioritized tasks stay silent</string>
     <string name="folder_color_label">Project Color</string>
     <string name="folder_color_none">None</string>
     <string name="folder_color_inherited_hint">Inherits color from %1$s</string>

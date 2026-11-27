@@ -49,6 +49,7 @@ import com.zero.todo.R
 import com.zero.todo.core.designsystem.ZeroCapsuleShape
 import com.zero.todo.core.designsystem.ZeroCardShape
 import com.zero.todo.core.designsystem.ZeroMotion
+import com.zero.todo.core.designsystem.ZeroPriorityBadge
 import com.zero.todo.core.designsystem.ZeroSmallShape
 import com.zero.todo.core.designsystem.ZeroTheme
 import com.zero.todo.core.designsystem.hairlineBorder
@@ -215,10 +216,15 @@ fun SingleTaskFocusOverlay(
                 ) {
                     val activeTask = state.task
                     if (activeTask != null && activeTask.priority != TaskPriority.NONE) {
-                        Text(
-                            text = "P${activeTask.priority.value}",
-                            style = tabular.priorityTag,
-                            color = colors.accent
+                        val pColor = when (activeTask.priority) {
+                            TaskPriority.URGENT -> colors.priorityUrgent
+                            TaskPriority.HIGH -> colors.priorityHigh
+                            TaskPriority.MEDIUM -> colors.priorityMedium
+                            TaskPriority.NONE -> colors.textMuted
+                        }
+                        ZeroPriorityBadge(
+                            priority = activeTask.priority,
+                            color = pColor
                         )
                     }
                     Text(

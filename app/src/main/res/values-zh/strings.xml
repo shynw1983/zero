@@ -452,6 +452,17 @@
     <string name="settings_folder_path_desc_smart">仅当存在同名目录时自动补全所属项目，唯一目录保持简洁</string>
     <string name="settings_folder_path_desc_root_leaf">始终显示顶层项目与当前子目录（例：项目/…/子目录）</string>
     <string name="settings_folder_path_desc_full">始终展示完整的嵌套目录路径</string>
+    <string name="priority_label_urgent">紧急</string>
+    <string name="priority_label_high">重要</string>
+    <string name="priority_label_medium">普通</string>
+    <string name="priority_label_none">无</string>
+    <string name="settings_priority_style_title">紧急度标识样式</string>
+    <string name="settings_priority_style_dots">极简信号点</string>
+    <string name="settings_priority_style_words">直觉文字</string>
+    <string name="settings_priority_style_marks">感叹号</string>
+    <string name="settings_priority_style_desc_dots">用圆点个数表达轻重（●●● / ●● / ●），未设紧急度默认静默隐藏</string>
+    <string name="settings_priority_style_desc_words">显示更易懂的个人标签（紧急 / 重要 / 普通 / 无）</string>
+    <string name="settings_priority_style_desc_marks">用感叹号密度表达强弱（!!! / !! / !），未设紧急度静默隐藏</string>
     <string name="folder_color_label">项目色点</string>
     <string name="folder_color_none">无</string>
     <string name="folder_color_inherited_hint">自动继承自「%1$s」</string>

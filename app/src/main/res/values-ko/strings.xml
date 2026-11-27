@@ -452,6 +452,17 @@
     <string name="settings_folder_path_desc_smart">같은 이름의 폴더가 있을 때만 상위 프로젝트를 자동 표시하고 고유 폴더는 간결하게 표시</string>
     <string name="settings_folder_path_desc_root_leaf">항상 최상위 프로젝트와 현재 폴더를 함께 표시 (예: 프로젝트/…/하위폴더)</string>
     <string name="settings_folder_path_desc_full">항상 전체 중첩 경로를 표시</string>
+    <string name="priority_label_urgent">긴급</string>
+    <string name="priority_label_high">높음</string>
+    <string name="priority_label_medium">보통</string>
+    <string name="priority_label_none">없음</string>
+    <string name="settings_priority_style_title">중요도 표시 스타일</string>
+    <string name="settings_priority_style_dots">시그널 도트</string>
+    <string name="settings_priority_style_words">직관 단어</string>
+    <string name="settings_priority_style_marks">느낌표 (!)</string>
+    <string name="settings_priority_style_desc_dots">점 개수로 강도를 직관 표시 (●●● / ●● / ●) · 미지정 시 조용히 숨김</string>
+    <string name="settings_priority_style_desc_words">쉬운 단어 라벨로 표시 (긴급 / 높음 / 보통 / 없음)</string>
+    <string name="settings_priority_style_desc_marks">느낌표 개수로 표시 (!!! / !! / !) · 미지정 시 숨김</string>
     <string name="folder_color_label">프로젝트 색상</string>
     <string name="folder_color_none">없음</string>
     <string name="folder_color_inherited_hint">\'%1$s\' 색상 자동 상속</string>

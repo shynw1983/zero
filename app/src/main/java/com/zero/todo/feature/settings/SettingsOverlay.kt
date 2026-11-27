@@ -76,6 +76,7 @@ import androidx.compose.ui.unit.dp
 import com.zero.todo.R
 import com.zero.todo.core.designsystem.ZeroAccent
 import com.zero.todo.core.designsystem.ZeroCardShape
+import com.zero.todo.core.designsystem.ZeroPriorityBadge
 import com.zero.todo.core.designsystem.ZeroSmallShape
 import com.zero.todo.core.designsystem.ZeroTheme
 import com.zero.todo.core.designsystem.hairlineBorder
@@ -91,6 +92,8 @@ import com.zero.todo.data.preferences.NotificationPreferences
 import com.zero.todo.domain.model.AntiMisclickMode
 import com.zero.todo.domain.model.AppLanguage
 import com.zero.todo.domain.model.FolderPathDisplayMode
+import com.zero.todo.domain.model.PriorityDisplayStyle
+import com.zero.todo.domain.model.TaskPriority
 import com.zero.todo.domain.model.TaskSwipeAction
 import com.zero.todo.domain.model.TaskSwipeActions
 import com.zero.todo.domain.model.TaskSwipeDirection
@@ -125,6 +128,7 @@ fun SettingsOverlay(
     appLanguage: AppLanguage,
     dailyCapacityMinutes: Int,
     folderPathDisplayMode: FolderPathDisplayMode = FolderPathDisplayMode.SMART_DISAMBIGUATE,
+    priorityDisplayStyle: PriorityDisplayStyle = PriorityDisplayStyle.DOTS,
     notificationPreferences: NotificationPreferences = NotificationPreferences(),
     aiConfig: AiConfig = AiConfig(),
     aiTestStatus: AiTestStatus? = null,
@@ -139,6 +143,7 @@ fun SettingsOverlay(
     onSetAppLanguage: (AppLanguage) -> Unit,
     onSetDailyCapacityMinutes: (Int) -> Unit,
     onSetFolderPathDisplayMode: (FolderPathDisplayMode) -> Unit = {},
+    onSetPriorityDisplayStyle: (PriorityDisplayStyle) -> Unit = {},
     onUpdateNotificationPreferences: (NotificationPreferences) -> Unit = {},
     onUpdateAiConfig: (AiConfig) -> Unit = {},
     onTestAiConnection: () -> Unit = {},
@@ -417,6 +422,65 @@ fun SettingsOverlay(
                         }
                         Text(
                             text = stringResource(descRes),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = colors.textMuted
+                        )
+                    }
+                }
+
+                // 2.6 Priority Display Style (C: Dots [default] / A: Words / B: Marks)
+                SettingsSectionCard(title = stringResource(R.string.settings_priority_style_title)) {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            PriorityDisplayStyle.entries.forEach { option ->
+                                val selected = priorityDisplayStyle == option
+                                val labelRes = when (option) {
+                                    PriorityDisplayStyle.DOTS -> R.string.settings_priority_style_dots
+                                    PriorityDisplayStyle.WORDS -> R.string.settings_priority_style_words
+                                    PriorityDisplayStyle.MARKS -> R.string.settings_priority_style_marks
+                                }
+                                Column(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .heightIn(min = 54.dp)
+                                        .clip(ZeroSmallShape)
+                                        .background(if (selected) colors.accentSubtle else colors.background)
+                                        .hairlineBorder(
+                                            shape = ZeroSmallShape,
+                                            color = if (selected) colors.accent else colors.hairlineBorder
+                                        )
+                                        .clickable {
+                                            haptics.reorderTick()
+                                            onSetPriorityDisplayStyle(option)
+                                        }
+                                        .padding(horizontal = 6.dp, vertical = 8.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterVertically)
+                                ) {
+                                    ZeroPriorityBadge(
+                                        priority = TaskPriority.URGENT,
+                                        color = if (selected) colors.accent else colors.priorityUrgent,
+                                        style = option
+                                    )
+                                    Text(
+                                        text = stringResource(labelRes),
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = if (selected) colors.accent else colors.textPrimary,
+                                        maxLines = 1
+                                    )
+                                }
+                            }
+                        }
+                        val styleDescRes = when (priorityDisplayStyle) {
+                            PriorityDisplayStyle.DOTS -> R.string.settings_priority_style_desc_dots
+                            PriorityDisplayStyle.WORDS -> R.string.settings_priority_style_desc_words
+                            PriorityDisplayStyle.MARKS -> R.string.settings_priority_style_desc_marks
+                        }
+                        Text(
+                            text = stringResource(styleDescRes),
                             style = MaterialTheme.typography.bodySmall,
                             color = colors.textMuted
                         )

@@ -74,6 +74,7 @@ import com.zero.todo.core.common.ZeroDateFormatter
 import com.zero.todo.core.designsystem.ZeroCardShape
 import com.zero.todo.core.designsystem.ZeroDimens
 import com.zero.todo.core.designsystem.ZeroMotion
+import com.zero.todo.core.designsystem.ZeroPriorityBadge
 import com.zero.todo.core.designsystem.ZeroSmallShape
 import com.zero.todo.core.designsystem.ZeroTheme
 import com.zero.todo.core.designsystem.hairlineBorder
@@ -446,9 +447,8 @@ fun AntiMisclickTaskCard(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         if (task.priority != TaskPriority.NONE) {
-                            Text(
-                                text = "P${task.priority.value}",
-                                style = tabular.priorityTag,
+                            ZeroPriorityBadge(
+                                priority = task.priority,
                                 color = priorityColor
                             )
                         }

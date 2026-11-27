@@ -8,6 +8,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import com.zero.todo.domain.model.PriorityDisplayStyle
 
 val ZeroShapes = Shapes(
     extraSmall = RoundedCornerShape(4.dp),
@@ -27,6 +28,7 @@ fun ZeroTheme(
     accent: ZeroAccent = ZeroAccent.SlateBlue,
     accentOverride: Color? = null,
     hapticsEnabled: Boolean = true,
+    priorityDisplayStyle: PriorityDisplayStyle = PriorityDisplayStyle.DOTS,
     content: @Composable () -> Unit
 ) {
     val basePalette = if (darkTheme) {
@@ -49,7 +51,8 @@ fun ZeroTheme(
         LocalZeroColors provides palette,
         LocalZeroAccent provides accent,
         LocalZeroTabularTypography provides tabularTypography,
-        LocalZeroHapticsEnabled provides hapticsEnabled
+        LocalZeroHapticsEnabled provides hapticsEnabled,
+        LocalPriorityDisplayStyle provides priorityDisplayStyle
     ) {
         MaterialTheme(
             colorScheme = palette.toMaterialColorScheme(),
@@ -75,4 +78,9 @@ object ZeroTheme {
         @Composable
         @ReadOnlyComposable
         get() = LocalZeroTabularTypography.current
+
+    val priorityDisplayStyle: PriorityDisplayStyle
+        @Composable
+        @ReadOnlyComposable
+        get() = LocalPriorityDisplayStyle.current
 }

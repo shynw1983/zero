@@ -85,6 +85,7 @@ import com.zero.todo.core.notification.ZeroNotificationHelper
 import com.zero.todo.core.designsystem.ZeroCardShape
 import com.zero.todo.core.designsystem.ZeroDimens
 import com.zero.todo.core.designsystem.ZeroMotion
+import com.zero.todo.core.designsystem.ZeroPriorityBadge
 import com.zero.todo.core.designsystem.ZeroSmallShape
 import com.zero.todo.core.designsystem.ZeroTheme
 import com.zero.todo.core.designsystem.hairlineBorder
@@ -567,10 +568,11 @@ fun TaskDetailPane(
                             .padding(horizontal = 14.dp, vertical = 8.dp),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text(
-                            text = "P${level.value}",
-                            style = tabular.priorityTag,
-                            color = if (selected) accent else colors.textMuted
+                        ZeroPriorityBadge(
+                            priority = level,
+                            color = if (selected) accent else colors.textMuted,
+                            showWhenNone = true,
+                            isSelector = true
                         )
                     }
                 }

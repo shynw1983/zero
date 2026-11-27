@@ -101,6 +101,7 @@ import com.zero.todo.domain.model.FocusMode
 import com.zero.todo.domain.model.Folder
 import com.zero.todo.domain.model.FolderNode
 import com.zero.todo.domain.model.FolderPathDisplayMode
+import com.zero.todo.domain.model.PriorityDisplayStyle
 import com.zero.todo.domain.model.TagItem
 import com.zero.todo.domain.model.TaskItem
 import com.zero.todo.domain.model.TaskPriority
@@ -218,6 +219,7 @@ data class ZeroShellCallbacks(
     val onSetHapticsEnabled: (Boolean) -> Unit = {},
     val onSetAppLanguage: (AppLanguage) -> Unit = {},
     val onSetFolderPathDisplayMode: (FolderPathDisplayMode) -> Unit = {},
+    val onSetPriorityDisplayStyle: (PriorityDisplayStyle) -> Unit = {},
     val onUpdateNotificationPreferences: (NotificationPreferences) -> Unit = {},
     val onUpdateAiConfig: (AiConfig) -> Unit = {},
     val onTestAiConnection: () -> Unit = {},
@@ -626,6 +628,7 @@ fun ZeroAdaptiveShell(
                 appLanguage = uiState.appLanguage,
                 dailyCapacityMinutes = uiState.dailyCapacityMinutes,
                 folderPathDisplayMode = uiState.folderPathDisplayMode,
+                priorityDisplayStyle = uiState.priorityDisplayStyle,
                 notificationPreferences = uiState.notificationPreferences,
                 aiConfig = uiState.aiConfig,
                 aiTestStatus = aiTestStatus,
@@ -640,6 +643,7 @@ fun ZeroAdaptiveShell(
                 onSetAppLanguage = callbacks.onSetAppLanguage,
                 onSetDailyCapacityMinutes = callbacks.onSetDailyCapacityMinutes,
                 onSetFolderPathDisplayMode = callbacks.onSetFolderPathDisplayMode,
+                onSetPriorityDisplayStyle = callbacks.onSetPriorityDisplayStyle,
                 onUpdateNotificationPreferences = callbacks.onUpdateNotificationPreferences,
                 onUpdateAiConfig = callbacks.onUpdateAiConfig,
                 onTestAiConnection = callbacks.onTestAiConnection,

@@ -72,6 +72,7 @@ import com.zero.todo.core.designsystem.ZeroCapsuleShape
 import com.zero.todo.core.designsystem.ZeroCardShape
 import com.zero.todo.core.designsystem.ZeroSmallShape
 import com.zero.todo.core.designsystem.ZeroTheme
+import com.zero.todo.core.designsystem.priorityTextLabel
 import com.zero.todo.core.designsystem.hairlineBorder
 import com.zero.todo.core.designsystem.rememberZeroHaptics
 import com.zero.todo.core.nlp.ParsedQuickInput
@@ -453,9 +454,9 @@ fun QuickInputCapsule(
                                 }
                                 ParsedPreviewChip(
                                     icon = Icons.Rounded.Flag,
-                                    label = "P${parsed.priority.value}",
+                                    label = priorityTextLabel(parsed.priority),
                                     accent = pColor,
-                                    useTabularFont = true
+                                    useTabularFont = false
                                 )
                             }
 

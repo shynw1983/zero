@@ -91,22 +91,52 @@ object ZeroAiJsonParser {
         return buildList {
             for (i in 0 until array.length()) {
                 val item = array.optJSONObject(i) ?: continue
-                val title = item.optString("title", "").trim()
-                if (title.isEmpty()) continue
+                val title = item.optNullableString("title") ?: continue
+                val folderPath = item.optNullableString("folderPath")
+                    ?.trimStart('/')
+                    ?.trim()
+                    ?.let(::sanitizeNullableString)
+                val dueDateIso = item.optNullableString("dueDate")
+                    ?.takeIf { parseIsoDueDate(it) != null }
                 add(
                     AiCapturedTaskDraft(
                         title = title,
-                        folderPath = item.optString("folderPath", "").trim().trimStart('/').ifBlank { null },
+                        folderPath = folderPath,
                         tags = item.optJSONArray("tags").toCleanTagList(),
-                        dueDateIso = item.optString("dueDate", "").trim().ifBlank { null },
+                        dueDateIso = dueDateIso,
                         priority = normalizePriority(item.optIntOrNull("priority")),
                         estimatedMinutes = normalizeEffortMinutes(item.optIntOrNull("estimatedMinutes")),
-                        firstStep = item.optString("firstStep", "").trim().take(36).ifBlank { null },
-                        description = item.optString("description", "").trim(),
+                        firstStep = item.optNullableString("firstStep")?.take(36),
+                        description = item.optNullableString("description").orEmpty(),
                         subtasks = parseSubtasks(item.optJSONArray("subtasks"))
                     )
                 )
             }
+        }
+    }
+
+    fun sanitizeCapturedDrafts(
+        drafts: List<AiCapturedTaskDraft>,
+        existingFolderPaths: List<String>
+    ): List<AiCapturedTaskDraft> {
+        val canonicalFolders = existingFolderPaths
+            .map { it.trim().trim('/') }
+            .filter { it.isNotEmpty() }
+            .distinct()
+        val exactByLower = canonicalFolders.associateBy { it.lowercase() }
+        val leafGroups = canonicalFolders.groupBy { it.substringAfterLast('/').lowercase() }
+
+        return drafts.map { draft ->
+            val rawFolder = draft.folderPath?.trim()?.trim('/')?.let(::sanitizeNullableString)
+            val resolvedFolder = when {
+                rawFolder == null -> null
+                exactByLower.containsKey(rawFolder.lowercase()) -> exactByLower.getValue(rawFolder.lowercase())
+                else -> {
+                    val leafMatches = leafGroups[rawFolder.substringAfterLast('/').lowercase()].orEmpty()
+                    if (leafMatches.size == 1) leafMatches.first() else null
+                }
+            }
+            draft.copy(folderPath = resolvedFolder)
         }
     }
 
@@ -125,16 +155,19 @@ object ZeroAiJsonParser {
         val checklist = buildList {
             if (checklistArr != null) {
                 for (i in 0 until checklistArr.length()) {
-                    val line = checklistArr.optString(i, "").trim()
+                    val rawLine = checklistArr.optNullableString(i) ?: continue
+                    val line = rawLine
                         .removePrefix("- [ ]")
                         .removePrefix("- ")
                         .trim()
-                    if (line.isNotEmpty()) add(line)
+                        .let(::sanitizeNullableString)
+                        ?: continue
+                    add(line)
                 }
             }
         }
         return AiBreakdownDraft(
-            firstStep = obj.optString("firstStep", "").trim().take(36).ifBlank { null },
+            firstStep = obj.optNullableString("firstStep")?.take(36),
             estimatedMinutes = normalizeEffortMinutes(obj.optIntOrNull("estimatedMinutes")),
             subtasks = parseSubtasks(obj.optJSONArray("subtasks")),
             checklistItems = checklist
@@ -146,19 +179,37 @@ object ZeroAiJsonParser {
         return buildList {
             for (i in 0 until array.length()) {
                 val obj = array.optJSONObject(i) ?: continue
-                val title = obj.optString("title", "").trim()
-                if (title.isEmpty()) continue
+                val title = obj.optNullableString("title") ?: continue
+                val dueDateIso = obj.optNullableString("dueDate")
+                    ?.takeIf { parseIsoDueDate(it) != null }
                 add(
                     AiSubtaskDraft(
                         title = title,
                         tags = obj.optJSONArray("tags").toCleanTagList(),
-                        dueDateIso = obj.optString("dueDate", "").trim().ifBlank { null },
+                        dueDateIso = dueDateIso,
                         priority = normalizePriority(obj.optIntOrNull("priority")),
                         estimatedMinutes = normalizeEffortMinutes(obj.optIntOrNull("estimatedMinutes"))
                     )
                 )
             }
         }
+    }
+
+    private val NULL_SENTINELS = setOf("null", "none", "nil", "n/a", "undefined", "-")
+
+    private fun sanitizeNullableString(raw: String?): String? {
+        val trimmed = raw?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+        return if (trimmed.lowercase() in NULL_SENTINELS) null else trimmed
+    }
+
+    private fun JSONObject.optNullableString(key: String): String? {
+        if (!has(key) || isNull(key)) return null
+        return sanitizeNullableString(opt(key)?.toString())
+    }
+
+    private fun JSONArray.optNullableString(index: Int): String? {
+        if (index < 0 || index >= length() || isNull(index)) return null
+        return sanitizeNullableString(opt(index)?.toString())
     }
 
     private fun JSONObject.optIntOrNull(key: String): Int? =
@@ -176,8 +227,9 @@ object ZeroAiJsonParser {
         if (this == null) return emptyList()
         return buildList {
             for (i in 0 until length()) {
-                val t = optString(i, "").trim().removePrefix("#").trim()
-                if (t.isNotEmpty() && !contains(t)) add(t)
+                val raw = optNullableString(i) ?: continue
+                val t = raw.removePrefix("#").trim().let(::sanitizeNullableString) ?: continue
+                if (!contains(t)) add(t)
             }
         }
     }
@@ -343,10 +395,10 @@ Always reply strictly with JSON matching:
   "tasks": [
     {
       "title": "telegraphic headline task title in target UI language",
-      "folderPath": "match existing folder path if relevant (exact spelling), or null",
+      "folderPath": "EXACT path from Existing folders if clearly matched, otherwise JSON null (NEVER invent a new folder name; unmatched tasks default to Inbox)",
       "tags": ["existing tag path (exact spelling) or concise scene tag without # in target UI language"],
-      "dueDate": "YYYY-MM-DD" or "YYYY-MM-DD HH:mm" or null,
-      "priority": 1|2|3|4|null (1=urgent, 2=high, 3=medium, 4/null=normal),
+      "dueDate": "YYYY-MM-DD" or "YYYY-MM-DD HH:mm", or JSON null if no date is mentioned,
+      "priority": 1|2|3|4 (1=urgent, 2=high, 3=medium, 4=lowest/normal; default to 4 when urgency is unknown),
       "estimatedMinutes": 5|25|60|null,
       "firstStep": "one tiny <=20 char starter action in target UI language or null",
       "description": "concise reference details or key numbers in target UI language, empty string if none",
@@ -440,7 +492,10 @@ class ZeroAiEngine @Inject constructor() {
                 image = image,
                 expectJson = true
             )
-            val parsed = ZeroAiJsonParser.parseCapturedTasks(raw)
+            val parsed = ZeroAiJsonParser.sanitizeCapturedDrafts(
+                drafts = ZeroAiJsonParser.parseCapturedTasks(raw),
+                existingFolderPaths = context.folderPaths
+            )
             if (parsed.isEmpty()) error("No actionable tasks detected")
             parsed
         }
