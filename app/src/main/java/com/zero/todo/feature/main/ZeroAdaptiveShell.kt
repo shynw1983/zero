@@ -100,6 +100,7 @@ import com.zero.todo.data.backup.WebDavConfig
 import com.zero.todo.data.preferences.NotificationPreferences
 import com.zero.todo.domain.model.AntiMisclickMode
 import com.zero.todo.domain.model.AppLanguage
+import com.zero.todo.domain.model.AtlasMapSettings
 import com.zero.todo.domain.model.ExecuteTheme
 import com.zero.todo.domain.model.FocusMode
 import com.zero.todo.domain.model.Folder
@@ -155,6 +156,7 @@ import java.time.LocalDate
 data class ZeroShellCallbacks(
     val onSetWorkspaceMode: (WorkspaceMode) -> Unit = {},
     val onSetExecuteTheme: (ExecuteTheme) -> Unit = {},
+    val onSetAtlasMapSettings: (AtlasMapSettings) -> Unit = {},
     val onSelectFocusedRunwayTask: (String) -> Unit = {},
     val onFocusPreviousRunwayTask: () -> Unit = {},
     val onFocusNextRunwayTask: () -> Unit = {},
@@ -483,6 +485,7 @@ fun ZeroAdaptiveShell(
                         state = executeUiState,
                         quickInputFocusRequester = quickInputFocusRequester,
                         onSelectExecuteTheme = callbacks.onSetExecuteTheme,
+                        onSetAtlasMapSettings = callbacks.onSetAtlasMapSettings,
                         onSelectFocusedTask = callbacks.onSelectFocusedRunwayTask,
                         onFocusPreviousTask = callbacks.onFocusPreviousRunwayTask,
                         onFocusNextTask = callbacks.onFocusNextRunwayTask,
@@ -567,6 +570,7 @@ fun ZeroAdaptiveShell(
                                 state = executeUiState,
                                 quickInputFocusRequester = quickInputFocusRequester,
                                 onSelectExecuteTheme = callbacks.onSetExecuteTheme,
+                                onSetAtlasMapSettings = callbacks.onSetAtlasMapSettings,
                                 onSelectFocusedTask = callbacks.onSelectFocusedRunwayTask,
                                 onFocusPreviousTask = callbacks.onFocusPreviousRunwayTask,
                                 onFocusNextTask = callbacks.onFocusNextRunwayTask,

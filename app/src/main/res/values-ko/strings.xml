@@ -589,4 +589,13 @@
     <string name="place_radius_meters">%1$d m</string>
     <string name="place_radius_kilometers">%1$d km</string>
     <string name="place_coordinates_display">위도 %1$.5f, 경도 %2$.5f</string>
+    <string name="atlas_map_settings">ATLAS 지도 설정</string>
+    <string name="atlas_map_google">Google 지도</string>
+    <string name="atlas_map_mapbox">Mapbox</string>
+    <string name="atlas_map_style">지도 스타일</string>
+    <string name="atlas_map_standard">표준</string>
+    <string name="atlas_map_satellite">위성</string>
+    <string name="atlas_mapbox_public_token">Mapbox 공개 액세스 토큰</string>
+    <string name="atlas_mapbox_token_hint">pk.로 시작하는 Mapbox 공개 토큰을 붙여넣으세요.</string>
+    <string name="atlas_mapbox_load_error">Mapbox 지도를 불러오지 못했습니다. 네트워크 연결과 액세스 토큰을 확인하세요.</string>
 </resources>

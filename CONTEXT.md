@@ -11,7 +11,7 @@
 * **项目名称**：ZERO（包名 `com.zero.todo`）
 * **当前发布版本**：`v2.18.1`（`versionCode = 53`）。发布提交使用 `git rev-parse 'v2.18.1^{commit}'` 查询，当前分支 HEAD 使用 `git rev-parse --short HEAD` 查询。
 * **核心定位**：为“强迫症 × 拖延症”打造的原生 Android 双态待办仪器 —— `NOW`（执行：单卡跑道/多执行主题）⇄ `VAULT`（整理库：无限目录树、日历、矩阵、标签、回收站、搜索），外加 30 秒闪电清仓、地点提醒、AI 智能提取/拆解。
-* **技术栈**：Kotlin + Jetpack Compose + Material 3 Adaptive、Hilt、Room（KSP）、Google Maps Compose（ATLAS 主题）、Google Play Services Geofencing、Robolectric 单元测试。`compileSdk = 35`，`minSdk = 26`。
+* **技术栈**：Kotlin + Jetpack Compose + Material 3 Adaptive、Hilt、Room（KSP）、Google Maps SDK 与 Mapbox Maps SDK（ATLAS 主题）、Google Play Services Geofencing、Robolectric 单元测试。`compileSdk = 35`，`minSdk = 26`。
 * **运行/构建命令**（本机默认 PATH 无 java，必须加前缀）：
   ```bash
   JAVA_HOME=/opt/homebrew/opt/openjdk@17 ./gradlew testDebugUnitTest assembleRelease \
@@ -61,12 +61,14 @@
 * [x] **v2.18.0**：VAULT 侧栏的文件夹和标签共用拖动手势。拖右侧抓手到行上下边缘可插入对应层级，拖到行中间移为子项，拖到同分区标题移到顶层首位。子树随行移动，折叠目标自动展开，长列表靠边自动滚动。
 * [x] **v2.18.1**：文件夹与标签统一用抓手排序和换层级，移除长按菜单中的上移、下移和更换父级入口。抓起和切换有效落点时轻振，遵循全局振动开关。
 * [x] **ATLAS 启动镜头**：创建地图时直接指定初始镜头。有定位权限时最多等 2.5 秒，优先使用当前位置，之后才回退到首个地点任务或东京总览。迟到的定位直接居中，用户拖动地图或手动选点后保留其视角。
+* [x] **ATLAS 地图设置**：执行主题选择中可选 Google 地图或 Mapbox，Mapbox 提供标准与卫星样式。首次启用需在应用内填写 `pk.` 开头的公开令牌，地图选项保存在本机。两种地图共用任务、路线、定位和日夜切换入口。
 
 ## 4. 当前进度与待解决问题
 * **当前进度**：v2.18.1 已发布到 GitHub Release 和 App Labs。134 个测试通过，Release APK 构建成功。APK 签名与 v2.18.0 一致，公开下载内容和门户 SHA-256 已核对。
-* **ATLAS 修复验证**：本地 `testDebugUnitTest` 共 138 项通过，含 4 项启动镜头回归测试。
+* **ATLAS 验证**：本地 `testDebugUnitTest` 共 141 项通过，含 4 项启动镜头与 3 项地图偏好回归测试。`assembleDebug`、APK 签名验证及 16 KB ZIP 对齐检查通过。
 * **发布记录**：应用标签 `v2.18.1` 指向 `0bfdacb`，App Labs 生产部署来自 `shynw1983/app-hub` 的 `bc34552`。[GitHub Release](https://github.com/shynw1983/zero/releases/tag/v2.18.1) · [App Labs](https://app-hub-eight-flax.vercel.app)
 * **当前涉及的核心文件**：
+  * `feature/execute/AtlasMapSettingsSheet.kt`、`ExecuteHostScreen.kt`（主题选择入口）；`domain/model/AtlasMapSettings.kt`、`data/preferences/UserPreferencesRepository.kt`（地图偏好）；`feature/execute/AtlasMapboxSurface.kt`、`AtlasMapCamera.kt`（Mapbox 原生地图和共用镜头）。
   * `feature/execute/AtlasThemeView.kt`、`AtlasStartupCamera.kt`（ATLAS 首帧与迟到定位）；回归测试 `feature/execute/AtlasStartupCameraTest.kt`。
   * `feature/folder/FolderTreePanel.kt`、`SidebarTreeDrag.kt`、`SidebarTreeDropTargets.kt`（侧栏抓手、预览与落点判定）；触感复用 `core/designsystem/ZeroHaptics.kt`
   * `feature/folder/FolderDialogs.kt`、`feature/main/ZeroAdaptiveShell.kt`（文件夹和标签长按菜单）
@@ -89,6 +91,7 @@
   * `feature/ai/AiAssistantDialogs.kt`（AI 提取/拆解及预编辑）
   * `feature/tasklist/QuickInputCapsule.kt`（快速输入、语音识别回填）
 * **卡点 / 已知问题**：
+  * Mapbox 在线底图待用有效公开令牌在折叠屏验收。检查标准和卫星样式、任务点点击、路线、底部 Mapbox 标识与版权按钮。
   * ATLAS 启动镜头待折叠屏真机验收，覆盖定位快速返回、定位晚到、未授权和手动拖图四种情况。
   * 文件夹与标签拖动待折叠屏真机验收。重点检查插入线、目标高亮、靠边滚动，以及抓起和切换有效落点时的轻振是否随全局开关启停。
   * 用户真机为折叠屏（日语系统界面），ATLAS 页需注意快速输入胶囊、Google 水印与任务卡片的遮挡问题（v2.14.2 已修过一次，改动该区域时需回归检查）。
@@ -111,7 +114,7 @@
 ## 6. 下一步计划（新对话直接从这里开始）
 1. 在日语折叠屏上分别验收外屏抽屉与展开双栏的文件夹和标签拖动、轻振和长按菜单。
 2. 验收原地升级与旧数据，覆盖 Room v5 → v6 迁移、旧备份恢复及标签排序往返。
-3. 在折叠屏外屏和展开状态验收 ATLAS 冷启动首帧、定位晚到时居中、地图 2D/3D 切换及光晕，再回归地点进入和离开通知、地点地址换行、2 小时负荷、循环任务撤销及 AI 弹窗切换与预编辑。
+3. 在折叠屏外屏和展开状态验收 ATLAS 两种地图、Mapbox 样式切换、冷启动首帧、定位晚到时居中及光晕，再回归地点进入和离开通知、地点地址换行、2 小时负荷、循环任务撤销及 AI 弹窗切换与预编辑。
 4. 发布新版本时按流程：`app/build.gradle.kts` 递增 `versionCode`/`versionName` → 运行测试与 `assembleRelease` → 复制 APK 到 `/tmp/ZERO-v<VER>-release.apk` 并计算 `shasum -a 256` → 推送 `main` → `gh release create v<VER> ... -R shynw1983/zero` → 在 `/tmp/app-hub-push` 更新 `data/apps.json`（`latestVersion`、`updatedAt`、`fileSize`、`fileName`、`downloadUrl`、`sha256`、`downloads[0]`、`releases` 头部插入中文更新说明）→ 推送并验证 HTTP 200。
 5. 每次发布或改动数据库/架构后，同步更新本文件与 `AGENTS.md` 的版本号、数据库版本及关键文件说明。
 

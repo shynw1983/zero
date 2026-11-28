@@ -27,6 +27,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -39,6 +41,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -68,6 +71,7 @@ import com.zero.todo.core.designsystem.ZeroSmallShape
 import com.zero.todo.core.designsystem.ZeroTheme
 import com.zero.todo.core.designsystem.hairlineBorder
 import com.zero.todo.core.designsystem.rememberZeroHaptics
+import com.zero.todo.domain.model.AtlasMapSettings
 import com.zero.todo.domain.model.ExecuteTheme
 import com.zero.todo.domain.model.FocusMode
 import com.zero.todo.domain.model.TaskItem
@@ -118,12 +122,14 @@ fun ExecuteHostScreen(
     isAtlasMapDark: Boolean = state.isDarkTheme,
     onToggleAtlasMapDark: () -> Unit = {},
     atlasBottomModeBarHeight: Dp = 66.dp,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onSetAtlasMapSettings: (AtlasMapSettings) -> Unit = {}
 ) {
     val colors = ZeroTheme.colors
     val haptics = rememberZeroHaptics()
 
     var showThemePicker by remember { mutableStateOf(false) }
+    var showAtlasMapSettings by remember { mutableStateOf(false) }
 
     LaunchedEffect(state.focusState.hapticSignalId, state.isInlineFlowActive) {
         if (!state.isInlineFlowActive || state.focusState.hapticSignalId == 0L) return@LaunchedEffect
@@ -394,7 +400,25 @@ fun ExecuteHostScreen(
                 showThemePicker = false
                 onSelectExecuteTheme(picked)
             },
+            onOpenAtlasSettings = {
+                showThemePicker = false
+                showAtlasMapSettings = true
+            },
             onDismiss = { showThemePicker = false }
+        )
+    }
+    if (showAtlasMapSettings) {
+        AtlasMapSettingsSheet(
+            settings = state.atlasMapSettings,
+            onSave = {
+                onSetAtlasMapSettings(it)
+                showAtlasMapSettings = false
+                showThemePicker = true
+            },
+            onDismiss = {
+                showAtlasMapSettings = false
+                showThemePicker = true
+            }
         )
     }
 }
@@ -537,6 +561,7 @@ private fun NowHeaderBar(
 private fun ExecuteThemePickerSheet(
     activeTheme: ExecuteTheme,
     onSelectTheme: (ExecuteTheme) -> Unit,
+    onOpenAtlasSettings: () -> Unit,
     onDismiss: () -> Unit
 ) {
     val colors = ZeroTheme.colors
@@ -564,6 +589,7 @@ private fun ExecuteThemePickerSheet(
                 .widthIn(max = ExecuteMaxContentWidth)
                 .fillMaxWidth()
                 .navigationBarsPadding()
+                .verticalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
@@ -632,7 +658,11 @@ private fun ExecuteThemePickerSheet(
                 }
             }
 
-            Spacer(modifier = Modifier.height(10.dp))
+            TextButton(onClick = onOpenAtlasSettings) {
+                Icon(Icons.Rounded.Settings, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(stringResource(R.string.atlas_map_settings))
+            }
         }
     }
 }

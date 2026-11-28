@@ -15,6 +15,7 @@ coroutines = "1.9.0"
 glance = "1.1.1"
 playServicesLocation = "21.3.0"
 playServicesMaps = "19.0.0"
+mapboxMaps = "11.36.0"
 junit = "4.13.2"
 robolectric = "4.14.1"
 androidxTestCore = "1.6.1"
@@ -60,6 +61,7 @@ androidx-glance-appwidget = { group = "androidx.glance", name = "glance-appwidge
 androidx-glance-material3 = { group = "androidx.glance", name = "glance-material3", version.ref = "glance" }
 play-services-location = { group = "com.google.android.gms", name = "play-services-location", version.ref = "playServicesLocation" }
 play-services-maps = { group = "com.google.android.gms", name = "play-services-maps", version.ref = "playServicesMaps" }
+mapbox-maps = { group = "com.mapbox.maps", name = "android-ndk27", version.ref = "mapboxMaps" }
 
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 robolectric = { group = "org.robolectric", name = "robolectric", version.ref = "robolectric" }

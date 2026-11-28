@@ -178,6 +178,7 @@ fun ZeroAppRoot(
         ZeroShellCallbacks(
             onSetWorkspaceMode = viewModel::setWorkspaceMode,
             onSetExecuteTheme = viewModel::setExecuteTheme,
+            onSetAtlasMapSettings = viewModel::setAtlasMapSettings,
             onSelectFocusedRunwayTask = viewModel::selectFocusedRunwayTask,
             onFocusPreviousRunwayTask = viewModel::focusPreviousRunwayTask,
             onFocusNextRunwayTask = viewModel::focusNextRunwayTask,

@@ -116,6 +116,7 @@ dependencies {
     // Location & Geofencing (with LocationManager fallback on non-GMS devices)
     implementation(libs.play.services.location)
     implementation(libs.play.services.maps)
+    implementation(libs.mapbox.maps)
 
     // Unit Tests (JVM + Robolectric for in-memory Room DB verification)
     testImplementation(libs.junit)

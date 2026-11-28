@@ -8,6 +8,9 @@ import com.zero.todo.data.ai.AiReasoningEffort
 import com.zero.todo.data.backup.WebDavConfig
 import com.zero.todo.domain.model.AntiMisclickMode
 import com.zero.todo.domain.model.AppLanguage
+import com.zero.todo.domain.model.AtlasMapProvider
+import com.zero.todo.domain.model.AtlasMapSettings
+import com.zero.todo.domain.model.AtlasMapStyle
 import com.zero.todo.domain.model.ExecuteTheme
 import com.zero.todo.domain.model.FolderPathDisplayMode
 import com.zero.todo.domain.model.PriorityDisplayStyle
@@ -56,7 +59,8 @@ data class UserPreferences(
     val priorityDisplayStyle: PriorityDisplayStyle = PriorityDisplayStyle.DOTS,
     val notifications: NotificationPreferences = NotificationPreferences(),
     val webDavConfig: WebDavConfig = WebDavConfig(),
-    val aiConfig: AiConfig = AiConfig()
+    val aiConfig: AiConfig = AiConfig(),
+    val atlasMapSettings: AtlasMapSettings = AtlasMapSettings()
 )
 
 interface UserPreferencesRepository {
@@ -71,6 +75,7 @@ interface UserPreferencesRepository {
     fun setTaskSortMode(sortMode: TaskSortMode)
     fun setWorkspaceMode(mode: WorkspaceMode)
     fun setExecuteTheme(theme: ExecuteTheme)
+    fun setAtlasMapSettings(settings: AtlasMapSettings)
     fun setDailyCapacityMinutes(minutes: Int)
     fun setFolderPathDisplayMode(mode: FolderPathDisplayMode)
     fun setPriorityDisplayStyle(style: PriorityDisplayStyle)
@@ -136,6 +141,15 @@ class SharedPrefsUserPreferencesRepository @Inject constructor(
     override fun setExecuteTheme(theme: ExecuteTheme) {
         prefs.edit().putString(KEY_EXECUTE_THEME, theme.name).apply()
         _preferences.update { it.copy(executeTheme = theme) }
+    }
+
+    override fun setAtlasMapSettings(settings: AtlasMapSettings) {
+        prefs.edit()
+            .putString(KEY_ATLAS_MAP_PROVIDER, settings.provider.name)
+            .putString(KEY_ATLAS_MAPBOX_STYLE, settings.mapboxStyle.name)
+            .putString(KEY_ATLAS_MAPBOX_TOKEN, settings.mapboxToken)
+            .apply()
+        _preferences.update { it.copy(atlasMapSettings = settings) }
     }
 
     override fun setDailyCapacityMinutes(minutes: Int) {
@@ -272,7 +286,16 @@ class SharedPrefsUserPreferencesRepository @Inject constructor(
             priorityDisplayStyle = priorityDisplayStyle,
             notifications = notifications,
             webDavConfig = webDavConfig,
-            aiConfig = aiConfig
+            aiConfig = aiConfig,
+            atlasMapSettings = AtlasMapSettings(
+                provider = AtlasMapProvider.entries.firstOrNull {
+                    it.name == prefs.getString(KEY_ATLAS_MAP_PROVIDER, null)
+                } ?: AtlasMapProvider.GOOGLE_MAPS,
+                mapboxStyle = AtlasMapStyle.entries.firstOrNull {
+                    it.name == prefs.getString(KEY_ATLAS_MAPBOX_STYLE, null)
+                } ?: AtlasMapStyle.STANDARD,
+                mapboxToken = prefs.getString(KEY_ATLAS_MAPBOX_TOKEN, null).orEmpty()
+            )
         )
     }
 
@@ -288,6 +311,9 @@ class SharedPrefsUserPreferencesRepository @Inject constructor(
         private const val KEY_TASK_SORT_MODE = "task_sort_mode"
         private const val KEY_WORKSPACE_MODE = "workspace_mode"
         private const val KEY_EXECUTE_THEME = "execute_theme"
+        private const val KEY_ATLAS_MAP_PROVIDER = "atlas_map_provider"
+        private const val KEY_ATLAS_MAPBOX_STYLE = "atlas_mapbox_style"
+        private const val KEY_ATLAS_MAPBOX_TOKEN = "atlas_mapbox_token"
         private const val KEY_DAILY_CAPACITY_MINUTES = "daily_capacity_minutes"
         private const val KEY_FOLDER_PATH_DISPLAY_MODE = "folder_path_display_mode"
         private const val KEY_PRIORITY_DISPLAY_STYLE = "priority_display_style"
@@ -351,6 +377,10 @@ class InMemoryUserPreferencesRepository(
 
     override fun setExecuteTheme(theme: ExecuteTheme) {
         _preferences.update { it.copy(executeTheme = theme) }
+    }
+
+    override fun setAtlasMapSettings(settings: AtlasMapSettings) {
+        _preferences.update { it.copy(atlasMapSettings = settings) }
     }
 
     override fun setDailyCapacityMinutes(minutes: Int) {

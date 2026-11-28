@@ -95,6 +95,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
@@ -134,12 +135,10 @@ import com.google.android.gms.location.LocationRequest
 import com.google.android.gms.location.LocationResult
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
-import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.GoogleMapOptions
 import com.google.android.gms.maps.MapView
 import com.google.android.gms.maps.MapsInitializer
-import com.google.android.gms.maps.model.BitmapDescriptor
 import com.google.android.gms.maps.model.BitmapDescriptorFactory
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.GroundOverlay
@@ -223,7 +222,11 @@ fun AtlasThemeView(
     var focusedTaskIdxInPlace by remember(selectedPlaceId) { mutableIntStateOf(0) }
     var showAnywhereSheet by remember { mutableStateOf(false) }
 
-    var googleMapRef by remember { mutableStateOf<GoogleMap?>(null) }
+    val mapboxToken = state.atlasMapSettings.mapboxToken.takeIf { state.atlasMapSettings.useMapbox }
+    var googleMapRef by remember(mapboxToken) { mutableStateOf<GoogleMap?>(null) }
+    var mapboxCamera by remember(mapboxToken) { mutableStateOf<AtlasMapCamera?>(null) }
+    val googleCamera = remember(googleMapRef) { googleMapRef?.let(::AtlasGoogleMapCamera) }
+    val mapCamera = if (mapboxToken == null) googleCamera else mapboxCamera
     var playerMarkerRef by remember { mutableStateOf<Marker?>(null) }
     var headingOverlayRef by remember { mutableStateOf<GroundOverlay?>(null) }
     var cameraMoveTick by remember { mutableLongStateOf(0L) }
@@ -407,19 +410,21 @@ fun AtlasThemeView(
 
     val taskLocation = snapshot.markers.firstOrNull()?.place?.let { LatLng(it.latitude, it.longitude) }
     val startupTarget = atlasStartupCameraTarget(userLocation, taskLocation, waitingForInitialLocation)
-    val mapWithInitialSource = if (startupTarget != null) {
-        remember {
+    val initialTarget = if (startupTarget != null) remember(mapboxToken) { startupTarget } else null
+    val initialCamera = if (initialTarget != null) {
+        remember(mapboxToken, initialTarget) { initialTarget.cameraPosition(is3DMode) }
+    } else null
+    val mapView = if (mapboxToken == null && initialCamera != null) {
+        remember(initialCamera) {
             runCatching { MapsInitializer.initialize(context, MapsInitializer.Renderer.LATEST) {} }
-            val options = GoogleMapOptions().camera(startupTarget.cameraPosition(is3DMode))
-            MapView(context, options) to startupTarget.source
+            MapView(context, GoogleMapOptions().camera(initialCamera))
         }
     } else {
         null
     }
-    val mapView = mapWithInitialSource?.first
-    var appliedCameraSource by remember(mapView) { mutableStateOf(mapWithInitialSource?.second) }
-    var applied3DMode by remember(mapView) { mutableStateOf(is3DMode) }
-    var hasCameraInteraction by remember(mapView) { mutableStateOf(false) }
+    var appliedCameraSource by remember(mapboxToken, initialTarget) { mutableStateOf(initialTarget?.source) }
+    var applied3DMode by remember(mapboxToken, initialTarget) { mutableStateOf(is3DMode) }
+    var hasCameraInteraction by remember(mapboxToken, initialTarget) { mutableStateOf(false) }
 
     DisposableEffect(lifecycleOwner, mapView) {
         if (mapView == null) return@DisposableEffect onDispose {}
@@ -491,10 +496,11 @@ fun AtlasThemeView(
         zoom: Float? = null,
         orbitParallax: Boolean = false
     ) {
-        val gMap = googleMapRef ?: return
+        val camera = if (mapboxToken == null) googleMapRef?.let(::AtlasGoogleMapCamera) else mapboxCamera
+        if (camera == null) return
         hasCameraInteraction = true
         val targetZoom = zoom ?: if (is3DMode) 17.2f else 15.2f
-        val curBearing = gMap.cameraPosition.bearing
+        val curBearing = camera.position.bearing
         val targetBearing = when {
             !is3DMode -> 0f
             orbitParallax -> (curBearing + 14f) % 360f
@@ -506,26 +512,26 @@ fun AtlasThemeView(
             .tilt(if (is3DMode) 62f else 0f)
             .bearing(targetBearing)
             .build()
-        gMap.animateCamera(CameraUpdateFactory.newCameraPosition(cam), if (orbitParallax) 650 else 480, null)
+        camera.animate(cam, if (orbitParallax) 650 else 480)
     }
 
-    LaunchedEffect(googleMapRef, userLocation, taskLocation, waitingForInitialLocation, is3DMode) {
-        val gMap = googleMapRef ?: return@LaunchedEffect
+    LaunchedEffect(mapCamera, userLocation, taskLocation, waitingForInitialLocation, is3DMode) {
+        val camera = mapCamera ?: return@LaunchedEffect
         // Upgrade a fallback once a better target arrives, unless the user has taken over the map.
         val target = if (hasCameraInteraction) null else atlasStartupCameraTarget(
             userLocation, taskLocation, waitingForInitialLocation, appliedCameraSource
         )
         if (target != null) {
-            gMap.moveCamera(CameraUpdateFactory.newCameraPosition(target.cameraPosition(is3DMode)))
+            camera.move(target.cameraPosition(is3DMode))
             appliedCameraSource = target.source
         } else if (applied3DMode != is3DMode) {
-            val cur = gMap.cameraPosition
+            val cur = camera.position
             val updated = CameraPosition.Builder(cur)
                 .tilt(if (is3DMode) 62f else 0f)
                 .bearing(if (is3DMode && cur.bearing == 0f) 22f else if (!is3DMode) 0f else cur.bearing)
                 .zoom(if (is3DMode) cur.zoom.coerceAtLeast(16.7f) else cur.zoom.coerceAtMost(15.6f))
                 .build()
-            gMap.animateCamera(CameraUpdateFactory.newCameraPosition(updated), 420, null)
+            camera.animate(updated, 420)
         }
         applied3DMode = is3DMode
     }
@@ -549,14 +555,12 @@ fun AtlasThemeView(
                 (urgentArgb to 2) to createFeatheredGeofenceBitmap(urgentArgb, insideAlpha),
                 (urgentArgb to 1) to createFeatheredGeofenceBitmap(urgentArgb, selectedAlpha),
                 (urgentArgb to 0) to createFeatheredGeofenceBitmap(urgentArgb, normalAlpha)
-            )
+            ).mapValues { (_, bitmap) -> BitmapDescriptorFactory.fromBitmap(bitmap) }
         }
     }
     val headingSpotlightBitmap = remember(googleMapRef, accentArgb, isMapDark) {
-        if (googleMapRef == null) {
-            null
-        } else {
-            createFeatheredHeadingBitmap(deepGlowArgb, if (isMapDark) 132 else 110)
+        googleMapRef?.let {
+            BitmapDescriptorFactory.fromBitmap(createFeatheredHeadingBitmap(deepGlowArgb, if (isMapDark) 132 else 110))
         }
     }
 
@@ -594,7 +598,7 @@ fun AtlasThemeView(
                 )
             }
 
-            val pinIcon = createQuestPinIcon(
+            val pinIcon = createQuestPinBitmap(
                 density = context.resources.displayMetrics.density,
                 count = qMarker.tasks.size,
                 label = qMarker.place.label,
@@ -607,7 +611,7 @@ fun AtlasThemeView(
             gMap.addMarker(
                 MarkerOptions()
                     .position(center)
-                    .icon(pinIcon)
+                    .icon(BitmapDescriptorFactory.fromBitmap(pinIcon))
                     .anchor(0.5f, 1.0f)
                     .alpha(if (isSelected || qMarker.isNearestBranchForTag || qMarker.isInsideGeofence) 1f else 0.84f)
                     .zIndex(if (isSelected) 5f else 3f)
@@ -653,10 +657,11 @@ fun AtlasThemeView(
             }
         }
 
-        val playerIcon = createPlayerDotIcon(
+        val playerBitmap = createPlayerDotBitmap(
             density = context.resources.displayMetrics.density,
             accentColor = accentArgb
         )
+        val playerIcon = BitmapDescriptorFactory.fromBitmap(playerBitmap)
         val existingMarker = playerMarkerRef
         if (existingMarker == null) {
             playerMarkerRef = gMap.addMarker(
@@ -691,8 +696,38 @@ fun AtlasThemeView(
             googleMapRef?.setPadding(0, mapTopPadPx, 0, mapBottomPadPx)
         }
 
-        // 1. Live 3D Architectural Google Map Surface
-        if (mapView != null) {
+        // 1. 3D map surface
+        if (mapboxToken != null && initialCamera != null) {
+            key(mapboxToken) {
+                AtlasMapboxSurface(
+                    accessToken = mapboxToken,
+                    initialCamera = initialCamera,
+                    mapStyle = state.atlasMapSettings.mapboxStyle,
+                    isDark = isMapDark,
+                    is3DMode = is3DMode,
+                    topPadding = mapTopPadPx,
+                    bottomPadding = mapBottomPadPx,
+                    markers = snapshot.markers,
+                    selectedPlaceId = selectedMarker?.place?.id,
+                    routeWaypoints = snapshot.routeWaypoints,
+                    showQuestRoute = showQuestRoute,
+                    userLocation = userLocation,
+                    compassBearing = compassBearing,
+                    accentArgb = accentArgb,
+                    urgentArgb = urgentArgb,
+                    glowArgb = deepGlowArgb,
+                    onReady = { mapboxCamera = it },
+                    onCameraMove = { cameraMoveTick++ },
+                    onInteraction = { hasCameraInteraction = true },
+                    onSelectPlace = { id, point ->
+                        haptics.reorderTick()
+                        selectedPlaceId = id
+                        animateCameraTo(point.latitude, point.longitude, orbitParallax = true)
+                    },
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
+        } else if (mapView != null) {
             AndroidView(
                 factory = {
                     mapView.getMapAsync { gMap ->
@@ -745,7 +780,7 @@ fun AtlasThemeView(
 
         // 2. 60fps GPU Spatial Motion Layer (Continuous Luminous Ribbon + Borderless Breathing Glows)
         AtlasSpatialMotionOverlay(
-            googleMap = googleMapRef,
+            camera = mapCamera,
             cameraMoveTick = cameraMoveTick,
             userLat = userLat,
             userLng = userLng,
@@ -1138,7 +1173,7 @@ fun AtlasThemeView(
  */
 @Composable
 private fun AtlasSpatialMotionOverlay(
-    googleMap: GoogleMap?,
+    camera: AtlasMapCamera?,
     cameraMoveTick: Long,
     userLat: Double?,
     userLng: Double?,
@@ -1155,15 +1190,11 @@ private fun AtlasSpatialMotionOverlay(
     modifier: Modifier = Modifier
 ) {
     Canvas(modifier = modifier) {
-        if (googleMap == null) return@Canvas
+        if (camera == null) return@Canvas
         @Suppress("UNUSED_VARIABLE")
         val tick = cameraMoveTick
-        val projection = runCatching { googleMap.projection }.getOrNull() ?: return@Canvas
-
-        fun project(lat: Double, lng: Double): Offset? = runCatching {
-            val pt = projection.toScreenLocation(LatLng(lat, lng))
-            Offset(pt.x.toFloat(), pt.y.toFloat())
-        }.getOrNull()
+        val projection = camera.projection() ?: return@Canvas
+        fun project(lat: Double, lng: Double): Offset? = projection(LatLng(lat, lng))
 
         // Smooth bell wave function [0..1] peaking at traveling crest across a continuous route
         fun crestWeight(t: Float, center: Float, halfWidth: Float = 0.34f): Float {
@@ -1175,14 +1206,16 @@ private fun AtlasSpatialMotionOverlay(
 
         // 1. Continuous Fluid Luminous Ribbon (zero "bullet" dots, continuous shader glow)
         if (showQuestRoute && routeWaypoints.size >= 2) {
-            val screenPts = routeWaypoints.mapNotNull { project(it.first, it.second) }
+            val screenPts = routeWaypoints.map { project(it.first, it.second) }
             if (screenPts.size >= 2) {
                 var totalLen = 0f
                 val segLens = FloatArray(screenPts.size - 1)
                 for (i in 0 until screenPts.lastIndex) {
+                    val a = screenPts[i] ?: continue
+                    val b = screenPts[i + 1] ?: continue
                     val segLen = hypot(
-                        (screenPts[i + 1].x - screenPts[i].x).toDouble(),
-                        (screenPts[i + 1].y - screenPts[i].y).toDouble()
+                        (b.x - a.x).toDouble(),
+                        (b.y - a.y).toDouble()
                     ).toFloat()
                     segLens[i] = segLen
                     totalLen += segLen
@@ -1197,8 +1230,8 @@ private fun AtlasSpatialMotionOverlay(
                     val corePeak = if (isMapDark) 0.56f else 0.58f
 
                     for (i in segLens.indices) {
-                        val a = screenPts[i]
-                        val b = screenPts[i + 1]
+                        val a = screenPts[i] ?: continue
+                        val b = screenPts[i + 1] ?: continue
                         val segLen = segLens[i]
                         val tStart = accumDist / totalLen
                         val tEnd = (accumDist + segLen) / totalLen
@@ -1824,7 +1857,7 @@ private fun launchMapsNavigation(context: android.content.Context, lat: Double, 
     }
 }
 
-private fun createPlayerDotIcon(density: Float, accentColor: Int): BitmapDescriptor {
+internal fun createPlayerDotBitmap(density: Float, accentColor: Int): Bitmap {
     val sizePx = (26f * density).toInt().coerceAtLeast(36)
     val bmp = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
     val canvas = Canvas(bmp)
@@ -1849,13 +1882,13 @@ private fun createPlayerDotIcon(density: Float, accentColor: Int): BitmapDescrip
     }
     canvas.drawCircle(cx, cy, sizePx * 0.21f, corePaint)
 
-    return BitmapDescriptorFactory.fromBitmap(bmp)
+    return bmp
 }
 
 /**
  * Clean floating architectural pill pin with a tiny 5dp triangular pointer tail (`anchor(0.5f, 1.0f)`).
  */
-private fun createQuestPinIcon(
+internal fun createQuestPinBitmap(
     density: Float,
     count: Int,
     label: String,
@@ -1864,7 +1897,7 @@ private fun createQuestPinIcon(
     isInside: Boolean,
     isMapDark: Boolean,
     accentColor: Int
-): BitmapDescriptor {
+): Bitmap {
     val highlighted = isSelected || isInside
     val showLabel = highlighted || isNearest
     val shortTitle = if (showLabel && label.isNotBlank()) {
@@ -1970,13 +2003,13 @@ private fun createQuestPinIcon(
         canvas.drawText(shortTitle, textX, textY, titlePaint)
     }
 
-    return BitmapDescriptorFactory.fromBitmap(bmp)
+    return bmp
 }
 
 /**
  * Generates a high-resolution, zero-banding 3D GroundOverlay radial gradient glow texture.
  */
-private fun createFeatheredGeofenceBitmap(accentColor: Int, peakAlpha: Int): BitmapDescriptor {
+internal fun createFeatheredGeofenceBitmap(accentColor: Int, peakAlpha: Int): Bitmap {
     val size = 256
     val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
     val canvas = Canvas(bmp)
@@ -1993,14 +2026,14 @@ private fun createFeatheredGeofenceBitmap(accentColor: Int, peakAlpha: Int): Bit
         shader = RadialGradient(c, c, radius, cols, stops, Shader.TileMode.CLAMP)
     }
     canvas.drawCircle(c, c, radius, paint)
-    return BitmapDescriptorFactory.fromBitmap(bmp)
+    return bmp
 }
 
 /**
  * Generates a pixel-smooth North-facing radial x angular spotlight GroundOverlay texture
  * anchored at the center so bearing updates rotate cleanly around the player dot.
  */
-private fun createFeatheredHeadingBitmap(accentColor: Int, peakAlpha: Int): BitmapDescriptor {
+internal fun createFeatheredHeadingBitmap(accentColor: Int, peakAlpha: Int): Bitmap {
     val size = 256
     val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
     val pixels = IntArray(size * size)
@@ -2034,5 +2067,5 @@ private fun createFeatheredHeadingBitmap(accentColor: Int, peakAlpha: Int): Bitm
         }
     }
     bmp.setPixels(pixels, 0, size, 0, 0, size, size)
-    return BitmapDescriptorFactory.fromBitmap(bmp)
+    return bmp
 }

@@ -589,4 +589,13 @@
     <string name="place_radius_meters">%1$d 米</string>
     <string name="place_radius_kilometers">%1$d 公里</string>
     <string name="place_coordinates_display">纬度 %1$.5f，经度 %2$.5f</string>
+    <string name="atlas_map_settings">ATLAS 地图设置</string>
+    <string name="atlas_map_google">Google 地图</string>
+    <string name="atlas_map_mapbox">Mapbox</string>
+    <string name="atlas_map_style">地图样式</string>
+    <string name="atlas_map_standard">标准</string>
+    <string name="atlas_map_satellite">卫星</string>
+    <string name="atlas_mapbox_public_token">Mapbox 公共访问令牌</string>
+    <string name="atlas_mapbox_token_hint">粘贴以 pk. 开头的 Mapbox 公共令牌。</string>
+    <string name="atlas_mapbox_load_error">Mapbox 地图加载失败，请检查网络连接和访问令牌。</string>
 </resources>

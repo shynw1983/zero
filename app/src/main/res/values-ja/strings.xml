@@ -589,4 +589,13 @@
     <string name="place_radius_meters">%1$d m</string>
     <string name="place_radius_kilometers">%1$d km</string>
     <string name="place_coordinates_display">緯度 %1$.5f、経度 %2$.5f</string>
+    <string name="atlas_map_settings">ATLAS マップ設定</string>
+    <string name="atlas_map_google">Google マップ</string>
+    <string name="atlas_map_mapbox">Mapbox</string>
+    <string name="atlas_map_style">マップスタイル</string>
+    <string name="atlas_map_standard">標準</string>
+    <string name="atlas_map_satellite">衛星写真</string>
+    <string name="atlas_mapbox_public_token">Mapbox 公開アクセストークン</string>
+    <string name="atlas_mapbox_token_hint">pk. で始まる Mapbox の公開トークンを貼り付けてください。</string>
+    <string name="atlas_mapbox_load_error">Mapbox の地図を読み込めませんでした。通信環境とアクセストークンを確認してください。</string>
 </resources>

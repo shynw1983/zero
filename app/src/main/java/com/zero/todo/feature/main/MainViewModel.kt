@@ -38,6 +38,7 @@ import com.zero.todo.data.repository.TaskRepository
 import com.zero.todo.domain.model.AntiMisclickMode
 import com.zero.todo.domain.model.AppLanguage
 import com.zero.todo.domain.model.EffortTier
+import com.zero.todo.domain.model.AtlasMapSettings
 import com.zero.todo.domain.model.ExecuteTheme
 import com.zero.todo.domain.model.FocusMode
 import com.zero.todo.domain.model.Folder
@@ -98,6 +99,7 @@ data class MainUiState(
     val currentDate: LocalDate = LocalDate.now(),
     val workspaceMode: WorkspaceMode = WorkspaceMode.NOW,
     val executeTheme: ExecuteTheme = ExecuteTheme.MONOLITH,
+    val atlasMapSettings: AtlasMapSettings = AtlasMapSettings(),
     val dailyCapacityMinutes: Int = 240,
     val scheduledTodayMinutes: Int = 0,
     val todayCompletedCount: Int = 0,
@@ -630,6 +632,7 @@ class MainViewModel @Inject constructor(
             currentDate = nav.currentDate,
             workspaceMode = ui.preferences.workspaceMode,
             executeTheme = ui.preferences.executeTheme,
+            atlasMapSettings = ui.preferences.atlasMapSettings,
             dailyCapacityMinutes = ui.preferences.dailyCapacityMinutes,
             scheduledTodayMinutes = scheduledTodayMinutes,
             todayCompletedCount = todayCompletedCount,
@@ -699,6 +702,7 @@ class MainViewModel @Inject constructor(
     private fun initialUiStateFromPreferences(prefs: UserPreferences): MainUiState = MainUiState(
         workspaceMode = prefs.workspaceMode,
         executeTheme = prefs.executeTheme,
+        atlasMapSettings = prefs.atlasMapSettings,
         dailyCapacityMinutes = prefs.dailyCapacityMinutes,
         isDarkTheme = prefs.isDarkTheme,
         activeAccent = prefs.accent,
@@ -734,6 +738,7 @@ class MainViewModel @Inject constructor(
             focusState.task?.id == focusedTask.id
         return ExecuteUiState(
             executeTheme = executeTheme,
+            atlasMapSettings = atlasMapSettings,
             currentDate = currentDate,
             runwayQueue = runwayQueue,
             focusedTaskId = focusedTask?.id,
@@ -914,6 +919,8 @@ class MainViewModel @Inject constructor(
     override fun setExecuteTheme(theme: ExecuteTheme) {
         userPreferencesRepository.setExecuteTheme(theme)
     }
+
+    fun setAtlasMapSettings(settings: AtlasMapSettings) = userPreferencesRepository.setAtlasMapSettings(settings)
 
     fun setDailyCapacityMinutes(minutes: Int) {
         userPreferencesRepository.setDailyCapacityMinutes(minutes)

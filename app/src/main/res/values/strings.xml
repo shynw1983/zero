@@ -589,4 +589,13 @@
     <string name="place_radius_meters">%1$d m</string>
     <string name="place_radius_kilometers">%1$d km</string>
     <string name="place_coordinates_display">Lat %1$.5f, long %2$.5f</string>
+    <string name="atlas_map_settings">ATLAS map settings</string>
+    <string name="atlas_map_google">Google Maps</string>
+    <string name="atlas_map_mapbox">Mapbox</string>
+    <string name="atlas_map_style">Map style</string>
+    <string name="atlas_map_standard">Standard</string>
+    <string name="atlas_map_satellite">Satellite</string>
+    <string name="atlas_mapbox_public_token">Mapbox public access token</string>
+    <string name="atlas_mapbox_token_hint">Paste a public Mapbox token beginning with pk.</string>
+    <string name="atlas_mapbox_load_error">Mapbox couldn’t load the map. Check your connection and access token.</string>
 </resources>

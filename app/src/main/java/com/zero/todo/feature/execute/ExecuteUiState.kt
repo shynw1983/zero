@@ -4,6 +4,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.zero.todo.core.nlp.ParsedQuickInput
 import com.zero.todo.data.repository.TagWithCount
+import com.zero.todo.domain.model.AtlasMapSettings
 import com.zero.todo.domain.model.ExecuteTheme
 import com.zero.todo.domain.model.FocusMode
 import com.zero.todo.domain.model.FolderBadgeDisplay
@@ -49,7 +50,8 @@ data class ExecuteUiState(
     val isDarkTheme: Boolean = true,
     val allActiveTasks: List<TaskItem> = emptyList(),
     val tagsWithCounts: List<TagWithCount> = emptyList(),
-    val tagPathById: Map<String, String> = emptyMap()
+    val tagPathById: Map<String, String> = emptyMap(),
+    val atlasMapSettings: AtlasMapSettings = AtlasMapSettings()
 )
 
 /**
