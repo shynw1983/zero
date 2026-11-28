@@ -1346,9 +1346,17 @@ private fun CompactSinglePaneLayout(
         }
     }
 
-    BackHandler(enabled = navigator.canNavigateBack() && !uiState.focusState.isActive && !uiState.isSettingsOpen && !uiState.isTriageOpen) {
-        callbacks.onSelectTask(null)
-        navigator.navigateBack()
+    val drawerOpening = drawerState.isClosed && drawerState.targetValue == DrawerValue.Open
+    BackHandler(
+        enabled = !drawerState.isOpen && (drawerOpening || navigator.canNavigateBack()) &&
+            !uiState.focusState.isActive && !uiState.isSettingsOpen && !uiState.isTriageOpen
+    ) {
+        if (drawerOpening) {
+            scope.launch { drawerState.close() }
+        } else {
+            callbacks.onSelectTask(null)
+            navigator.navigateBack()
+        }
     }
 
     ModalNavigationDrawer(
@@ -1356,6 +1364,7 @@ private fun CompactSinglePaneLayout(
         modifier = modifier,
         drawerContent = {
             ModalDrawerSheet(
+                drawerState = drawerState,
                 drawerContainerColor = colors.background,
                 modifier = Modifier
                     .width(292.dp)
@@ -1455,8 +1464,16 @@ private fun MediumTwoPaneLayout(
     val scope = rememberCoroutineScope()
     val hasSelectedTask = uiState.selectedTask != null
 
-    BackHandler(enabled = hasSelectedTask && !uiState.focusState.isActive && !uiState.isSettingsOpen && !uiState.isTriageOpen) {
-        callbacks.onSelectTask(null)
+    val drawerOpening = drawerState.isClosed && drawerState.targetValue == DrawerValue.Open
+    BackHandler(
+        enabled = !drawerState.isOpen && (drawerOpening || hasSelectedTask) &&
+            !uiState.focusState.isActive && !uiState.isSettingsOpen && !uiState.isTriageOpen
+    ) {
+        if (drawerOpening) {
+            scope.launch { drawerState.close() }
+        } else {
+            callbacks.onSelectTask(null)
+        }
     }
 
     ModalNavigationDrawer(
@@ -1465,6 +1482,7 @@ private fun MediumTwoPaneLayout(
         modifier = modifier,
         drawerContent = {
             ModalDrawerSheet(
+                drawerState = drawerState,
                 drawerContainerColor = colors.background,
                 modifier = Modifier
                     .width(284.dp)

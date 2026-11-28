@@ -63,11 +63,14 @@
 * [x] **v2.19.0 ATLAS 启动镜头**：创建地图时直接指定初始镜头。有定位权限时最多等 2.5 秒，优先使用当前位置，之后才回退到首个地点任务或东京总览。迟到的定位直接居中，用户拖动地图或手动选点后保留其视角。
 * [x] **v2.19.0 ATLAS 地图设置**：执行主题选择中可选 Google 地图或 Mapbox，Mapbox 提供标准与卫星样式。首次启用需在应用内填写 `pk.` 开头的公开令牌，地图选项保存在本机。两种地图共用任务、路线、定位和日夜切换入口。
 * [x] **v2.19.1 ATLAS Mapbox 地名语言**：标准和卫星底图使用 ZERO 的有效语言配置，应用选择「跟随系统」时使用系统语言。中文按语言脚本或地区转为 Mapbox 支持的 `zh-Hans` / `zh-Hant`。
+* [x] **VAULT 侧栏返回**：窄屏和折叠双栏的侧栏处于打开过程中或已打开时，系统返回先关闭侧栏。再次返回时按原有顺序退出任务详情或离开应用。
 
 ## 4. 当前进度与待解决问题
 * **当前进度**：v2.19.1 已发布到 GitHub Release 和 App Labs。143 项测试通过，含 2 项 Mapbox 语言代码回归测试。Release APK 通过签名和 16 KB ZIP 对齐验证，签名与 v2.19.0 一致。公开 APK 返回 HTTP 200，内容与本地逐字节一致，门户 SHA-256 已核对。
 * **发布记录**：应用标签 `v2.19.1` 指向 `c8cbb66`，APK 为 95,932,006 字节。App Labs 生产部署来自 `shynw1983/app-hub` 的 `5e1b195`，Vercel 状态 `READY`。[GitHub Release](https://github.com/shynw1983/zero/releases/tag/v2.19.1) · [App Labs](https://app-hub-eight-flax.vercel.app)
+* **侧栏返回修复验证**：本地 `testDebugUnitTest` 共 145 项通过，含 2 项 VAULT 侧栏返回回归测试。
 * **当前涉及的核心文件**：
+  * `feature/main/ZeroAdaptiveShell.kt`（窄屏和折叠双栏抽屉的系统返回）；回归测试 `feature/main/VaultDrawerBackTest.kt`。
   * `feature/execute/AtlasMapboxSurface.kt`（按 `ZeroAppRoot.kt` 提供的语言配置调用 Mapbox SDK）；回归测试 `feature/execute/AtlasMapboxLanguageTest.kt`。
   * `feature/execute/AtlasMapSettingsSheet.kt`、`ExecuteHostScreen.kt`（主题选择入口）；`domain/model/AtlasMapSettings.kt`、`data/preferences/UserPreferencesRepository.kt`（地图偏好）；`feature/execute/AtlasMapboxSurface.kt`、`AtlasMapCamera.kt`（Mapbox 原生地图和共用镜头）。
   * `feature/execute/AtlasThemeView.kt`、`AtlasStartupCamera.kt`（ATLAS 首帧与迟到定位）；回归测试 `feature/execute/AtlasStartupCameraTest.kt`。
@@ -92,6 +95,7 @@
   * `feature/ai/AiAssistantDialogs.kt`（AI 提取/拆解及预编辑）
   * `feature/tasklist/QuickInputCapsule.kt`（快速输入、语音识别回填）
 * **卡点 / 已知问题**：
+  * VAULT 侧栏返回修复待窄屏与折叠双栏真机手势验收。
   * Mapbox 在线底图待用有效公开令牌在折叠屏验收。检查标准和卫星样式的中英日韩地名、任务点点击、路线、底部 Mapbox 标识与版权按钮。
   * ATLAS 启动镜头待折叠屏真机验收，覆盖定位快速返回、定位晚到、未授权和手动拖图四种情况。
   * 文件夹与标签拖动待折叠屏真机验收。重点检查插入线、目标高亮、靠边滚动，以及抓起和切换有效落点时的轻振是否随全局开关启停。
@@ -113,7 +117,7 @@
   * 发布门户：**不要**在 `/Users/wushengyin/Desktop/VC/release-portal`（iCloud 桌面）里执行 git push/fetch，必须 clone 到 `/tmp/app-hub-push` 修改 `data/apps.json` 后推送并删除临时目录。
 
 ## 6. 下一步计划（新对话直接从这里开始）
-1. 在日语折叠屏上分别验收外屏抽屉与展开双栏的文件夹和标签拖动、轻振和长按菜单。
+1. 在日语折叠屏上分别验收外屏抽屉与展开双栏的系统返回手势、文件夹和标签拖动、轻振及长按菜单。
 2. 原地升级到 v2.19.1，验收旧数据与备份，覆盖从 Room v5 迁移及标签排序往返。
 3. 在折叠屏外屏和展开状态验收 ATLAS 两种地图、Mapbox 样式和应用语言切换、冷启动首帧、定位晚到时居中及光晕，再回归地点进入和离开通知、地点地址换行、2 小时负荷、循环任务撤销及 AI 弹窗切换与预编辑。
 4. 发布新版本时按流程：`app/build.gradle.kts` 递增 `versionCode`/`versionName` → 运行测试与 `assembleRelease` → 复制 APK 到 `/tmp/ZERO-v<VER>-release.apk` 并计算 `shasum -a 256` → 推送 `main` → `gh release create v<VER> ... -R shynw1983/zero` → 在 `/tmp/app-hub-push` 更新 `data/apps.json`（`latestVersion`、`updatedAt`、`fileSize`、`fileName`、`downloadUrl`、`sha256`、`downloads[0]`、`releases` 头部插入中文更新说明）→ 推送并验证 HTTP 200。
