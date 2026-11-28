@@ -20,6 +20,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
@@ -29,7 +30,10 @@ import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
 import com.google.gson.JsonPrimitive
 import com.mapbox.bindgen.Value
+import com.mapbox.common.MapboxCommonSettings
 import com.mapbox.common.MapboxOptions
+import com.mapbox.common.SettingsServiceFactory
+import com.mapbox.common.SettingsServiceStorageType
 import com.mapbox.geojson.LineString
 import com.mapbox.geojson.Point
 import com.mapbox.maps.CameraOptions
@@ -73,6 +77,7 @@ import com.zero.todo.core.designsystem.ZeroTheme
 import com.zero.todo.domain.model.AtlasMapStyle
 import com.zero.todo.domain.model.TagPlace
 import com.zero.todo.domain.model.TaskPriority
+import java.util.Locale
 import kotlin.math.asin
 import kotlin.math.atan2
 import kotlin.math.cos
@@ -108,6 +113,7 @@ internal fun AtlasMapboxSurface(
     val onInteractionNow by rememberUpdatedState(onInteraction)
     val onSelectPlaceNow by rememberUpdatedState(onSelectPlace)
     val density = LocalDensity.current.density
+    val labelLanguage = (LocalConfiguration.current.locales[0] ?: Locale.ENGLISH).toMapboxLabelLanguage()
     var view by remember { mutableStateOf<MapView?>(null) }
     var loadedStyle by remember { mutableStateOf<Style?>(null) }
     var styleFailed by remember { mutableStateOf(false) }
@@ -121,6 +127,10 @@ internal fun AtlasMapboxSurface(
                     scalebar.enabled = false
                     view = this
                 }
+            },
+            update = {
+                SettingsServiceFactory.getInstance(SettingsServiceStorageType.PERSISTENT)
+                    .set(MapboxCommonSettings.LANGUAGE, Value.valueOf(labelLanguage))
             },
             onRelease = { it.onDestroy() },
             modifier = Modifier.fillMaxSize()
@@ -286,6 +296,15 @@ internal fun AtlasMapboxSurface(
     LaunchedEffect(style, headingBitmap) {
         style.getSourceAs<ImageSource>("atlas-heading")?.updateImage(headingBitmap)
     }
+}
+
+internal fun Locale.toMapboxLabelLanguage(): String = when (language) {
+    "zh" -> when {
+        script == "Hant" -> "zh-Hant"
+        script.isEmpty() && country in listOf("TW", "HK", "MO") -> "zh-Hant"
+        else -> "zh-Hans"
+    }
+    else -> language.ifEmpty { "en" }
 }
 
 private data class MapboxPin(
