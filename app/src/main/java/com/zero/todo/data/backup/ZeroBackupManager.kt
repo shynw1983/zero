@@ -15,6 +15,7 @@ import com.zero.todo.data.local.entity.TagPlaceEntity
 import com.zero.todo.data.local.entity.TaskEntity
 import com.zero.todo.data.local.entity.TaskTagCrossRef
 import org.json.JSONArray
+import org.json.JSONException
 import org.json.JSONObject
 import java.time.Instant
 import java.time.ZoneId
@@ -28,6 +29,8 @@ data class BackupSummary(
     val tagsCount: Int,
     val focusSessionsCount: Int
 )
+
+internal class InvalidBackupException(cause: JSONException? = null) : IllegalArgumentException(cause)
 
 /**
  * Local-first full backup & export manager for ZERO.
@@ -100,19 +103,26 @@ class ZeroBackupManager @Inject constructor(
      * Validates and restores a JSON backup atomically inside a Room transaction.
      * Topologically sorts folders and tasks so foreign-key references are always valid.
      */
-    suspend fun importJson(json: String, replaceExisting: Boolean = true): BackupSummary {
+    suspend fun importJson(json: String, replaceExisting: Boolean = true): BackupSummary = try {
         val root = JSONObject(json)
-        val version = root.optInt("schemaVersion", -1)
-        require(version in 1..CURRENT_SCHEMA_VERSION) {
-            "不支持的备份格式版本: $version"
+        val version = root.opt("schemaVersion")
+        if (version !is Int || version !in 1..CURRENT_SCHEMA_VERSION) {
+            throw InvalidBackupException()
+        }
+        if (root.has("app") && root.opt("app") != "ZERO") {
+            throw InvalidBackupException()
         }
 
-        val rawFolders = parseArray(root.optJSONArray("folders")) { it.toFolderEntity() }
-        val rawTasks = parseArray(root.optJSONArray("tasks")) { it.toTaskEntity() }
-        val rawTags = parseArray(root.optJSONArray("tags")) { it.toTagEntity() }
-        val rawTagPlaces = parseArray(root.optJSONArray("tagPlaces")) { it.toTagPlaceEntity() }
-        val rawCrossRefs = parseArray(root.optJSONArray("taskTagCrossRefs")) { it.toCrossRef() }
-        val rawSessions = parseArray(root.optJSONArray("focusSessions")) { it.toFocusSessionEntity() }
+        val rawFolders = parseArray(root.getJSONArray("folders")) { it.toFolderEntity() }
+        val rawTasks = parseArray(root.getJSONArray("tasks")) { it.toTaskEntity() }
+        val rawTags = parseArray(root.getJSONArray("tags")) { it.toTagEntity() }
+        val rawTagPlaces = if (version >= 3 || root.has("tagPlaces")) {
+            parseArray(root.getJSONArray("tagPlaces")) { it.toTagPlaceEntity() }
+        } else {
+            emptyList()
+        }
+        val rawCrossRefs = parseArray(root.getJSONArray("taskTagCrossRefs")) { it.toCrossRef() }
+        val rawSessions = parseArray(root.getJSONArray("focusSessions")) { it.toFocusSessionEntity() }
 
         val folderIds = rawFolders.mapTo(HashSet()) { it.id }
         val sanitizedFolders = topologicallyOrder(
@@ -188,12 +198,14 @@ class ZeroBackupManager @Inject constructor(
             }
         }
 
-        return BackupSummary(
+        BackupSummary(
             foldersCount = sanitizedFolders.count { !it.isDeleted },
             tasksCount = sanitizedTasks.count { !it.isDeleted },
             tagsCount = sanitizedTags.count { !it.isDeleted },
             focusSessionsCount = validSessions.count { !it.isDeleted }
         )
+    } catch (error: JSONException) {
+        throw InvalidBackupException(error)
     }
 
     /**
@@ -354,8 +366,7 @@ class ZeroBackupManager @Inject constructor(
         return ordered
     }
 
-    private fun <T> parseArray(array: JSONArray?, mapper: (JSONObject) -> T): List<T> {
-        if (array == null) return emptyList()
+    private fun <T> parseArray(array: JSONArray, mapper: (JSONObject) -> T): List<T> {
         return buildList(array.length()) {
             for (i in 0 until array.length()) {
                 add(mapper(array.getJSONObject(i)))

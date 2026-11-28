@@ -6,8 +6,8 @@
 3. **"交接" keyword**: When the user says “交接” (or “handoff”), immediately update `CONTEXT.md` following its existing template to reflect all work in the current conversation (including uncommitted in-progress work and blockers), commit and push it, then confirm briefly.
 4. Keep `AGENTS.md` and `CONTEXT.md` consistent (version numbers, DB version, key file paths).
 
-## 1. Current Product Baseline (ZERO v2.16.0 — Source of Truth)
-> **IMPORTANT**: `docs/PRD.md` reflects the initial v1.0 draft and is **outdated** on visual accents and layout. Always treat the current `v2.16.0` codebase, the rules below, and the root `CONTEXT.md` handoff guide as the authoritative source of truth.
+## 1. Current Product Baseline (ZERO v2.16.1 — Source of Truth)
+> **IMPORTANT**: `docs/PRD.md` reflects the initial v1.0 draft and is **outdated** on visual accents and layout. Always treat the current `v2.16.1` codebase, the rules below, and the root `CONTEXT.md` handoff guide as the authoritative source of truth.
 
 - **Aesthetic & Palette (NO Sci-Fi Neon)**:
   - Keep the Matte Obsidian Dark (`#09090B`) / Cool Paper Light (`#F7F7F9`) bases, `0.5.dp` hairline borders, and tabular monospace numbers (`tnum`).

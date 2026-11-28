@@ -23,6 +23,7 @@ import com.zero.todo.data.ai.AiTestStatus
 import com.zero.todo.data.ai.AiWorkspaceContext
 import com.zero.todo.data.ai.ZeroAiEngine
 import com.zero.todo.data.ai.ZeroAiJsonParser
+import com.zero.todo.data.backup.InvalidBackupException
 import com.zero.todo.data.backup.WebDavConfig
 import com.zero.todo.data.backup.WebDavSyncManager
 import com.zero.todo.data.backup.ZeroBackupManager
@@ -1215,7 +1216,11 @@ class MainViewModel @Inject constructor(
                 widgetRefresher.refreshAll()
                 webDavStatusFlow.value = WebDavUiStatus.PullSuccess(summary)
             }.onFailure { err ->
-                webDavStatusFlow.value = WebDavUiStatus.Error(err.message ?: "Pull failed")
+                webDavStatusFlow.value = if (err is InvalidBackupException) {
+                    WebDavUiStatus.InvalidBackup
+                } else {
+                    WebDavUiStatus.Error(err.message ?: "Pull failed")
+                }
             }
         }
     }
@@ -1240,7 +1245,11 @@ class MainViewModel @Inject constructor(
                 backupStatusFlow.value = BackupUiStatus.ImportSuccess(summary)
                 widgetRefresher.refreshAll()
             }.onFailure { err ->
-                backupStatusFlow.value = BackupUiStatus.Error(err.message ?: "Invalid JSON")
+                backupStatusFlow.value = if (err is InvalidBackupException) {
+                    BackupUiStatus.InvalidBackup
+                } else {
+                    BackupUiStatus.Error(err.message ?: "Invalid JSON")
+                }
             }
         }
     }

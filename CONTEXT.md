@@ -3,13 +3,13 @@
 > **给 AI 的强制指令**：
 > 1. **禁止全盘扫描项目**。先阅读本文件，仅根据下方列出的“当前涉及文件”按需读取代码。
 > 2. 忽略 `build/`、`app/build/`、`.gradle/`、`.kotlin/`、`.codex-attachments/` 等构建、缓存与附件目录。
-> 3. 修改代码前，先确认是否违反下方的“核心约束”（另见根目录 `AGENTS.md`，两者已同步至 v2.16.0）。
+> 3. 修改代码前，先确认是否违反下方的“核心约束”（另见根目录 `AGENTS.md`，两者已同步至 v2.16.1）。
 
 ---
 
 ## 1. 项目概况与技术栈
 * **项目名称**：ZERO（包名 `com.zero.todo`）
-* **当前版本**：`v2.16.0`（`versionCode = 49`），HEAD = `cd90f9e`（已推送 `origin/main` 并发布 GitHub Release）
+* **当前发布版本**：`v2.16.1`（`versionCode = 50`）。发布提交使用 `git rev-parse 'v2.16.1^{commit}'` 查询，当前分支 HEAD 使用 `git rev-parse --short HEAD` 查询。
 * **核心定位**：为“强迫症 × 拖延症”打造的原生 Android 双态待办仪器 —— `NOW`（执行：单卡跑道/多执行主题）⇄ `VAULT`（整理库：无限目录树、日历、矩阵、标签、回收站、搜索），外加 30 秒闪电清仓、地点提醒、AI 智能提取/拆解。
 * **技术栈**：Kotlin + Jetpack Compose + Material 3 Adaptive、Hilt、Room（KSP）、Google Maps Compose（ATLAS 主题）、Google Play Services Geofencing、Robolectric 单元测试。`compileSdk = 35`，`minSdk = 26`。
 * **运行/构建命令**（本机默认 PATH 无 java，必须加前缀）：
@@ -18,7 +18,7 @@
     --no-daemon --max-workers=4 -Dorg.gradle.jvmargs="-Xmx4096m -XX:MaxMetaspaceSize=1024m"
   ```
   * 完整构建约 9 分钟；用 `--no-daemon` + 4G 堆可避免 R8 阶段 GC 卡死。
-  * 测试结果汇总：解析 `app/build/test-results/testDebugUnitTest/TEST-*.xml`（v2.16.0 基线：`TESTS=112 ERRORS=0 FAILURES=0 SKIPPED=0`）。
+  * 测试结果汇总：解析 `app/build/test-results/testDebugUnitTest/TEST-*.xml`（v2.16.1 基线：`TESTS=117 ERRORS=0 FAILURES=0 SKIPPED=0`）。
   * Android SDK：`/Users/wushengyin/Library/Android/sdk`。
 
 ## 2. 核心目录与关键文件（无需扫盘，直接定位）
@@ -55,10 +55,16 @@
 * [x] AI 智能提取（相机/图片/语音/文本）与 AI 拆解；**v2.16.0**：添加前可编辑（预览卡内联改标题 + `AiDraftTextEditDialog` 编辑备注/标签/子任务；拆解项第一步/子任务/清单可内联编辑）；语音快速输入改为回填输入框并聚焦，不再直接提交
 * [x] 4 语言（EN/ZH/JA/KO）完整本地化；WebDAV/JSON 备份；动态主题桌面图标与小组件
 * [x] 发布流水线：GitHub Release + App Labs 门户（`shynw1983/app-hub` → https://app-hub-eight-flax.vercel.app）
+* [x] **v2.16.1**：本地导入和 WebDAV 拉取在写入前校验备份结构，兼容 v1–v4；ATLAS 地点任务卡连续按住 300ms 完成一次，提前松手或取消会清零进度。
 
 ## 4. 当前进度与待解决问题
-* **正在开发的模块**：无进行中任务。v2.16.0 已全部完成、测试通过并发布。
-* **最近一次改动涉及的核心文件**（新需求若相关可优先读取）：
+* **当前进度**：v2.16.1 含两项 P1 修复，117 个单元测试通过，Release APK 构建成功，折叠屏真机验收待完成。
+* **当前涉及的核心文件**：
+  * `data/backup/ZeroBackupManager.kt`（按备份版本校验必需数组，再执行替换式恢复）
+  * `feature/main/MainViewModel.kt`、`feature/settings/SettingsOverlay.kt`（本地恢复和 WebDAV 拉取的四语错误提示）
+  * `feature/execute/AtlasThemeView.kt`（地点任务卡 300ms 长按与取消）
+  * 回归测试：`data/backup/ZeroBackupManagerTest.kt`、`feature/execute/AtlasHoldGestureTest.kt`（位于 `app/src/test/java/com/zero/todo/`）
+* **v2.16.0 发布涉及的核心文件**：
   * `core/geofence/GeofenceSyncController.kt`（`effectiveTriggerMode` / `shouldTriggerTask` / `aggregateModeForGeofence`）
   * `core/geofence/ZeroGeofenceReceiver.kt`（触发时按任务过滤 + 冷却）
   * `feature/taskdetail/TaskDetailPane.kt`（地点触发时机 4 段选择器）
@@ -66,7 +72,7 @@
   * `feature/execute/AtlasThemeView.kt`（ATLAS 光晕与动效）
   * `feature/ai/AiAssistantDialogs.kt`（AI 提取/拆解及预编辑）
   * `feature/tasklist/QuickInputCapsule.kt`（快速输入、语音识别回填）
-* **卡点 / 已知小问题**：
+* **卡点 / 已知问题**：
   * `TaskDetailPane.kt:1041` 编译警告 “Condition is always 'true'”（无功能影响，可顺手清理）。
   * 用户真机为折叠屏（日语系统界面），ATLAS 页需注意快速输入胶囊、Google 水印与任务卡片的遮挡问题（v2.14.2 已修过一次，改动该区域时需回归检查）。
 
@@ -86,9 +92,10 @@
   * 发布门户：**不要**在 `/Users/wushengyin/Desktop/VC/release-portal`（iCloud 桌面）里执行 git push/fetch，必须 clone 到 `/tmp/app-hub-push` 修改 `data/apps.json` 后推送并删除临时目录。
 
 ## 6. 下一步计划（新对话直接从这里开始）
-1. 等待用户在真机上验收 v2.16.0（地点任务级触发时机、ATLAS 光晕深度、AI/语音添加前编辑），根据反馈迭代。
-2. 发布新版本时按流程：`app/build.gradle.kts` 递增 `versionCode`/`versionName` → 运行测试与 `assembleRelease` → 复制 APK 到 `/tmp/ZERO-v<VER>-release.apk` 并计算 `shasum -a 256` → 推送 `main` → `gh release create v<VER> ... -R shynw1983/zero` → 在 `/tmp/app-hub-push` 更新 `data/apps.json`（`latestVersion`、`updatedAt`、`fileSize`、`fileName`、`downloadUrl`、`sha256`、`downloads[0]`、`releases` 头部插入中文更新说明）→ 推送并验证 HTTP 200。
-3. 可选清理：`TaskDetailPane.kt:1041` 的恒真条件警告。
-4. 每次发布或改动数据库/架构后，同步更新本文件与 `AGENTS.md` 的版本号、数据库版本及关键文件说明。
+1. 在折叠屏真机验收 v2.16.1：导入缺少必需数组的测试备份时，应用显示错误且保留任务；ATLAS 地点任务卡按满 300ms 完成一次，提前松手或取消时保留任务。
+2. 在 v2.16.1 上继续验收地点任务级触发时机、ATLAS 光晕深度和 AI/语音添加前编辑，根据反馈迭代。
+3. 发布新版本时按流程：`app/build.gradle.kts` 递增 `versionCode`/`versionName` → 运行测试与 `assembleRelease` → 复制 APK 到 `/tmp/ZERO-v<VER>-release.apk` 并计算 `shasum -a 256` → 推送 `main` → `gh release create v<VER> ... -R shynw1983/zero` → 在 `/tmp/app-hub-push` 更新 `data/apps.json`（`latestVersion`、`updatedAt`、`fileSize`、`fileName`、`downloadUrl`、`sha256`、`downloads[0]`、`releases` 头部插入中文更新说明）→ 推送并验证 HTTP 200。
+4. 可选清理：`TaskDetailPane.kt:1041` 的恒真条件警告。
+5. 每次发布或改动数据库/架构后，同步更新本文件与 `AGENTS.md` 的版本号、数据库版本及关键文件说明。
 
-> 交接规则见 `AGENTS.md` 第 0 节：新对话开局自动先读本文件；每完成并提交一项工作即刷新本文件；用户说「交接」时立即更新并提交。
+> 交接规则见 `AGENTS.md` 第 0 节：新对话开局自动先读本文件；每完成并提交一项工作即刷新本文件；用户说「交接」时立即更新、提交并推送。

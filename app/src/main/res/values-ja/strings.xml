@@ -228,6 +228,7 @@
     <string name="backup_export_md_ok">階層 Markdown ファイルを書き出しました</string>
     <string name="backup_import_ok">復元完了: %1$d フォルダ · %2$d タスク · %3$d タグ</string>
     <string name="backup_error">処理に失敗しました: %1$s</string>
+    <string name="backup_invalid">この ZERO バックアップは不完全か破損しているか、対応していない形式です。</string>
 
     <!-- v1.3.0: 通知・検索・並替・期限切れ・マトリクス・ゴミ箱・フォルダ整理・WebDAV -->
     <string name="sort_manual">手動</string>

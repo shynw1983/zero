@@ -11,6 +11,7 @@ import com.zero.todo.data.repository.TaskRepositoryImpl
 import com.zero.todo.domain.model.FocusMode
 import com.zero.todo.domain.model.TaskPriority
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import org.json.JSONArray
 import org.json.JSONObject
@@ -124,6 +125,57 @@ class ZeroBackupManagerTest {
 
         val restoredSessions = focusRepository.observeSessionsForTask(nestedTask.id).first()
         assertEquals(2, restoredSessions.size)
+    }
+
+    @Test
+    fun `malformed backups leave the local database intact`() = runBlocking {
+        val folder = folderRepository.createFolder("Local folder")
+        val task = taskRepository.createTask("Local task", folderId = folder.id)
+        val backup = backupManager.exportJson()
+        val requiredTables = listOf("folders", "tasks", "tags", "tagPlaces", "taskTagCrossRefs", "focusSessions")
+        val invalidBackups = buildList {
+            for (table in requiredTables) {
+                add(JSONObject(backup).apply { remove(table) }.toString())
+            }
+            add(JSONObject(backup).put("tasks", JSONObject.NULL).toString())
+            add(JSONObject(backup).put("tasks", JSONObject()).toString())
+            add(JSONObject(backup).put("tasks", JSONArray().put(JSONObject())).toString())
+            add(JSONObject(backup).put("schemaVersion", 2.5).toString())
+            add(JSONObject(backup).put("app", "Other").toString())
+            val incompleteV3 = JSONObject(backup).apply {
+                put("schemaVersion", 3)
+                remove("tagPlaces")
+            }
+            add(incompleteV3.toString())
+            add("{")
+        }
+
+        for (invalidBackup in invalidBackups) {
+            val failure = runCatching { backupManager.importJson(invalidBackup) }.exceptionOrNull()
+            assertTrue("Expected invalid backup, got $failure", failure is InvalidBackupException)
+            assertEquals(task, taskRepository.getTaskById(task.id))
+            assertEquals(folder, folderRepository.getFolderById(folder.id))
+        }
+    }
+
+    @Test
+    fun `older backups can omit place data and a complete empty backup can replace tasks`() = runBlocking {
+        val emptyBackup = backupManager.exportJson()
+        val task = taskRepository.createTask("Legacy task")
+        val currentBackup = backupManager.exportJson()
+
+        for (version in 1..2) {
+            val legacyBackup = JSONObject(currentBackup).apply {
+                put("schemaVersion", version)
+                remove("tagPlaces")
+                getJSONArray("tasks").getJSONObject(0).remove("placeTriggerOverride")
+            }.toString()
+            assertEquals(1, backupManager.importJson(legacyBackup).tasksCount)
+            assertEquals(task, taskRepository.getTaskById(task.id))
+        }
+
+        assertEquals(0, backupManager.importJson(emptyBackup).tasksCount)
+        assertEquals(null, taskRepository.getTaskById(task.id))
     }
 
     @Test

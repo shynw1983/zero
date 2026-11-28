@@ -228,6 +228,7 @@
     <string name="backup_export_md_ok">层级 Markdown 文件已导出</string>
     <string name="backup_import_ok">恢复成功：%1$d 目录 · %2$d 任务 · %3$d 标签</string>
     <string name="backup_error">操作失败：%1$s</string>
+    <string name="backup_invalid">此 ZERO 备份不完整、已损坏或使用了不受支持的格式。</string>
 
     <!-- v1.3.0: 提醒、搜索、排序、逾期、四象限、回收站、目录整理与 WebDAV -->
     <string name="sort_manual">手动</string>

@@ -108,6 +108,7 @@ sealed interface BackupUiStatus {
     data object ExportJsonSuccess : BackupUiStatus
     data object ExportMarkdownSuccess : BackupUiStatus
     data class ImportSuccess(val summary: BackupSummary) : BackupUiStatus
+    data object InvalidBackup : BackupUiStatus
     data class Error(val detail: String) : BackupUiStatus
 }
 
@@ -116,6 +117,7 @@ sealed interface WebDavUiStatus {
     data object TestSuccess : WebDavUiStatus
     data object PushSuccess : WebDavUiStatus
     data class PullSuccess(val summary: BackupSummary) : WebDavUiStatus
+    data object InvalidBackup : WebDavUiStatus
     data class Error(val detail: String) : WebDavUiStatus
 }
 
@@ -684,6 +686,7 @@ fun SettingsOverlay(
                                     backupStatus.summary.tasksCount,
                                     backupStatus.summary.tagsCount
                                 )
+                                BackupUiStatus.InvalidBackup -> stringResource(R.string.backup_invalid)
                                 is BackupUiStatus.Error -> stringResource(R.string.backup_error, backupStatus.detail)
                             }
                             Text(
@@ -789,12 +792,16 @@ fun SettingsOverlay(
                                     webDavStatus.summary.tasksCount,
                                     webDavStatus.summary.tagsCount
                                 )
+                                WebDavUiStatus.InvalidBackup -> stringResource(R.string.backup_invalid)
                                 is WebDavUiStatus.Error -> stringResource(R.string.backup_error, webDavStatus.detail)
                             }
                             Text(
                                 text = davText,
                                 style = tabular.dateCompact,
-                                color = if (webDavStatus is WebDavUiStatus.Error) colors.priorityUrgent else colors.accent
+                                color = when (webDavStatus) {
+                                    WebDavUiStatus.InvalidBackup, is WebDavUiStatus.Error -> colors.priorityUrgent
+                                    else -> colors.accent
+                                }
                             )
                         }
                     }

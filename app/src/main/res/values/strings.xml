@@ -228,6 +228,7 @@
     <string name="backup_export_md_ok">Hierarchical Markdown exported</string>
     <string name="backup_import_ok">Restored: %1$d folders · %2$d tasks · %3$d tags</string>
     <string name="backup_error">Operation failed: %1$s</string>
+    <string name="backup_invalid">This ZERO backup is incomplete, invalid, or in an unsupported format.</string>
 
     <!-- v1.3.0: Reminders, Search, Sort, Overdue, Matrix, Trash, Organize Folder & WebDAV -->
     <string name="sort_manual">Manual</string>

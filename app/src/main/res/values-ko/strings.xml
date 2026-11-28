@@ -228,6 +228,7 @@
     <string name="backup_export_md_ok">계층 Markdown 파일을 내보냈습니다</string>
     <string name="backup_import_ok">복원 완료: 폴더 %1$d · 할 일 %2$d · 태그 %3$d</string>
     <string name="backup_error">작업 실패: %1$s</string>
+    <string name="backup_invalid">이 ZERO 백업은 불완전하거나 손상되었거나 지원하지 않는 형식입니다.</string>
 
     <!-- v1.3.0: 알림, 검색, 정렬, 기한 초과, 매트릭스, 휴지통, 폴더 정리, WebDAV -->
     <string name="sort_manual">수동</string>

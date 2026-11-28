@@ -21,6 +21,7 @@ import android.location.LocationManager
 import android.net.Uri
 import android.os.Bundle
 import android.os.Looper
+import android.os.SystemClock
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
@@ -100,6 +101,7 @@ import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -154,6 +156,7 @@ import com.zero.todo.core.designsystem.rememberZeroHaptics
 import com.zero.todo.core.geofence.PlaceSearchEngine
 import com.zero.todo.domain.model.TaskItem
 import com.zero.todo.domain.model.TaskPriority
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.abs
@@ -162,6 +165,8 @@ import kotlin.math.hypot
 import kotlin.math.pow
 
 private const val PLAYER_MARKER_TAG = "__zero_player__"
+private const val ATLAS_HOLD_DURATION_MS = 300L
+private const val ATLAS_HOLD_PROGRESS_INTERVAL_MS = 16L
 
 private data class AtlasShockwave(
     val id: Long,
@@ -1418,7 +1423,10 @@ private fun AtlasQuestHudCard(
 ) {
     val haptics = rememberZeroHaptics()
     val tabular = ZeroTheme.tabularTypography
-    var holdProgress by remember(focusedTask.id) { mutableFloatStateOf(0f) }
+    val currentHaptics by rememberUpdatedState(haptics)
+    val currentOnHoldProgressChange by rememberUpdatedState(onHoldProgressChange)
+    val currentOnCompleteTask by rememberUpdatedState(onCompleteTask)
+    var holdProgress by remember(marker.place.id, focusedTask.id) { mutableFloatStateOf(0f) }
     val animatedHold by animateFloatAsState(
         targetValue = holdProgress,
         animationSpec = tween(durationMillis = 40),
@@ -1570,37 +1578,19 @@ private fun AtlasQuestHudCard(
                     .clip(ZeroCapsuleShape)
                     .background(accentColor.copy(alpha = 0.14f))
                     .hairlineBorder(shape = ZeroCapsuleShape, color = accentColor.copy(alpha = 0.48f))
-                    .pointerInput(focusedTask.id) {
-                        detectTapGestures(
-                            onPress = {
-                                haptics.reorderTick()
-                                var completed = false
-                                val start = System.currentTimeMillis()
-                                val durationMs = 300L
-                                var released = false
-                                while (!released && !completed) {
-                                    val elapsed = System.currentTimeMillis() - start
-                                    val progress = (elapsed.toFloat() / durationMs).coerceIn(0f, 1f)
-                                    holdProgress = progress
-                                    onHoldProgressChange(progress)
-                                    if (elapsed >= durationMs) {
-                                        completed = true
-                                        holdProgress = 1f
-                                        onHoldProgressChange(1f)
-                                        haptics.confirm()
-                                        onCompleteTask()
-                                        break
-                                    }
-                                    delay(16L)
-                                    released = tryAwaitRelease()
-                                }
-                                if (!completed) {
-                                    holdProgress = 0f
-                                    onHoldProgressChange(0f)
-                                }
-                            }
-                        )
-                    },
+                    .atlasHoldToComplete(
+                        placeId = marker.place.id,
+                        taskId = focusedTask.id,
+                        onPress = { currentHaptics.reorderTick() },
+                        onProgress = { progress ->
+                            holdProgress = progress
+                            currentOnHoldProgressChange(progress)
+                        },
+                        onComplete = {
+                            currentHaptics.confirm()
+                            currentOnCompleteTask()
+                        }
+                    ),
                 contentAlignment = Alignment.CenterStart
             ) {
                 if (animatedHold > 0.01f) {
@@ -1635,6 +1625,37 @@ private fun AtlasQuestHudCard(
             }
         }
     }
+}
+
+internal fun Modifier.atlasHoldToComplete(
+    placeId: String,
+    taskId: String,
+    onPress: () -> Unit,
+    onProgress: (Float) -> Unit,
+    onComplete: () -> Unit
+): Modifier = pointerInput(placeId, taskId) {
+    detectTapGestures(onPress = {
+        coroutineScope {
+            val startedAt = SystemClock.uptimeMillis()
+            onPress()
+            val charge = launch {
+                var remaining = ATLAS_HOLD_DURATION_MS
+                while (remaining > 0L) {
+                    delay(minOf(ATLAS_HOLD_PROGRESS_INTERVAL_MS, remaining))
+                    remaining = (ATLAS_HOLD_DURATION_MS - (SystemClock.uptimeMillis() - startedAt))
+                        .coerceAtLeast(0L)
+                    onProgress(1f - remaining.toFloat() / ATLAS_HOLD_DURATION_MS)
+                }
+                onComplete()
+            }
+            try {
+                tryAwaitRelease()
+            } finally {
+                charge.cancel()
+                onProgress(0f)
+            }
+        }
+    })
 }
 
 @Composable
