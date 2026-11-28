@@ -221,6 +221,8 @@ fun ZeroAppRoot(
             onUpdateFolderColor = viewModel::updateFolderColor,
             onMoveFolderOrder = viewModel::moveFolderOrder,
             onMoveFolderToParent = viewModel::moveFolderToParent,
+            onPlaceFolder = viewModel::placeFolder,
+            onPlaceTag = viewModel::placeTag,
             onDeleteFolder = viewModel::deleteFolder,
             onToggleTaskComplete = viewModel::toggleTaskCompletion,
             onMoveTaskToFolder = viewModel::moveTaskToFolder,

@@ -24,6 +24,7 @@
     <string name="nav_next_7_days">次の 7 日間</string>
     <string name="nav_calendar">カレンダー</string>
     <string name="section_folders">フォルダ</string>
+    <string name="sidebar_move_to_top_level">最上位へ移動</string>
     <string name="folders_empty_hint">フォルダがありません。右上のボタンから作成できます</string>
     <string name="filter_current_folder">現在のみ</string>
     <string name="filter_include_subfolders">子フォルダ含む</string>

@@ -6,6 +6,7 @@ import androidx.test.core.app.ApplicationProvider
 import com.zero.todo.data.local.ZeroDatabase
 import com.zero.todo.domain.usecase.GetFolderTreeUseCase
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -148,6 +149,25 @@ class FolderRepositoryTest {
             listOf("Delta", "Beta"),
             folderRepository.observeChildFolders(f1.id).first().map { it.name }
         )
+    }
+
+    @Test
+    fun `dropping a folder into a collapsed parent opens it and preserves the branch`() = runBlocking {
+        val source = folderRepository.createFolder("Source")
+        val leaf = folderRepository.createFolder("Leaf", parentId = source.id)
+        val destination = folderRepository.createFolder("Destination")
+        val sibling = folderRepository.createFolder("Sibling", parentId = destination.id)
+        folderRepository.setFolderExpanded(destination.id, false)
+
+        folderRepository.reorderFolderBetween(source.id, destination.id, null, leaf.id)
+        assertNull(folderRepository.getFolderById(source.id)?.parentId)
+        assertFalse(checkNotNull(folderRepository.getFolderById(destination.id)).isExpanded)
+
+        folderRepository.reorderFolderBetween(source.id, destination.id, null, sibling.id)
+
+        assertTrue(checkNotNull(folderRepository.getFolderById(destination.id)).isExpanded)
+        assertEquals(listOf(source.id, sibling.id), folderRepository.observeChildFolders(destination.id).first().map { it.id })
+        assertEquals(source.id, folderRepository.getFolderById(leaf.id)?.parentId)
     }
 
     @Test

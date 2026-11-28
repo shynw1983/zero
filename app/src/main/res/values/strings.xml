@@ -24,6 +24,7 @@
     <string name="nav_next_7_days">Next 7 Days</string>
     <string name="nav_calendar">Calendar</string>
     <string name="section_folders">FOLDERS</string>
+    <string name="sidebar_move_to_top_level">Move to top level</string>
     <string name="folders_empty_hint">No folders yet. Tap + above to create one.</string>
     <string name="filter_current_folder">Current</string>
     <string name="filter_include_subfolders">All Nested</string>

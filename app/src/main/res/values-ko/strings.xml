@@ -24,6 +24,7 @@
     <string name="nav_next_7_days">다음 7일</string>
     <string name="nav_calendar">캘린더</string>
     <string name="section_folders">폴더</string>
+    <string name="sidebar_move_to_top_level">최상위로 이동</string>
     <string name="folders_empty_hint">폴더가 없습니다. 우측 상단 버튼으로 생성하세요</string>
     <string name="filter_current_folder">현재만</string>
     <string name="filter_include_subfolders">하위 포함</string>

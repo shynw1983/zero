@@ -6,6 +6,7 @@ import androidx.test.core.app.ApplicationProvider
 import com.zero.todo.core.common.ZeroDateFormatter
 import com.zero.todo.data.local.ZeroDatabase
 import com.zero.todo.domain.model.FocusMode
+import com.zero.todo.domain.model.TagTreeBuilder
 import com.zero.todo.domain.model.TaskPriority
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
@@ -48,6 +49,31 @@ class TaskAndTagRepositoryTest {
     @After
     fun tearDown() {
         database.close()
+    }
+
+    @Test
+    fun `tag drop keeps its subtree and task links when inserted into a collapsed parent`() = runBlocking {
+        val source = tagRepository.createTag("Source")
+        val leaf = tagRepository.createTag("Leaf", parentId = source.id)
+        val destination = tagRepository.createTag("Destination")
+        val first = tagRepository.createTag("First", parentId = destination.id)
+        val last = tagRepository.createTag("Last", parentId = destination.id)
+        val task = taskRepository.createTask("Tagged")
+        tagRepository.attachTagToTask(task.id, leaf.id)
+        tagRepository.setTagExpanded(destination.id, false)
+
+        assertFalse(tagRepository.moveTagBetween(source.id, leaf.id, null, null))
+        assertFalse(tagRepository.moveTagBetween(source.id, destination.id, null, leaf.id))
+        assertTrue(tagRepository.moveTagBetween(source.id, destination.id, first.id, null))
+        assertFalse(tagRepository.moveTagBetween(last.id, destination.id, null, first.id))
+
+        val tree = TagTreeBuilder.buildTree(tagRepository.observeActiveTagsWithCounts().first())
+        val parent = tree.single()
+        assertEquals(destination.id, parent.tag.id)
+        assertTrue(parent.tag.isExpanded)
+        assertEquals(listOf(last.id, first.id, source.id), parent.children.map { it.tag.id })
+        assertEquals(leaf.id, parent.children.last().children.single().tag.id)
+        assertEquals(listOf(task.id), tagRepository.observeTasksByTag(leaf.id).first().map { it.id })
     }
 
     @Test

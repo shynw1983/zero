@@ -130,6 +130,13 @@ class TagRepositoryImpl @Inject constructor(
         tagDao.moveTagInOrder(tagId, direction, System.currentTimeMillis())
     }
 
+    override suspend fun moveTagBetween(
+        tagId: String,
+        parentId: String?,
+        precedingId: String?,
+        followingId: String?
+    ): Boolean = tagDao.moveTagBetween(tagId, parentId, precedingId, followingId, System.currentTimeMillis())
+
     override suspend fun updateTagPlaceConfig(
         tagId: String,
         isPlaceTag: Boolean,

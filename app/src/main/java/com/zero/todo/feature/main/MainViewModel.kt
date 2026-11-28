@@ -1081,6 +1081,15 @@ class MainViewModel @Inject constructor(
         }
     }
 
+    fun placeTag(tagId: String, parentId: String?, precedingId: String?, followingId: String?) {
+        viewModelScope.launch {
+            if (tagRepository.moveTagBetween(tagId, parentId, precedingId, followingId)) {
+                widgetRefresher.refreshAll()
+                geofenceController.syncAllGeofences()
+            }
+        }
+    }
+
     fun renameTag(tagId: String, newName: String) {
         viewModelScope.launch {
             tagRepository.renameTag(tagId, newName)
@@ -1374,6 +1383,16 @@ class MainViewModel @Inject constructor(
                 if (targetParentId != null) {
                     folderRepository.setFolderExpanded(targetParentId, true)
                 }
+            }
+        }
+    }
+
+    fun placeFolder(folderId: String, parentId: String?, precedingId: String?, followingId: String?) {
+        viewModelScope.launch {
+            try {
+                folderRepository.reorderFolderBetween(folderId, parentId, precedingId, followingId)
+            } catch (_: IllegalArgumentException) {
+                // The source or target disappeared after the drag began.
             }
         }
     }

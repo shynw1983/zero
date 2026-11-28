@@ -141,9 +141,15 @@ class FolderRepositoryImpl @Inject constructor(
         afterFolderId: String?
     ) {
         database.withTransaction {
-            validateFolderMove(folderId = folderId, targetParentId = targetParentId)
+            val folder = validateFolderMove(folderId = folderId, targetParentId = targetParentId)
             val siblings = folderDao.getChildFolders(targetParentId)
                 .map { it.id to it.sortOrder }
+            if (beforeFolderId != null && siblings.none { it.first == beforeFolderId && it.first != folderId }) {
+                return@withTransaction
+            }
+            if (afterFolderId != null && siblings.none { it.first == afterFolderId && it.first != folderId }) {
+                return@withTransaction
+            }
             val update = FractionalIndex.computeMoveBetween(
                 orderedSiblings = siblings,
                 movingId = folderId,
@@ -155,6 +161,11 @@ class FolderRepositoryImpl @Inject constructor(
                 targetParentId = targetParentId,
                 update = update
             )
+            if (folder.parentId != targetParentId && targetParentId != null &&
+                folderDao.getFolderById(targetParentId)?.isExpanded == false
+            ) {
+                folderDao.updateExpanded(targetParentId, true, System.currentTimeMillis())
+            }
         }
     }
 
@@ -201,8 +212,8 @@ class FolderRepositoryImpl @Inject constructor(
         }
     }
 
-    private suspend fun validateFolderMove(folderId: String, targetParentId: String?) {
-        requireNotNull(folderDao.getFolderById(folderId)) {
+    private suspend fun validateFolderMove(folderId: String, targetParentId: String?): FolderEntity {
+        val folder = requireNotNull(folderDao.getFolderById(folderId)) {
             "Folder does not exist or is deleted: $folderId"
         }
         if (targetParentId != null) {
@@ -217,6 +228,7 @@ class FolderRepositoryImpl @Inject constructor(
                 "Cannot move folder $folderId into its own descendant $targetParentId"
             }
         }
+        return folder
     }
 
     private suspend fun applyFolderOrderUpdate(

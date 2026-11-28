@@ -24,6 +24,7 @@
     <string name="nav_next_7_days">最近 7 天</string>
     <string name="nav_calendar">日历</string>
     <string name="section_folders">文件夹</string>
+    <string name="sidebar_move_to_top_level">移到顶层</string>
     <string name="folders_empty_hint">暂无文件夹，点击右上角创建</string>
     <string name="filter_current_folder">仅当前</string>
     <string name="filter_include_subfolders">含子级</string>

@@ -108,6 +108,52 @@ interface TagDao {
         }
     }
 
+    @Transaction
+    suspend fun moveTagBetween(
+        tagId: String,
+        targetParentId: String?,
+        precedingId: String?,
+        followingId: String?,
+        updatedAt: Long
+    ): Boolean {
+        val tags = getActiveTagsSnapshot()
+        val byId = tags.associateBy { it.id }
+        val tag = byId[tagId] ?: return false
+        var ancestor = targetParentId
+        val visited = hashSetOf(tagId)
+        while (ancestor != null) {
+            if (!visited.add(ancestor)) return false
+            val parent = byId[ancestor] ?: return false
+            ancestor = parent.parentId
+        }
+
+        val siblings = tags.asSequence()
+            .filter { it.parentId == targetParentId }
+            .map { it.toDomain() }
+            .sortedWith(TagTreeBuilder.siblingOrder)
+            .map { it.id }
+            .toList()
+        val reordered = siblings.filterNot { it == tagId }.toMutableList()
+        val target = when {
+            precedingId != null -> reordered.indexOf(precedingId).takeIf { it >= 0 }?.plus(1) ?: return false
+            followingId != null -> reordered.indexOf(followingId).takeIf { it >= 0 } ?: return false
+            else -> reordered.size
+        }
+        reordered.add(target, tagId)
+        val parentChanged = tag.parentId != targetParentId
+        if (!parentChanged && reordered == siblings) return false
+        if (parentChanged) moveTag(tagId, targetParentId, updatedAt)
+        reordered.forEachIndexed { order, id ->
+            if ((parentChanged && id == tagId) || byId.getValue(id).sortOrder != order) {
+                updateTagSortOrder(id, order, updatedAt)
+            }
+        }
+        if (parentChanged && targetParentId != null && byId[targetParentId]?.isExpanded == false) {
+            updateTagExpanded(targetParentId, true, updatedAt)
+        }
+        return parentChanged
+    }
+
     @Query("UPDATE tags SET isDeleted = 1, updatedAt = :updatedAt WHERE id = :tagId")
     suspend fun softDeleteTag(tagId: String, updatedAt: Long)
 

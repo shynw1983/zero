@@ -25,6 +25,8 @@ interface TagRepository {
     suspend fun setTagExpanded(tagId: String, isExpanded: Boolean)
     suspend fun moveTag(tagId: String, newParentId: String?): Boolean
     suspend fun moveTagInOrder(tagId: String, direction: Int)
+    /** Places the tag between siblings and returns whether the move changed its parent. */
+    suspend fun moveTagBetween(tagId: String, parentId: String?, precedingId: String?, followingId: String?): Boolean
     suspend fun softDeleteTag(tagId: String)
 
     suspend fun updateTagPlaceConfig(tagId: String, isPlaceTag: Boolean, triggerMode: PlaceTriggerMode)

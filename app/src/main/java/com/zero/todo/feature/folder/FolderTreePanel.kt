@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
@@ -38,7 +39,6 @@ import androidx.compose.material.icons.rounded.Inbox
 import androidx.compose.material.icons.rounded.Layers
 import androidx.compose.material.icons.rounded.LightMode
 import androidx.compose.material.icons.rounded.LocationOn
-import androidx.compose.material.icons.rounded.MoreHoriz
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.Tag
 import androidx.compose.material.icons.rounded.Today
@@ -54,6 +54,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -95,6 +96,8 @@ fun FolderTreePanel(
     onToggleTagExpanded: (tagId: String, isExpanded: Boolean) -> Unit = { _, _ -> },
     onRequestCreateTag: (parentTag: TagItem?) -> Unit = {},
     onRequestTagMenu: (tag: TagItem) -> Unit,
+    onPlaceFolder: (id: String, parentId: String?, precedingId: String?, followingId: String?) -> Unit,
+    onPlaceTag: (id: String, parentId: String?, precedingId: String?, followingId: String?) -> Unit,
     onToggleIncludeSubfolders: () -> Unit,
     onToggleTheme: () -> Unit,
     onToggleAccent: () -> Unit,
@@ -106,6 +109,27 @@ fun FolderTreePanel(
     val visibleNodes = remember(folderTree) { FolderTreeBuilder.flattenVisible(folderTree) }
     val tagTree = remember(tagsWithCounts) { TagTreeBuilder.buildTree(tagsWithCounts) }
     val visibleTagNodes = remember(tagTree) { TagTreeBuilder.flattenVisible(tagTree) }
+    val folderRows = remember(visibleNodes) {
+        visibleNodes.map { node ->
+            SidebarTreeRow(node.folder.id, node.folder.parentId.takeIf { node.depth > 0 }, node.depth)
+        }
+    }
+    val tagRows = remember(visibleTagNodes) {
+        visibleTagNodes.map { node ->
+            SidebarTreeRow(node.tag.id, node.tag.parentId.takeIf { node.depth > 0 }, node.depth)
+        }
+    }
+    val listState = rememberLazyListState()
+    val drag = rememberSidebarTreeDrag(listState)
+    val target = drag.target(folderRows, tagRows)
+    val targetIndent = ZeroDimens.TreeIndentPerLevel *
+        (target?.markerDepth ?: 0).coerceAtMost(ZeroDimens.MaxVisibleTreeDepth)
+
+    fun drop(tree: SidebarTree, id: String) {
+        val destination = drag.target(folderRows, tagRows) ?: return
+        val place = if (tree == SidebarTree.FOLDERS) onPlaceFolder else onPlaceTag
+        place(id, destination.parentId, destination.precedingId, destination.followingId)
+    }
 
     Column(
         modifier = modifier
@@ -190,23 +214,222 @@ fun FolderTreePanel(
             }
         }
 
-        // Scrollable Smart Views + Infinite Folder Tree + Tags (continuous scroll, generous 46dp rows)
-        LazyColumn(
-            modifier = Modifier.weight(1f),
-            contentPadding = PaddingValues(vertical = 8.dp)
-        ) {
-            if (triageCount > 0) {
-                item(key = "quick_triage_banner") {
+        Box(Modifier.weight(1f)) {
+            LazyColumn(
+                state = listState,
+                modifier = Modifier.fillMaxSize().onGloballyPositioned { drag.listCoordinates = it },
+                contentPadding = PaddingValues(vertical = 8.dp)
+            ) {
+                if (triageCount > 0) {
+                    item(key = "quick_triage_banner") {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 10.dp, vertical = 4.dp)
+                                .heightIn(min = 46.dp)
+                                .clip(ZeroSmallShape)
+                                .background(colors.accentSubtle)
+                                .hairlineBorder(shape = ZeroSmallShape, color = colors.accent)
+                                .clickable(onClick = onOpenTriage)
+                                .padding(horizontal = 12.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Layers,
+                                    contentDescription = null,
+                                    tint = colors.accent,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Text(
+                                    text = stringResource(R.string.triage_title),
+                                    style = MaterialTheme.typography.labelLarge,
+                                    color = colors.accent
+                                )
+                            }
+                            Text(
+                                text = triageCount.toString().padStart(2, '0'),
+                                style = tabular.counter,
+                                color = colors.accent
+                            )
+                        }
+                    }
+                }
+
+                item(key = "smart_inbox") {
+                    SmartViewRow(
+                        label = stringResource(R.string.nav_inbox),
+                        icon = Icons.Rounded.Inbox,
+                        count = smartViewCounts.inbox,
+                        selected = selectedDestination == NavigationDestination.Inbox,
+                        onClick = { onSelectDestination(NavigationDestination.Inbox) }
+                    )
+                }
+                item(key = "smart_today") {
+                    SmartViewRow(
+                        label = stringResource(R.string.nav_today),
+                        icon = Icons.Rounded.Today,
+                        count = smartViewCounts.today,
+                        hasAlertDot = smartViewCounts.overdue > 0,
+                        selected = selectedDestination == NavigationDestination.Today,
+                        onClick = { onSelectDestination(NavigationDestination.Today) }
+                    )
+                }
+                item(key = "smart_tomorrow") {
+                    SmartViewRow(
+                        label = stringResource(R.string.nav_tomorrow),
+                        icon = Icons.Rounded.WbSunny,
+                        count = smartViewCounts.tomorrow,
+                        selected = selectedDestination == NavigationDestination.Tomorrow,
+                        onClick = { onSelectDestination(NavigationDestination.Tomorrow) }
+                    )
+                }
+                item(key = "smart_next7") {
+                    SmartViewRow(
+                        label = stringResource(R.string.nav_next_7_days),
+                        icon = Icons.Rounded.CalendarMonth,
+                        count = smartViewCounts.next7Days,
+                        selected = selectedDestination == NavigationDestination.Next7Days,
+                        onClick = { onSelectDestination(NavigationDestination.Next7Days) }
+                    )
+                }
+                item(key = "smart_calendar") {
+                    SmartViewRow(
+                        label = stringResource(R.string.nav_calendar),
+                        icon = Icons.Rounded.CalendarMonth,
+                        count = 0,
+                        selected = selectedDestination == NavigationDestination.Calendar,
+                        onClick = { onSelectDestination(NavigationDestination.Calendar) }
+                    )
+                }
+                item(key = "smart_all") {
+                    SmartViewRow(
+                        label = stringResource(R.string.nav_all_tasks),
+                        icon = Icons.Rounded.AllInbox,
+                        count = smartViewCounts.all,
+                        selected = selectedDestination == NavigationDestination.All,
+                        onClick = { onSelectDestination(NavigationDestination.All) }
+                    )
+                }
+                item(key = "smart_matrix") {
+                    SmartViewRow(
+                        label = stringResource(R.string.nav_matrix),
+                        icon = Icons.Rounded.GridView,
+                        count = 0,
+                        selected = selectedDestination == NavigationDestination.Matrix,
+                        onClick = { onSelectDestination(NavigationDestination.Matrix) }
+                    )
+                }
+
+                // Folder Section Header
+                item(key = SidebarTree.FOLDERS.headerKey) {
                     Row(
                         modifier = Modifier
+                            .sidebarDragDecoration(
+                                active = false,
+                                zone = target?.takeIf { it.markerKey == SidebarTree.FOLDERS.headerKey }?.zone,
+                                accent = colors.accent
+                            )
                             .fillMaxWidth()
-                            .padding(horizontal = 10.dp, vertical = 4.dp)
-                            .heightIn(min = 46.dp)
-                            .clip(ZeroSmallShape)
-                            .background(colors.accentSubtle)
-                            .hairlineBorder(shape = ZeroSmallShape, color = colors.accent)
-                            .clickable(onClick = onOpenTriage)
-                            .padding(horizontal = 12.dp, vertical = 10.dp),
+                            .padding(top = 12.dp, bottom = 4.dp)
+                            .hairlineDividerTop()
+                            .padding(start = 16.dp, end = 8.dp, top = 12.dp, bottom = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = stringResource(
+                                if (drag.activeTree == SidebarTree.FOLDERS) R.string.sidebar_move_to_top_level
+                                else R.string.section_folders
+                            ),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = colors.textMuted
+                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            IncludeSubfoldersPill(
+                                includeSubfolders = includeSubfolders,
+                                onToggle = onToggleIncludeSubfolders
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Box(
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .clip(ZeroSmallShape)
+                                    .clickable { onRequestCreateFolder(null) },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.CreateNewFolder,
+                                    contentDescription = stringResource(R.string.cd_create_root_folder),
+                                    tint = colors.textSecondary,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+
+                if (visibleNodes.isEmpty()) {
+                    item(key = "folders_empty") {
+                        Text(
+                            text = stringResource(R.string.folders_empty_hint),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = colors.textMuted,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
+                        )
+                    }
+                } else {
+                    items(
+                        items = visibleNodes,
+                        key = { SidebarTree.FOLDERS.rowKey(it.folder.id) }
+                    ) { node ->
+                        val tree = SidebarTree.FOLDERS
+                        val id = node.folder.id
+                        val isSelected = selectedDestination is NavigationDestination.FolderView &&
+                            selectedDestination.folderId == id
+                        FolderTreeRow(
+                            node = node,
+                            isSelected = isSelected,
+                            projectColorHex = folderColorHexById[id],
+                            showAggregatedCount = includeSubfolders,
+                            onSelect = { onSelectDestination(NavigationDestination.FolderView(id)) },
+                            onToggleExpand = { onToggleFolderExpanded(id, !node.folder.isExpanded) },
+                            onOpenMenu = { onRequestFolderMenu(node.folder) },
+                            modifier = Modifier.sidebarDragDecoration(
+                                active = drag.isDragging(tree, id),
+                                zone = target?.takeIf { it.markerKey == tree.rowKey(id) }?.zone,
+                                accent = colors.accent,
+                                indent = targetIndent
+                            )
+                        ) {
+                            SidebarTreeGrip(
+                                drag = drag, tree = tree, id = id, label = node.folder.name,
+                                tint = if (isSelected) colors.textPrimary else colors.textMuted,
+                                optionsLabel = stringResource(R.string.cd_folder_options),
+                                onOpenMenu = { onRequestFolderMenu(node.folder) },
+                                onDrop = { drop(tree, id) }
+                            )
+                        }
+                    }
+                }
+
+                // Tags Section (Hierarchical collapsible Tag Tree with Create / Rename / Move / Delete!)
+                item(key = SidebarTree.TAGS.headerKey) {
+                    Row(
+                        modifier = Modifier
+                            .sidebarDragDecoration(
+                                active = false,
+                                zone = target?.takeIf { it.markerKey == SidebarTree.TAGS.headerKey }?.zone,
+                                accent = colors.accent
+                            )
+                            .fillMaxWidth()
+                            .padding(top = 12.dp, bottom = 4.dp)
+                            .hairlineDividerTop()
+                            .padding(start = 16.dp, end = 8.dp, top = 12.dp, bottom = 4.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
@@ -214,234 +437,82 @@ fun FolderTreePanel(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Icon(
-                                imageVector = Icons.Rounded.Layers,
-                                contentDescription = null,
-                                tint = colors.accent,
-                                modifier = Modifier.size(18.dp)
-                            )
                             Text(
-                                text = stringResource(R.string.triage_title),
-                                style = MaterialTheme.typography.labelLarge,
-                                color = colors.accent
+                                text = stringResource(
+                                    if (drag.activeTree == SidebarTree.TAGS) R.string.sidebar_move_to_top_level
+                                    else R.string.section_tags
+                                ),
+                                style = MaterialTheme.typography.labelMedium,
+                                color = colors.textMuted
                             )
+                            if (tagsWithCounts.isNotEmpty() && drag.activeTree != SidebarTree.TAGS) {
+                                Text(
+                                    text = tagsWithCounts.size.toString().padStart(2, '0'),
+                                    style = tabular.dateCompact,
+                                    color = colors.textMuted
+                                )
+                            }
                         }
-                        Text(
-                            text = triageCount.toString().padStart(2, '0'),
-                            style = tabular.counter,
-                            color = colors.accent
-                        )
-                    }
-                }
-            }
-
-            item(key = "smart_inbox") {
-                SmartViewRow(
-                    label = stringResource(R.string.nav_inbox),
-                    icon = Icons.Rounded.Inbox,
-                    count = smartViewCounts.inbox,
-                    selected = selectedDestination == NavigationDestination.Inbox,
-                    onClick = { onSelectDestination(NavigationDestination.Inbox) }
-                )
-            }
-            item(key = "smart_today") {
-                SmartViewRow(
-                    label = stringResource(R.string.nav_today),
-                    icon = Icons.Rounded.Today,
-                    count = smartViewCounts.today,
-                    hasAlertDot = smartViewCounts.overdue > 0,
-                    selected = selectedDestination == NavigationDestination.Today,
-                    onClick = { onSelectDestination(NavigationDestination.Today) }
-                )
-            }
-            item(key = "smart_tomorrow") {
-                SmartViewRow(
-                    label = stringResource(R.string.nav_tomorrow),
-                    icon = Icons.Rounded.WbSunny,
-                    count = smartViewCounts.tomorrow,
-                    selected = selectedDestination == NavigationDestination.Tomorrow,
-                    onClick = { onSelectDestination(NavigationDestination.Tomorrow) }
-                )
-            }
-            item(key = "smart_next7") {
-                SmartViewRow(
-                    label = stringResource(R.string.nav_next_7_days),
-                    icon = Icons.Rounded.CalendarMonth,
-                    count = smartViewCounts.next7Days,
-                    selected = selectedDestination == NavigationDestination.Next7Days,
-                    onClick = { onSelectDestination(NavigationDestination.Next7Days) }
-                )
-            }
-            item(key = "smart_calendar") {
-                SmartViewRow(
-                    label = stringResource(R.string.nav_calendar),
-                    icon = Icons.Rounded.CalendarMonth,
-                    count = 0,
-                    selected = selectedDestination == NavigationDestination.Calendar,
-                    onClick = { onSelectDestination(NavigationDestination.Calendar) }
-                )
-            }
-            item(key = "smart_all") {
-                SmartViewRow(
-                    label = stringResource(R.string.nav_all_tasks),
-                    icon = Icons.Rounded.AllInbox,
-                    count = smartViewCounts.all,
-                    selected = selectedDestination == NavigationDestination.All,
-                    onClick = { onSelectDestination(NavigationDestination.All) }
-                )
-            }
-            item(key = "smart_matrix") {
-                SmartViewRow(
-                    label = stringResource(R.string.nav_matrix),
-                    icon = Icons.Rounded.GridView,
-                    count = 0,
-                    selected = selectedDestination == NavigationDestination.Matrix,
-                    onClick = { onSelectDestination(NavigationDestination.Matrix) }
-                )
-            }
-
-            // Folder Section Header
-            item(key = "folders_header") {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 12.dp, bottom = 4.dp)
-                        .hairlineDividerTop()
-                        .padding(start = 16.dp, end = 8.dp, top = 12.dp, bottom = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text(
-                        text = stringResource(R.string.section_folders),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = colors.textMuted
-                    )
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        IncludeSubfoldersPill(
-                            includeSubfolders = includeSubfolders,
-                            onToggle = onToggleIncludeSubfolders
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
                         Box(
                             modifier = Modifier
                                 .size(36.dp)
                                 .clip(ZeroSmallShape)
-                                .clickable { onRequestCreateFolder(null) },
+                                .clickable { onRequestCreateTag(null) },
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
-                                imageVector = Icons.Rounded.CreateNewFolder,
-                                contentDescription = stringResource(R.string.cd_create_root_folder),
+                                imageVector = Icons.Rounded.Add,
+                                contentDescription = stringResource(R.string.cd_create_root_tag),
                                 tint = colors.textSecondary,
                                 modifier = Modifier.size(18.dp)
                             )
                         }
                     }
                 }
-            }
 
-            if (visibleNodes.isEmpty()) {
-                item(key = "folders_empty") {
-                    Text(
-                        text = stringResource(R.string.folders_empty_hint),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = colors.textMuted,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
-                    )
-                }
-            } else {
-                items(
-                    items = visibleNodes,
-                    key = { it.folder.id }
-                ) { node ->
-                    val isSelected = selectedDestination is NavigationDestination.FolderView &&
-                        selectedDestination.folderId == node.folder.id
-                    FolderTreeRow(
-                        node = node,
-                        isSelected = isSelected,
-                        projectColorHex = folderColorHexById[node.folder.id],
-                        showAggregatedCount = includeSubfolders,
-                        onSelect = { onSelectDestination(NavigationDestination.FolderView(node.folder.id)) },
-                        onToggleExpand = {
-                            onToggleFolderExpanded(node.folder.id, !node.folder.isExpanded)
-                        },
-                        onOpenMenu = { onRequestFolderMenu(node.folder) }
-                    )
-                }
-            }
-
-            // Tags Section (Hierarchical collapsible Tag Tree with Create / Rename / Move / Delete!)
-            item(key = "tags_header") {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 12.dp, bottom = 4.dp)
-                        .hairlineDividerTop()
-                        .padding(start = 16.dp, end = 8.dp, top = 12.dp, bottom = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
+                if (visibleTagNodes.isEmpty()) {
+                    item(key = "tags_empty") {
                         Text(
-                            text = stringResource(R.string.section_tags),
-                            style = MaterialTheme.typography.labelMedium,
-                            color = colors.textMuted
+                            text = stringResource(R.string.tags_empty_hint),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = colors.textMuted,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)
                         )
-                        if (tagsWithCounts.isNotEmpty()) {
-                            Text(
-                                text = tagsWithCounts.size.toString().padStart(2, '0'),
-                                style = tabular.dateCompact,
-                                color = colors.textMuted
+                    }
+                } else {
+                    items(
+                        items = visibleTagNodes,
+                        key = { SidebarTree.TAGS.rowKey(it.tag.id) }
+                    ) { node ->
+                        val tree = SidebarTree.TAGS
+                        val id = node.tag.id
+                        val isSelected = selectedDestination is NavigationDestination.TagView &&
+                            selectedDestination.tagId == id
+                        TagTreeRow(
+                            node = node,
+                            selected = isSelected,
+                            onSelect = { onSelectDestination(NavigationDestination.TagView(id)) },
+                            onToggleExpand = { onToggleTagExpanded(id, !node.tag.isExpanded) },
+                            onOpenMenu = { onRequestTagMenu(node.tag) },
+                            modifier = Modifier.sidebarDragDecoration(
+                                active = drag.isDragging(tree, id),
+                                zone = target?.takeIf { it.markerKey == tree.rowKey(id) }?.zone,
+                                accent = colors.accent,
+                                indent = targetIndent
+                            )
+                        ) {
+                            SidebarTreeGrip(
+                                drag = drag, tree = tree, id = id, label = node.tag.name,
+                                tint = if (isSelected) colors.textPrimary else colors.textMuted,
+                                optionsLabel = stringResource(R.string.cd_tag_options),
+                                onOpenMenu = { onRequestTagMenu(node.tag) },
+                                onDrop = { drop(tree, id) }
                             )
                         }
                     }
-                    Box(
-                        modifier = Modifier
-                            .size(36.dp)
-                            .clip(ZeroSmallShape)
-                            .clickable { onRequestCreateTag(null) },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.Add,
-                            contentDescription = stringResource(R.string.cd_create_root_tag),
-                            tint = colors.textSecondary,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
                 }
             }
-
-            if (visibleTagNodes.isEmpty()) {
-                item(key = "tags_empty") {
-                    Text(
-                        text = stringResource(R.string.tags_empty_hint),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = colors.textMuted,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)
-                    )
-                }
-            } else {
-                items(
-                    items = visibleTagNodes,
-                    key = { "tag_${it.tag.id}" }
-                ) { node ->
-                    val isSelected = selectedDestination is NavigationDestination.TagView &&
-                        selectedDestination.tagId == node.tag.id
-                    TagTreeRow(
-                        node = node,
-                        selected = isSelected,
-                        onSelect = { onSelectDestination(NavigationDestination.TagView(node.tag.id)) },
-                        onToggleExpand = {
-                            onToggleTagExpanded(node.tag.id, !node.tag.isExpanded)
-                        },
-                        onOpenMenu = { onRequestTagMenu(node.tag) }
-                    )
-                }
-            }
+            SidebarDragPreview(drag)
         }
 
         // Minimalist status footer with generous 42dp Recycle Bin shortcut
@@ -607,7 +678,9 @@ private fun TagTreeRow(
     selected: Boolean,
     onSelect: () -> Unit,
     onToggleExpand: () -> Unit,
-    onOpenMenu: () -> Unit
+    onOpenMenu: () -> Unit,
+    modifier: Modifier,
+    grip: @Composable () -> Unit
 ) {
     val colors = ZeroTheme.colors
     val tabular = ZeroTheme.tabularTypography
@@ -622,7 +695,7 @@ private fun TagTreeRow(
     val displayedCount = node.totalTaskCount
 
     Row(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = 8.dp, vertical = 2.dp)
             .heightIn(min = 46.dp)
@@ -633,7 +706,7 @@ private fun TagTreeRow(
                 onClick = onSelect,
                 onLongClick = onOpenMenu
             )
-            .padding(start = 6.dp + indentPadding, end = 4.dp, top = 4.dp, bottom = 4.dp),
+            .padding(start = 6.dp + indentPadding, end = 4.dp, top = 2.dp, bottom = 2.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
@@ -713,20 +786,7 @@ private fun TagTreeRow(
                 modifier = Modifier.padding(horizontal = 4.dp)
             )
         }
-        Box(
-            modifier = Modifier
-                .size(38.dp)
-                .clip(ZeroSmallShape)
-                .clickable(onClick = onOpenMenu),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = Icons.Rounded.MoreHoriz,
-                contentDescription = stringResource(R.string.cd_tag_options),
-                tint = if (selected) colors.textPrimary else colors.textMuted,
-                modifier = Modifier.size(18.dp)
-            )
-        }
+        grip()
     }
 }
 
@@ -739,7 +799,9 @@ private fun FolderTreeRow(
     showAggregatedCount: Boolean,
     onSelect: () -> Unit,
     onToggleExpand: () -> Unit,
-    onOpenMenu: () -> Unit
+    onOpenMenu: () -> Unit,
+    modifier: Modifier,
+    grip: @Composable () -> Unit
 ) {
     val colors = ZeroTheme.colors
     val tabular = ZeroTheme.tabularTypography
@@ -757,7 +819,7 @@ private fun FolderTreeRow(
     val displayedCount = if (showAggregatedCount) node.totalTaskCount else node.directTaskCount
 
     Row(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = 8.dp, vertical = 2.dp)
             .heightIn(min = 46.dp)
@@ -770,7 +832,7 @@ private fun FolderTreeRow(
                 onClick = onSelect,
                 onLongClick = onOpenMenu
             )
-            .padding(start = 4.dp + startIndent, end = 4.dp, top = 4.dp, bottom = 4.dp),
+            .padding(start = 4.dp + startIndent, end = 4.dp, top = 2.dp, bottom = 2.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         // Generous 34dp Expand / Collapse Chevron hitbox
@@ -850,20 +912,6 @@ private fun FolderTreeRow(
             )
         }
 
-        // Single spacious 38dp overflow menu button (replaces 4 cramped 22dp buttons!)
-        Box(
-            modifier = Modifier
-                .size(38.dp)
-                .clip(ZeroSmallShape)
-                .clickable(onClick = onOpenMenu),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = Icons.Rounded.MoreHoriz,
-                contentDescription = stringResource(R.string.cd_folder_options),
-                tint = if (isSelected) colors.textPrimary else colors.textMuted,
-                modifier = Modifier.size(18.dp)
-            )
-        }
+        grip()
     }
 }

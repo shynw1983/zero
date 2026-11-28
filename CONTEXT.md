@@ -3,13 +3,13 @@
 > **给 AI 的强制指令**：
 > 1. **禁止全盘扫描项目**。先阅读本文件，仅根据下方列出的“当前涉及文件”按需读取代码。
 > 2. 忽略 `build/`、`app/build/`、`.gradle/`、`.kotlin/`、`.codex-attachments/` 等构建、缓存与附件目录。
-> 3. 修改代码前，先确认是否违反下方的“核心约束”（另见根目录 `AGENTS.md`，两者已同步至 v2.17.0）。
+> 3. 修改代码前，先确认是否违反下方的“核心约束”（另见根目录 `AGENTS.md`，两者已同步至 v2.18.0）。
 
 ---
 
 ## 1. 项目概况与技术栈
 * **项目名称**：ZERO（包名 `com.zero.todo`）
-* **当前发布版本**：`v2.17.0`（`versionCode = 51`）。发布提交使用 `git rev-parse 'v2.17.0^{commit}'` 查询，当前分支 HEAD 使用 `git rev-parse --short HEAD` 查询。
+* **当前发布版本**：`v2.18.0`（`versionCode = 52`）。发布提交使用 `git rev-parse 'v2.18.0^{commit}'` 查询，当前分支 HEAD 使用 `git rev-parse --short HEAD` 查询。
 * **核心定位**：为“强迫症 × 拖延症”打造的原生 Android 双态待办仪器 —— `NOW`（执行：单卡跑道/多执行主题）⇄ `VAULT`（整理库：无限目录树、日历、矩阵、标签、回收站、搜索），外加 30 秒闪电清仓、地点提醒、AI 智能提取/拆解。
 * **技术栈**：Kotlin + Jetpack Compose + Material 3 Adaptive、Hilt、Room（KSP）、Google Maps Compose（ATLAS 主题）、Google Play Services Geofencing、Robolectric 单元测试。`compileSdk = 35`，`minSdk = 26`。
 * **运行/构建命令**（本机默认 PATH 无 java，必须加前缀）：
@@ -18,7 +18,7 @@
     --no-daemon --max-workers=4 -Dorg.gradle.jvmargs="-Xmx4096m -XX:MaxMetaspaceSize=1024m"
   ```
   * 完整构建约 9 分钟；用 `--no-daemon` + 4G 堆可避免 R8 阶段 GC 卡死。
-  * 测试结果汇总：解析 `app/build/test-results/testDebugUnitTest/TEST-*.xml`（v2.17.0 基线：`TESTS=126 ERRORS=0 FAILURES=0 SKIPPED=0`）。
+  * 测试结果汇总：解析 `app/build/test-results/testDebugUnitTest/TEST-*.xml`（v2.18.0 基线：`TESTS=133 ERRORS=0 FAILURES=0 SKIPPED=0`）。
   * Android SDK：`/Users/wushengyin/Library/Android/sdk`。
 
 ## 2. 核心目录与关键文件（无需扫盘，直接定位）
@@ -58,10 +58,14 @@
 * [x] **v2.16.1**：本地导入和 WebDAV 拉取在写入前校验备份结构，兼容 v1–v4；ATLAS 地点任务卡连续按住 300ms 完成一次，提前松手或取消会清零进度。
 * [x] **v2.17.0 修复**：AI 提取和拆解按当前会话处理结果，忽略过期回复；移动标签后刷新围栏注册；本地 JSON 和 WebDAV 上传从同一个 Room 事务读取六张表的快照。
 * [x] **v2.17.0 改进**：筛选结果长按打开项目或主任务；围栏半径最高 3 km；任务负荷增加 2 小时；同级标签手动排序并写入备份；已保存地点显示完整名称和地址；循环任务跳过本次可撤销；顶层任务在子任务后短右滑时自动对齐层级。
+* [x] **v2.18.0**：VAULT 侧栏的文件夹和标签共用拖动手势。拖右侧抓手到行上下边缘可插入对应层级，拖到行中间移为子项，拖到同分区标题移到顶层首位。子树随行移动，折叠目标自动展开，长列表靠边自动滚动。
 
 ## 4. 当前进度与待解决问题
-* **当前进度**：v2.17.0 发布包含三项 P2 修复和七项改进。126 个单元测试通过，Release APK 构建成功，折叠屏真机验收待完成。
+* **当前进度**：v2.18.0 发布侧栏拖动，含长列表边缘滚动后的放置回归测试。全量 133 个测试通过，Release APK 构建成功，折叠屏真机待验收。
 * **当前涉及的核心文件**：
+  * `feature/folder/FolderTreePanel.kt`、`SidebarTreeDrag.kt`、`SidebarTreeDropTargets.kt`（侧栏抓手、预览与落点判定）
+  * `data/repository/FolderRepositoryImpl.kt`、`TagRepositoryImpl.kt`、`data/local/dao/TagDao.kt`（事务内排序与换层级）
+  * 拖动回归测试：`feature/folder/SidebarTreeGestureTest.kt`、`SidebarTreeDropTargetsTest.kt`、`data/repository/FolderRepositoryTest.kt`、`TaskAndTagRepositoryTest.kt`
   * `data/backup/ZeroBackupManager.kt`（事务内读取备份快照、恢复前按版本校验）
   * `feature/main/MainViewModel.kt`、`ZeroAdaptiveShell.kt`、`ZeroAppRoot.kt`（AI 会话与回调绑定）
   * `core/geofence/GeofenceSyncController.kt`（串行刷新围栏注册；移动标签入口在 `MainViewModel.kt`）
@@ -79,6 +83,7 @@
   * `feature/ai/AiAssistantDialogs.kt`（AI 提取/拆解及预编辑）
   * `feature/tasklist/QuickInputCapsule.kt`（快速输入、语音识别回填）
 * **卡点 / 已知问题**：
+  * 文件夹与标签拖动待折叠屏真机验收，重点检查窄侧栏的插入线、目标高亮与靠边滚动。
   * 用户真机为折叠屏（日语系统界面），ATLAS 页需注意快速输入胶囊、Google 水印与任务卡片的遮挡问题（v2.14.2 已修过一次，改动该区域时需回归检查）。
 
 ## 5. 核心约束（绝对不能忘的规矩）
@@ -98,6 +103,7 @@
 
 ## 6. 下一步计划（新对话直接从这里开始）
 1. 在折叠屏真机验收升级与旧数据：检查 v5 → v6 迁移、旧备份恢复及标签排序往返。
+   同时检查直板抽屉和展开双栏的文件夹与标签拖动。
 2. 验收地点进入/离开通知和 AI 弹窗切换，并继续复查 ATLAS 光晕与 AI/语音预编辑。
 3. 发布新版本时按流程：`app/build.gradle.kts` 递增 `versionCode`/`versionName` → 运行测试与 `assembleRelease` → 复制 APK 到 `/tmp/ZERO-v<VER>-release.apk` 并计算 `shasum -a 256` → 推送 `main` → `gh release create v<VER> ... -R shynw1983/zero` → 在 `/tmp/app-hub-push` 更新 `data/apps.json`（`latestVersion`、`updatedAt`、`fileSize`、`fileName`、`downloadUrl`、`sha256`、`downloads[0]`、`releases` 头部插入中文更新说明）→ 推送并验证 HTTP 200。
 4. 验收七项改进，重点检查日语折叠屏上的长按菜单、地点地址换行、2 小时负荷和循环任务撤销。
