@@ -133,6 +133,7 @@ fun TaskListPane(
     onIndentTask: (TaskItem, String) -> Unit,
     onOutdentTask: (TaskItem) -> Unit,
     onSelectTask: (TaskItem) -> Unit,
+    onOpenTaskActions: ((TaskItem) -> Unit)? = null,
     onReorderTask: (task: TaskItem, parentTaskId: String?, beforeTaskId: String?) -> Unit,
     onQuickInputEdit: ((String) -> String) -> Unit,
     onQuickInputSubmit: () -> Unit,
@@ -673,6 +674,7 @@ fun TaskListPane(
                                 onIndent = onIndentTask,
                                 onOutdent = onOutdentTask,
                                 onSelectTask = onSelectTask,
+                                onOpenTaskActions = onOpenTaskActions,
                                 onTagClick = onSelectTag,
                                 modifier = Modifier.animateItem(placementSpec = ZeroMotion.IntOffsetSpring)
                                     .padding(start = taskIndent(row.depth))
@@ -736,6 +738,7 @@ fun TaskListPane(
                             onIndent = onIndentTask,
                             onOutdent = onOutdentTask,
                             onSelectTask = onSelectTask,
+                            onOpenTaskActions = onOpenTaskActions,
                             onTagClick = onSelectTag,
                             reorderEnabled = reorderEnabled,
                             onReorderDragStart = {
@@ -849,6 +852,7 @@ fun TaskListPane(
                                     onIndent = onIndentTask,
                                     onOutdent = onOutdentTask,
                                     onSelectTask = onSelectTask,
+                                    onOpenTaskActions = onOpenTaskActions,
                                     onTagClick = onSelectTag,
                                     modifier = Modifier.animateItem(placementSpec = ZeroMotion.IntOffsetSpring)
                                         .padding(start = taskIndent(row.depth))

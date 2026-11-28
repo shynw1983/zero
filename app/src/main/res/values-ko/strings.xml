@@ -582,4 +582,20 @@
     <string name="atlas_header_title">ATLAS · 3D 지도</string>
     <string name="atlas_toggle_compass_follow">나침반 카메라 추적 전환</string>
     <string name="atlas_hold_short">길게 완료</string>
+    <string name="task_open_project">소속 프로젝트 열기</string>
+    <string name="task_open_main_task">최상위 할 일 열기</string>
+    <string name="task_skip_occurrence">이번 회차 건너뛰기</string>
+    <string name="undo_task_occurrence_skipped">「%1$s」의 이번 회차를 건너뛰었습니다</string>
+    <string name="effort_extended">장시간</string>
+    <string name="effort_duration_5">5분</string>
+    <string name="effort_duration_25">25분</string>
+    <string name="effort_duration_60">1시간</string>
+    <string name="effort_duration_120">2시간</string>
+    <string name="place_actions">장소 작업</string>
+    <string name="place_enable">이 장소 사용</string>
+    <string name="place_disable">이 장소 일시 중지</string>
+    <string name="place_radius_value">반경 %1$s</string>
+    <string name="place_radius_meters">%1$d m</string>
+    <string name="place_radius_kilometers">%1$d km</string>
+    <string name="place_coordinates_display">위도 %1$.5f, 경도 %2$.5f</string>
 </resources>

@@ -17,11 +17,11 @@ import com.zero.todo.data.ai.AiBreakdownDialogState
 import com.zero.todo.data.ai.AiCaptureDialogState
 import com.zero.todo.data.ai.AiCapturedTaskDraft
 import com.zero.todo.data.ai.AiConfig
+import com.zero.todo.data.ai.AiEngine
 import com.zero.todo.data.ai.AiImagePayload
 import com.zero.todo.data.ai.AiSubtaskDraft
 import com.zero.todo.data.ai.AiTestStatus
 import com.zero.todo.data.ai.AiWorkspaceContext
-import com.zero.todo.data.ai.ZeroAiEngine
 import com.zero.todo.data.ai.ZeroAiJsonParser
 import com.zero.todo.data.backup.InvalidBackupException
 import com.zero.todo.data.backup.WebDavConfig
@@ -176,7 +176,7 @@ class MainViewModel @Inject constructor(
     private val userPreferencesRepository: UserPreferencesRepository,
     private val backupManager: ZeroBackupManager,
     private val webDavSyncManager: WebDavSyncManager,
-    private val aiEngine: ZeroAiEngine,
+    private val aiEngine: AiEngine,
     private val reminderScheduler: ReminderScheduler,
     private val geofenceController: GeofenceSyncController,
     private val widgetRefresher: WidgetRefresher,
@@ -255,6 +255,9 @@ class MainViewModel @Inject constructor(
 
     private val _aiBreakdownState = MutableStateFlow(AiBreakdownDialogState())
     val aiBreakdownState = _aiBreakdownState.asStateFlow()
+
+    private var nextAiSessionId = 0L
+    private var captureAnalysisRequestId = 0L
 
     init {
         // Re-sync upcoming task alarms, daily briefings & active geofences on startup
@@ -831,6 +834,26 @@ class MainViewModel @Inject constructor(
         savedStateHandle[KEY_SELECTED_TASK_ID] = taskId
     }
 
+    fun openTaskContext(task: TaskItem, openMainTask: Boolean) {
+        viewModelScope.launch {
+            var target = taskRepository.getTaskById(task.id) ?: return@launch
+            if (openMainTask) {
+                val visited = hashSetOf(target.id)
+                while (true) {
+                    val parentId = target.parentTaskId ?: break
+                    if (!visited.add(parentId)) break
+                    target = taskRepository.getTaskById(parentId) ?: break
+                }
+            }
+            val folder = target.folderId?.let { folderRepository.getFolderById(it) }
+            if (!openMainTask && folder == null) return@launch
+
+            setSearchOpen(false)
+            selectDestination(folder?.let { NavigationDestination.FolderView(it.id) } ?: NavigationDestination.Inbox)
+            selectTask(if (openMainTask) target.id else null)
+        }
+    }
+
     fun toggleIncludeSubfolders() {
         savedStateHandle[KEY_INCLUDE_SUBFOLDERS] = !includeSubfoldersFlow.value
     }
@@ -1047,7 +1070,14 @@ class MainViewModel @Inject constructor(
         viewModelScope.launch {
             if (tagRepository.moveTag(tagId, newParentId)) {
                 widgetRefresher.refreshAll()
+                geofenceController.syncAllGeofences()
             }
+        }
+    }
+
+    fun moveTagInOrder(tagId: String, direction: Int) {
+        viewModelScope.launch {
+            tagRepository.moveTagInOrder(tagId, direction)
         }
     }
 
@@ -1602,6 +1632,23 @@ class MainViewModel @Inject constructor(
         }
     }
 
+    fun skipTaskOccurrence(task: TaskItem) {
+        viewModelScope.launch {
+            val change = taskRepository.skipTaskOccurrence(task, currentDateFlow.value) ?: return@launch
+            change.after.forEach(::syncTaskReminder)
+            focusController.syncFocusedTask(change.after.first())
+            if (focusedRunwayTaskIdFlow.value == task.id) focusedRunwayTaskIdFlow.value = null
+            if (pinnedRunwayTaskIdFlow.value == task.id) pinnedRunwayTaskIdFlow.value = null
+            undoBannerFlow.value = UndoBannerState(
+                taskId = task.id,
+                taskTitle = task.title,
+                undoType = UndoType.RESTORE_TASK_OCCURRENCE,
+                occurrenceChange = change
+            )
+            widgetRefresher.refreshAll()
+        }
+    }
+
     fun deleteTask(task: TaskItem) {
         viewModelScope.launch {
             val deletedIds = taskRepository.softDeleteTask(task.id)
@@ -1670,6 +1717,13 @@ class MainViewModel @Inject constructor(
                 }
                 UndoType.RESTORE_TASK_PLACEMENT -> {
                     banner.placementChange?.let { taskRepository.undoTaskPlacement(it) }
+                }
+                UndoType.RESTORE_TASK_OCCURRENCE -> {
+                    val change = banner.occurrenceChange ?: return@launch
+                    if (taskRepository.undoSkipTaskOccurrence(change)) {
+                        change.before.forEach(::syncTaskReminder)
+                        focusController.syncFocusedTask(change.before.first())
+                    }
                 }
             }
             widgetRefresher.refreshAll()
@@ -1867,7 +1921,7 @@ class MainViewModel @Inject constructor(
     override fun openAiCapture(initialText: String, autoLaunchCamera: Boolean, autoAnalyze: Boolean) {
         val autoVoice = initialText.isBlank() && !autoLaunchCamera && autoAnalyze
         _aiCaptureState.value = AiCaptureDialogState(
-            sessionId = System.nanoTime(),
+            sessionId = ++nextAiSessionId,
             isOpen = true,
             initialText = initialText,
             autoLaunchCamera = autoLaunchCamera,
@@ -1878,7 +1932,7 @@ class MainViewModel @Inject constructor(
 
     fun openAiCaptureFromShare(sharedText: String, sharedImageUri: String?) {
         _aiCaptureState.value = AiCaptureDialogState(
-            sessionId = System.nanoTime(),
+            sessionId = ++nextAiSessionId,
             isOpen = true,
             initialText = sharedText,
             initialImageUri = sharedImageUri,
@@ -1892,13 +1946,17 @@ class MainViewModel @Inject constructor(
     }
 
     fun analyzeAiCapture(
+        sessionId: Long,
         text: String,
         image: AiImagePayload?,
         audio: AiAudioPayload? = null,
         languageTag: String
     ) {
+        val session = _aiCaptureState.value
+        if (!session.isOpen || session.sessionId != sessionId) return
+        val requestId = ++captureAnalysisRequestId
         val cfg = userPreferencesRepository.preferences.value.aiConfig
-        _aiCaptureState.value = _aiCaptureState.value.copy(
+        _aiCaptureState.value = session.copy(
             isAnalyzing = true,
             autoLaunchCamera = false,
             autoStartVoice = false,
@@ -1913,16 +1971,18 @@ class MainViewModel @Inject constructor(
                 audio = audio,
                 context = ctx
             )
+            val current = _aiCaptureState.value
+            if (current.sessionId != sessionId || captureAnalysisRequestId != requestId) return@launch
             _aiCaptureState.value = result.fold(
                 onSuccess = { drafts ->
-                    _aiCaptureState.value.copy(
+                    current.copy(
                         isAnalyzing = false,
                         results = drafts,
                         errorMessage = null
                     )
                 },
                 onFailure = { err ->
-                    _aiCaptureState.value.copy(
+                    current.copy(
                         isAnalyzing = false,
                         errorMessage = err.message ?: "AI analysis failed"
                     )
@@ -1931,9 +1991,10 @@ class MainViewModel @Inject constructor(
         }
     }
 
-    fun applyAiCapturedTasks(drafts: List<AiCapturedTaskDraft>) {
-        if (drafts.isEmpty()) return
-        val sourceInitialText = _aiCaptureState.value.initialText
+    fun applyAiCapturedTasks(sessionId: Long, drafts: List<AiCapturedTaskDraft>) {
+        val session = _aiCaptureState.value
+        if (!session.isOpen || session.sessionId != sessionId || drafts.isEmpty()) return
+        val sourceInitialText = session.initialText
         viewModelScope.launch {
             val zoneId = ZoneId.systemDefault()
             val fallbackDest = NavigationDestination.fromStorageKey(destinationKeyFlow.value)
@@ -2026,58 +2087,69 @@ class MainViewModel @Inject constructor(
                 }
             }
 
-            if (sourceInitialText.isNotBlank() && quickInputTextFlow.value == sourceInitialText) {
-                savedStateHandle[KEY_QUICK_INPUT] = ""
+            if (_aiCaptureState.value.sessionId == sessionId) {
+                if (sourceInitialText.isNotBlank() && quickInputTextFlow.value == sourceInitialText) {
+                    savedStateHandle[KEY_QUICK_INPUT] = ""
+                }
+                closeAiCapture()
             }
-            _aiCaptureState.value = AiCaptureDialogState()
             widgetRefresher.refreshAll()
         }
     }
 
     override fun openAiBreakdown(task: TaskItem, languageTag: String) {
+        val sessionId = ++nextAiSessionId
+        val config = userPreferencesRepository.preferences.value.aiConfig
         _aiBreakdownState.value = AiBreakdownDialogState(
+            sessionId = sessionId,
             task = task,
-            isAnalyzing = userPreferencesRepository.preferences.value.aiConfig.isConfigured
+            isAnalyzing = config.isConfigured
         )
-        if (!userPreferencesRepository.preferences.value.aiConfig.isConfigured) return
-        launchAiBreakdownAnalysis(task, languageTag)
+        if (config.isConfigured) launchAiBreakdownAnalysis(sessionId, task, languageTag, config)
     }
 
-    fun retryAiBreakdown(languageTag: String) {
-        val target = _aiBreakdownState.value.task ?: return
-        _aiBreakdownState.value = AiBreakdownDialogState(task = target, isAnalyzing = true)
-        launchAiBreakdownAnalysis(target, languageTag)
+    fun retryAiBreakdown(sessionId: Long, languageTag: String) {
+        val session = _aiBreakdownState.value
+        if (session.sessionId != sessionId) return
+        val target = session.task ?: return
+        openAiBreakdown(target, languageTag)
     }
 
     fun closeAiBreakdown() {
         _aiBreakdownState.value = AiBreakdownDialogState()
     }
 
-    private fun launchAiBreakdownAnalysis(task: TaskItem, languageTag: String) {
-        val cfg = userPreferencesRepository.preferences.value.aiConfig
+    private fun launchAiBreakdownAnalysis(
+        sessionId: Long,
+        task: TaskItem,
+        languageTag: String,
+        config: AiConfig
+    ) {
         viewModelScope.launch {
             val state = uiState.value
             val folderPath = task.folderId?.let { state.folderFullPathById[it] ?: state.folderNameById[it] }
             val existingTags = task.tags.map { state.tagPathById[it.id] ?: it.name }
             val ctx = buildAiWorkspaceContext(languageTag)
             val result = aiEngine.breakdownTask(
-                config = cfg,
+                config = config,
                 taskTitle = task.title,
                 taskDescription = task.description,
                 existingFolderPath = folderPath,
                 existingTags = existingTags,
                 context = ctx
             )
+            val current = _aiBreakdownState.value
+            if (current.sessionId != sessionId) return@launch
             _aiBreakdownState.value = result.fold(
                 onSuccess = { draft ->
-                    _aiBreakdownState.value.copy(
+                    current.copy(
                         isAnalyzing = false,
                         draft = draft,
                         errorMessage = null
                     )
                 },
                 onFailure = { err ->
-                    _aiBreakdownState.value.copy(
+                    current.copy(
                         isAnalyzing = false,
                         errorMessage = err.message ?: "AI breakdown failed"
                     )
@@ -2087,12 +2159,15 @@ class MainViewModel @Inject constructor(
     }
 
     fun applyAiBreakdown(
+        sessionId: Long,
         task: TaskItem,
         firstStep: String?,
         estimatedMinutes: Int?,
         subtasks: List<AiSubtaskDraft>,
         checklistItems: List<String>
     ) {
+        val session = _aiBreakdownState.value
+        if (session.sessionId != sessionId || session.task?.id != task.id || session.draft == null) return
         viewModelScope.launch {
             val latestParent = taskRepository.getTaskById(task.id) ?: task
             val cleanFirstStep = firstStep?.trim()?.take(36)?.ifBlank { null }
@@ -2143,7 +2218,7 @@ class MainViewModel @Inject constructor(
                 }
             }
 
-            _aiBreakdownState.value = AiBreakdownDialogState()
+            if (_aiBreakdownState.value.sessionId == sessionId) closeAiBreakdown()
             widgetRefresher.refreshAll()
         }
     }

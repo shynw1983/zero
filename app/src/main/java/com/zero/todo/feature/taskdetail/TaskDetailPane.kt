@@ -13,6 +13,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -140,6 +142,7 @@ private fun buildFlattenedSubtasks(rootTaskId: String, descendants: List<TaskIte
     return result
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun TaskDetailPane(
     task: TaskItem?,
@@ -173,6 +176,7 @@ fun TaskDetailPane(
     onUpdatePlaceTriggerOverride: (task: TaskItem, triggerMode: PlaceTriggerMode?) -> Unit = { _, _ -> },
     onSelectTag: (tagId: String) -> Unit,
     onDeleteTask: (TaskItem) -> Unit,
+    onSkipOccurrence: (TaskItem) -> Unit = {},
     onOpenAiBreakdown: (TaskItem) -> Unit = {},
     tagPathById: Map<String, String> = emptyMap(),
     allTags: List<TagItem> = emptyList(),
@@ -439,7 +443,7 @@ fun TaskDetailPane(
                 }
 
                 Box {
-                    IconButton(onClick = { showTaskActions = true }, modifier = Modifier.size(36.dp)) {
+                    IconButton(onClick = { showTaskActions = true }, modifier = Modifier.size(48.dp)) {
                         Icon(
                             imageVector = Icons.Rounded.MoreHoriz,
                             contentDescription = stringResource(R.string.cd_task_actions),
@@ -461,6 +465,15 @@ fun TaskDetailPane(
                                 onClick = {
                                     showTaskActions = false
                                     onPromoteSubtask(task.id)
+                                }
+                            )
+                        }
+                        if (!task.isCompleted && RecurrenceRule.parse(task.recurrenceRule) != null) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.task_skip_occurrence)) },
+                                onClick = {
+                                    showTaskActions = false
+                                    onSkipOccurrence(task)
                                 }
                             )
                         }
@@ -582,10 +595,10 @@ fun TaskDetailPane(
                 }
             }
 
-            // Effort Tier Selector for Day Capacity Ruler (5m / 25m / 1h)
-            Row(
+            // Effort Tier Selector for Day Capacity Ruler (5m / 25m / 1h / 2h)
+            FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically
+                verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 Text(
                     text = stringResource(R.string.detail_effort),
@@ -597,7 +610,7 @@ fun TaskDetailPane(
                     val selected = task.estimatedMinutes == tier.minutes
                     Box(
                         modifier = Modifier
-                            .heightIn(min = 38.dp)
+                            .heightIn(min = 44.dp)
                             .clip(ZeroSmallShape)
                             .background(if (selected) colors.accentSubtle else colors.surface)
                             .hairlineBorder(
@@ -612,7 +625,7 @@ fun TaskDetailPane(
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = "${tier.shortCode} · ${stringResource(tier.labelRes)}",
+                            text = "${stringResource(tier.durationRes)} · ${stringResource(tier.labelRes)}",
                             style = tabular.dateCompact,
                             color = if (selected) colors.accent else colors.textSecondary
                         )
@@ -1038,7 +1051,7 @@ fun TaskDetailPane(
                                 haptics.reorderTick()
                                 applyReminderWithPermission(task, baseTrigger - 24L * 60L * 60_000L)
                             }
-                            val customLabel = if (isCustomSelected && task.reminderAt != null) {
+                            val customLabel = if (isCustomSelected) {
                                 Instant.ofEpochMilli(task.reminderAt)
                                     .atZone(zoneId)
                                     .toLocalTime()

@@ -22,6 +22,7 @@ class TaskListHierarchyTest {
         assertEquals(listOf("1", "2", "3"), nestedRows.map { it.task.id })
         assertEquals(listOf(0, 1, 0), nestedRows.map { it.depth })
         assertNull(nestedRows[1].indentParentId)
+        assertEquals(first.id, nestedRows[2].indentParentId)
         assertEquals(TaskDropSlot("2", "1", 1), taskDropSlot(nestedRows[1]))
         assertEquals(TaskDropSlot("3", null, 0), taskDropSlot(nestedRows[2]))
     }

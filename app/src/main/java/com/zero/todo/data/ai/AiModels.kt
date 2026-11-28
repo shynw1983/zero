@@ -124,6 +124,7 @@ data class AiCaptureDialogState(
 )
 
 data class AiBreakdownDialogState(
+    val sessionId: Long = 0L,
     val task: TaskItem? = null,
     val isAnalyzing: Boolean = false,
     val draft: AiBreakdownDraft? = null,

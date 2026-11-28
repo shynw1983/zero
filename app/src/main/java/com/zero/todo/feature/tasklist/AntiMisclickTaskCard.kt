@@ -7,7 +7,9 @@ import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.awaitHorizontalTouchSlopOrCancellation
@@ -105,6 +107,7 @@ private const val SWIPE_POST_THRESHOLD_DAMPING = 0.35f
  * - Configurable swipe actions: Left or right drag >= 30% width with spring resistance
  *   and crisp haptic snap
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun AntiMisclickTaskCard(
     task: TaskItem,
@@ -123,6 +126,7 @@ fun AntiMisclickTaskCard(
     onIndent: (TaskItem, String) -> Unit = { _, _ -> },
     onOutdent: ((TaskItem) -> Unit)? = null,
     onSelectTask: (TaskItem) -> Unit,
+    onOpenTaskActions: ((TaskItem) -> Unit)? = null,
     onTagClick: ((tagId: String) -> Unit)? = null,
     reorderEnabled: Boolean = false,
     onReorderDragStart: () -> Unit = {},
@@ -422,7 +426,23 @@ fun AntiMisclickTaskCard(
                             reorderCancel()
                         }
                     } else Modifier)
-                    .clickable(enabled = !isListScrolling) { if (!reorderInProgress) onSelectTask(task) }
+                    .then(
+                        if (onOpenTaskActions != null && !reorderEnabled) {
+                            Modifier.combinedClickable(
+                                enabled = !isListScrolling,
+                                onClick = { onSelectTask(task) },
+                                onLongClickLabel = stringResource(R.string.cd_task_actions),
+                                onLongClick = {
+                                    haptics.reorderTick()
+                                    onOpenTaskActions(task)
+                                }
+                            )
+                        } else {
+                            Modifier.clickable(enabled = !isListScrolling) {
+                                if (!reorderInProgress) onSelectTask(task)
+                            }
+                        }
+                    )
                     .padding(vertical = 12.dp, horizontal = 4.dp),
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {

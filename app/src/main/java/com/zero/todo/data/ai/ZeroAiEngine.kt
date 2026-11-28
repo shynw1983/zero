@@ -43,7 +43,8 @@ object ZeroAiJsonParser {
         return when {
             value <= 10 -> 5
             value <= 40 -> 25
-            else -> 60
+            value <= 90 -> 60
+            else -> 120
         }
     }
 
@@ -484,7 +485,7 @@ $header
       "tags": ["existing tag path (exact spelling) or concise scene tag without # in target UI language"],
       "dueDate": "YYYY-MM-DD" or "YYYY-MM-DD HH:mm", or JSON null if no date is mentioned,
       "priority": 1|2|3|4 (1=urgent, 2=high, 3=medium, 4=lowest/normal; default to 4 when urgency is unknown),
-      "estimatedMinutes": 5|25|60|null,
+      "estimatedMinutes": 5|25|60|120|null,
       "firstStep": "JSON null for simple/obvious/physical tasks (or when subtasks non-empty); ONLY populate a <=20 char starter action when a standalone leaf task is complex, ambiguous, or procrastination-prone",
       "description": "ONLY extra reference details NOT already stated in the title (sender, location, amount, IDs); empty string \"\" if none—NEVER restate or paraphrase the title",
       "checklistItems": [
@@ -495,7 +496,7 @@ $header
           "title": "short predecessor step requiring a DIFFERENT location/time/prep in target UI language (NOT repeating main final action)",
           "tags": ["scene tag if distinct"],
           "dueDate": null or "YYYY-MM-DD",
-          "estimatedMinutes": 5|25|60|null
+          "estimatedMinutes": 5|25|60|120|null
         }
       ]
     }
@@ -532,12 +533,12 @@ ${buildLanguageStyleDirective(context.languageTag)}$customSection
 $header
 {
   "firstStep": "one ultra-tiny <=20 char physical starter action in target UI language",
-  "estimatedMinutes": 5|25|60,
+  "estimatedMinutes": 5|25|60|120,
   "subtasks": [
     {
       "title": "predecessor step needing a DIFFERENT location, person, or prep BEFORE finishing main task, in target UI language",
       "tags": ["matching existing tag path (exact spelling) or short scene tag without #"],
-      "estimatedMinutes": 5|25|60
+      "estimatedMinutes": 5|25|60|120
     }
   ],
   "checklistItems": [
@@ -593,10 +594,31 @@ ${buildLanguageStyleDirective(context.languageTag)}$customSection
     }
 }
 
-@Singleton
-class ZeroAiEngine @Inject constructor() {
+interface AiEngine {
+    suspend fun testConnection(config: AiConfig): Result<String>
 
-    suspend fun testConnection(config: AiConfig): Result<String> = withContext(Dispatchers.IO) {
+    suspend fun captureTasks(
+        config: AiConfig,
+        rawText: String,
+        image: AiImagePayload?,
+        audio: AiAudioPayload? = null,
+        context: AiWorkspaceContext
+    ): Result<List<AiCapturedTaskDraft>>
+
+    suspend fun breakdownTask(
+        config: AiConfig,
+        taskTitle: String,
+        taskDescription: String,
+        existingFolderPath: String?,
+        existingTags: List<String>,
+        context: AiWorkspaceContext
+    ): Result<AiBreakdownDraft>
+}
+
+@Singleton
+class ZeroAiEngine @Inject constructor() : AiEngine {
+
+    override suspend fun testConnection(config: AiConfig): Result<String> = withContext(Dispatchers.IO) {
         runCatching {
             require(config.isConfigured) { "API key is empty" }
             val text = executePrompt(
@@ -611,11 +633,11 @@ class ZeroAiEngine @Inject constructor() {
         }
     }
 
-    suspend fun captureTasks(
+    override suspend fun captureTasks(
         config: AiConfig,
         rawText: String,
         image: AiImagePayload?,
-        audio: AiAudioPayload? = null,
+        audio: AiAudioPayload?,
         context: AiWorkspaceContext
     ): Result<List<AiCapturedTaskDraft>> = withContext(Dispatchers.IO) {
         runCatching {
@@ -658,7 +680,7 @@ class ZeroAiEngine @Inject constructor() {
         }
     }
 
-    suspend fun breakdownTask(
+    override suspend fun breakdownTask(
         config: AiConfig,
         taskTitle: String,
         taskDescription: String,

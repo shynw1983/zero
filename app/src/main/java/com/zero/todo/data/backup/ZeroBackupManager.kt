@@ -14,6 +14,7 @@ import com.zero.todo.data.local.entity.TagEntity
 import com.zero.todo.data.local.entity.TagPlaceEntity
 import com.zero.todo.data.local.entity.TaskEntity
 import com.zero.todo.data.local.entity.TaskTagCrossRef
+import com.zero.todo.domain.model.TagPlace
 import org.json.JSONArray
 import org.json.JSONException
 import org.json.JSONObject
@@ -32,11 +33,20 @@ data class BackupSummary(
 
 internal class InvalidBackupException(cause: JSONException? = null) : IllegalArgumentException(cause)
 
+private data class BackupSnapshot(
+    val folders: List<FolderEntity>,
+    val tasks: List<TaskEntity>,
+    val tags: List<TagEntity>,
+    val tagPlaces: List<TagPlaceEntity>,
+    val crossRefs: List<TaskTagCrossRef>,
+    val sessions: List<FocusSessionEntity>
+)
+
 /**
  * Local-first full backup & export manager for ZERO.
  * - Uses zero-reflection `org.json` serialization (100% R8/ProGuard safe).
- * - Exports & restores all 5 Room tables losslessly inside a single atomic transaction
- *   with topological parent-before-child ordering to satisfy SQLite foreign keys.
+ * - Reads all six Room tables in one transaction before serializing the backup.
+ * - Restores in one transaction with parents inserted before children.
  * - Exports active folders & nested tasks/subtasks into clean hierarchical Markdown.
  */
 @Singleton
@@ -62,38 +72,41 @@ class ZeroBackupManager @Inject constructor(
     }
 
     /**
-     * Exports the complete local database (folders, tasks, tags, cross-refs, focus sessions)
-     * as a versioned pretty-printed JSON backup.
+     * Exports a consistent snapshot of the complete local database as versioned JSON.
      */
     suspend fun exportJson(): String {
-        val folders = folderDao.getAllFoldersSnapshot()
-        val tasks = taskDao.getAllTasksSnapshot()
-        val tags = tagDao.getAllTagsSnapshot()
-        val tagPlaces = tagDao.getAllTagPlacesSnapshot()
-        val crossRefs = tagDao.getAllCrossRefsSnapshot()
-        val sessions = focusSessionDao.getAllSessionsSnapshot()
+        val snapshot = database.withTransaction {
+            BackupSnapshot(
+                folders = folderDao.getAllFoldersSnapshot(),
+                tasks = taskDao.getAllTasksSnapshot(),
+                tags = tagDao.getAllTagsSnapshot(),
+                tagPlaces = tagDao.getAllTagPlacesSnapshot(),
+                crossRefs = tagDao.getAllCrossRefsSnapshot(),
+                sessions = focusSessionDao.getAllSessionsSnapshot()
+            )
+        }
 
         val root = JSONObject().apply {
             put("app", "ZERO")
             put("schemaVersion", CURRENT_SCHEMA_VERSION)
             put("exportedAt", System.currentTimeMillis())
             put("folders", JSONArray().apply {
-                folders.forEach { put(it.toJson()) }
+                snapshot.folders.forEach { put(it.toJson()) }
             })
             put("tasks", JSONArray().apply {
-                tasks.forEach { put(it.toJson()) }
+                snapshot.tasks.forEach { put(it.toJson()) }
             })
             put("tags", JSONArray().apply {
-                tags.forEach { put(it.toJson()) }
+                snapshot.tags.forEach { put(it.toJson()) }
             })
             put("tagPlaces", JSONArray().apply {
-                tagPlaces.forEach { put(it.toJson()) }
+                snapshot.tagPlaces.forEach { put(it.toJson()) }
             })
             put("taskTagCrossRefs", JSONArray().apply {
-                crossRefs.forEach { put(it.toJson()) }
+                snapshot.crossRefs.forEach { put(it.toJson()) }
             })
             put("focusSessions", JSONArray().apply {
-                sessions.forEach { put(it.toJson()) }
+                snapshot.sessions.forEach { put(it.toJson()) }
             })
         }
         return root.toString(2)
@@ -454,6 +467,7 @@ class ZeroBackupManager @Inject constructor(
         put("isExpanded", isExpanded)
         put("isPlaceTag", isPlaceTag)
         put("placeTriggerMode", placeTriggerMode)
+        put("sortOrder", sortOrder ?: JSONObject.NULL)
         put("createdAt", createdAt)
         put("updatedAt", updatedAt)
         put("isDeleted", isDeleted)
@@ -467,6 +481,7 @@ class ZeroBackupManager @Inject constructor(
         isExpanded = optBoolean("isExpanded", true),
         isPlaceTag = optBoolean("isPlaceTag", false),
         placeTriggerMode = optNullableString("placeTriggerMode") ?: "ENTER",
+        sortOrder = optNullableInt("sortOrder"),
         createdAt = optLong("createdAt", System.currentTimeMillis()),
         updatedAt = optLong("updatedAt", System.currentTimeMillis()),
         isDeleted = optBoolean("isDeleted", false)
@@ -492,7 +507,7 @@ class ZeroBackupManager @Inject constructor(
         address = optString("address", ""),
         latitude = getDouble("latitude"),
         longitude = getDouble("longitude"),
-        radiusMeters = optInt("radiusMeters", 150),
+        radiusMeters = optInt("radiusMeters", 150).coerceIn(TagPlace.MIN_RADIUS_METERS, TagPlace.MAX_RADIUS_METERS),
         isEnabled = optBoolean("isEnabled", true),
         createdAt = optLong("createdAt", System.currentTimeMillis()),
         updatedAt = optLong("updatedAt", System.currentTimeMillis())
@@ -543,6 +558,6 @@ class ZeroBackupManager @Inject constructor(
         if (isNull(key) || !has(key)) null else optInt(key)
 
     companion object {
-        const val CURRENT_SCHEMA_VERSION = 4
+        const val CURRENT_SCHEMA_VERSION = 5
     }
 }

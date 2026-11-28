@@ -8,6 +8,8 @@ import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -31,6 +33,7 @@ import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.LocationOn
+import androidx.compose.material.icons.rounded.MoreHoriz
 import androidx.compose.material.icons.rounded.MyLocation
 import androidx.compose.material.icons.rounded.NotificationsActive
 import androidx.compose.material.icons.rounded.Search
@@ -38,6 +41,8 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
@@ -85,7 +90,7 @@ import com.zero.todo.domain.model.TagItem
 import com.zero.todo.domain.model.TagPlace
 import kotlinx.coroutines.launch
 
-private val RADIUS_PRESETS = listOf(100, 150, 300, 500)
+private val RADIUS_PRESETS = listOf(100, 150, 300, 500, 1_000, 2_000, TagPlace.MAX_RADIUS_METERS)
 
 private sealed interface PlaceEditorTarget {
     data class Existing(val place: TagPlace) : PlaceEditorTarget
@@ -616,7 +621,7 @@ fun TagPlaceConfigDialog(
                                     .padding(horizontal = 10.dp, vertical = 9.dp)
                             ) {
                                 Text(
-                                    text = "${stringResource(R.string.place_radius_label)} ${selectedRadius}m",
+                                    text = stringResource(R.string.place_radius_value, radiusLabel(selectedRadius)),
                                     style = MaterialTheme.typography.labelMedium,
                                     color = colors.accent
                                 )
@@ -890,6 +895,7 @@ private fun PlaceNameEditorDialog(
                 .clip(ZeroCardShape)
                 .background(colors.surfaceElevated)
                 .hairlineBorder(shape = ZeroCardShape)
+                .verticalScroll(rememberScrollState())
                 .padding(18.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
@@ -952,31 +958,34 @@ private fun PlaceNameEditorDialog(
                 )
             }
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                RADIUS_PRESETS.forEach { preset ->
-                    val selected = radiusMeters == preset
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .clip(ZeroSmallShape)
-                            .background(if (selected) colors.accentSubtle else colors.surface)
-                            .hairlineBorder(
-                                shape = ZeroSmallShape,
-                                color = if (selected) colors.accent else colors.hairlineBorder
+            RADIUS_PRESETS.chunked(4).forEach { presets ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    presets.forEach { preset ->
+                        val selected = radiusMeters == preset
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .heightIn(min = 44.dp)
+                                .clip(ZeroSmallShape)
+                                .background(if (selected) colors.accentSubtle else colors.surface)
+                                .hairlineBorder(
+                                    shape = ZeroSmallShape,
+                                    color = if (selected) colors.accent else colors.hairlineBorder
+                                )
+                                .clickable { radiusMeters = preset }
+                                .padding(vertical = 7.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = radiusLabel(preset),
+                                style = MaterialTheme.typography.labelMedium,
+                                color = if (selected) colors.accent else colors.textSecondary
                             )
-                            .clickable { radiusMeters = preset }
-                            .padding(vertical = 7.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "${preset}m",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = if (selected) colors.accent else colors.textSecondary
-                        )
+                        }
                     }
                 }
             }
@@ -1033,7 +1042,8 @@ private fun SavedPlaceRow(
     onDelete: () -> Unit
 ) {
     val colors = ZeroTheme.colors
-    Row(
+    var menuOpen by remember(place.id) { mutableStateOf(false) }
+    Column(
         modifier = Modifier
             .fillMaxWidth()
             .clip(ZeroSmallShape)
@@ -1042,84 +1052,110 @@ private fun SavedPlaceRow(
                 shape = ZeroSmallShape,
                 color = if (place.isEnabled) colors.accent.copy(alpha = 0.4f) else colors.hairlineBorder
             )
-            .clickable(onClick = onToggleEnabled)
-            .padding(horizontal = 10.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
-        Icon(
-            imageVector = Icons.Rounded.LocationOn,
-            contentDescription = null,
-            tint = if (place.isEnabled) colors.accent else colors.textMuted,
-            modifier = Modifier.size(17.dp)
-        )
-        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
+        Row(
+            verticalAlignment = Alignment.Top,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.LocationOn,
+                contentDescription = null,
+                tint = if (place.isEnabled) colors.accent else colors.textMuted,
+                modifier = Modifier.size(17.dp)
+            )
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(
                     text = place.label,
                     style = MaterialTheme.typography.bodyMedium,
-                    color = if (place.isEnabled) colors.textPrimary else colors.textMuted,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    color = if (place.isEnabled) colors.textPrimary else colors.textMuted
                 )
-                if (!place.isEnabled) {
-                    Text(
-                        text = stringResource(R.string.place_disabled_badge),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = colors.textMuted
+                Text(
+                    text = place.address.ifBlank {
+                        stringResource(
+                            R.string.place_coordinates_display,
+                            place.latitude,
+                            place.longitude
+                        )
+                    },
+                    style = MaterialTheme.typography.labelSmall,
+                    color = colors.textSecondary
+                )
+            }
+        }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                modifier = Modifier
+                    .heightIn(min = 44.dp)
+                    .clip(ZeroSmallShape)
+                    .clickable(onClick = onCycleRadius)
+                    .padding(horizontal = 8.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = stringResource(R.string.place_radius_value, radiusLabel(place.radiusMeters)),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = colors.textSecondary
+                )
+            }
+            if (!place.isEnabled) {
+                Text(
+                    text = stringResource(R.string.place_disabled_badge),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = colors.textMuted
+                )
+            }
+            Spacer(Modifier.weight(1f))
+            Box {
+                IconButton(onClick = { menuOpen = true }, modifier = Modifier.size(48.dp)) {
+                    Icon(
+                        imageVector = Icons.Rounded.MoreHoriz,
+                        contentDescription = stringResource(R.string.place_actions),
+                        tint = colors.textSecondary
+                    )
+                }
+                DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.place_edit_action)) },
+                        onClick = {
+                            menuOpen = false
+                            onEdit()
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = {
+                            Text(stringResource(if (place.isEnabled) R.string.place_disable else R.string.place_enable))
+                        },
+                        onClick = {
+                            menuOpen = false
+                            onToggleEnabled()
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.place_test_alert)) },
+                        onClick = {
+                            menuOpen = false
+                            onTestAlert()
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.action_delete), color = colors.priorityUrgent) },
+                        onClick = {
+                            menuOpen = false
+                            onDelete()
+                        }
                     )
                 }
             }
-            if (place.address.isNotBlank()) {
-                Text(
-                    text = place.address,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = colors.textMuted,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-        }
-        Box(
-            modifier = Modifier
-                .clip(ZeroSmallShape)
-                .background(colors.background)
-                .hairlineBorder(shape = ZeroSmallShape)
-                .clickable(onClick = onCycleRadius)
-                .padding(horizontal = 7.dp, vertical = 4.dp)
-        ) {
-            Text(
-                text = "${place.radiusMeters}m",
-                style = MaterialTheme.typography.labelSmall,
-                color = colors.textSecondary
-            )
-        }
-        IconButton(onClick = onEdit, modifier = Modifier.size(32.dp)) {
-            Icon(
-                imageVector = Icons.Rounded.Edit,
-                contentDescription = stringResource(R.string.place_edit_action),
-                tint = colors.textSecondary,
-                modifier = Modifier.size(16.dp)
-            )
-        }
-        IconButton(onClick = onTestAlert, modifier = Modifier.size(32.dp)) {
-            Icon(
-                imageVector = Icons.Rounded.NotificationsActive,
-                contentDescription = stringResource(R.string.place_test_alert),
-                tint = colors.accent,
-                modifier = Modifier.size(16.dp)
-            )
-        }
-        IconButton(onClick = onDelete, modifier = Modifier.size(32.dp)) {
-            Icon(
-                imageVector = Icons.Rounded.DeleteOutline,
-                contentDescription = stringResource(R.string.action_delete),
-                tint = colors.priorityUrgent,
-                modifier = Modifier.size(16.dp)
-            )
         }
     }
 }
+
+@Composable
+private fun radiusLabel(meters: Int): String =
+    if (meters >= 1_000 && meters % 1_000 == 0) {
+        stringResource(R.string.place_radius_kilometers, meters / 1_000)
+    } else {
+        stringResource(R.string.place_radius_meters, meters)
+    }

@@ -23,12 +23,13 @@ enum class WorkspaceMode(@StringRes val labelRes: Int) {
  */
 enum class EffortTier(
     val minutes: Int,
-    val shortCode: String,
+    @StringRes val durationRes: Int,
     @StringRes val labelRes: Int
 ) {
-    MICRO(5, "5m", R.string.effort_micro),
-    MEDIUM(25, "25m", R.string.effort_medium),
-    HEAVY(60, "1h", R.string.effort_heavy);
+    MICRO(5, R.string.effort_duration_5, R.string.effort_micro),
+    MEDIUM(25, R.string.effort_duration_25, R.string.effort_medium),
+    HEAVY(60, R.string.effort_duration_60, R.string.effort_heavy),
+    EXTENDED(120, R.string.effort_duration_120, R.string.effort_extended);
 
     companion object {
         const val DEFAULT_UNSET_MINUTES = 15

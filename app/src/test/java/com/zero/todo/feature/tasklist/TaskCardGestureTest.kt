@@ -173,7 +173,22 @@ class TaskCardGestureTest {
         }
     }
 
-    private fun withCard(check: (ComposeView, GestureEvents) -> Unit) {
+    @Test
+    fun `a long press on a filtered card opens its actions without completing it`() {
+        withCard(reorderEnabled = false) { view, events ->
+            val x = view.width / 2f
+            val downTime = SystemClock.uptimeMillis()
+            view.touch(downTime, MotionEvent.ACTION_DOWN, x, 106f)
+            advance(650)
+            view.touch(downTime, MotionEvent.ACTION_UP, x, 106f)
+            assertEquals(1, events.actionMenus)
+            assertEquals(0, events.opens)
+            assertEquals(0, events.swipes)
+            assertEquals(0, events.starts)
+        }
+    }
+
+    private fun withCard(reorderEnabled: Boolean = true, check: (ComposeView, GestureEvents) -> Unit) {
         val events = GestureEvents()
         val task = TaskItem(id = "task", title = "Task")
         var dragging by mutableStateOf(false)
@@ -191,7 +206,8 @@ class TaskCardGestureTest {
                     onToggleComplete = { events.swipes++ },
                     onDeleteTask = { events.swipes++ },
                     onSelectTask = { events.opens++ },
-                    reorderEnabled = true,
+                    onOpenTaskActions = { events.actionMenus++ },
+                    reorderEnabled = reorderEnabled,
                     onReorderDragStart = {
                         events.starts++
                         dragging = true
@@ -261,6 +277,7 @@ class TaskCardGestureTest {
         var cancels = 0
         var draggedDistance = 0f
         var opens = 0
+        var actionMenus = 0
         var swipes = 0
     }
 }

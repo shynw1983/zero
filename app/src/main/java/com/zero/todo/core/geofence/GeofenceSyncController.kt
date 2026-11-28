@@ -23,6 +23,8 @@ import com.zero.todo.domain.model.TagPlace
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -123,6 +125,8 @@ class AndroidGeofenceSyncController @Inject constructor(
     private val tagDao: TagDao
 ) : GeofenceSyncController {
 
+    private val registrationLock = Mutex()
+
     private val prefs by lazy {
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
     }
@@ -144,8 +148,12 @@ class AndroidGeofenceSyncController @Inject constructor(
         return GeofencePermissionState.GRANTED_BACKGROUND
     }
 
+    override suspend fun syncAllGeofences(): Int = registrationLock.withLock {
+        refreshGeofenceRegistrations()
+    }
+
     @SuppressLint("MissingPermission")
-    override suspend fun syncAllGeofences(): Int = withContext(Dispatchers.IO) {
+    private suspend fun refreshGeofenceRegistrations(): Int = withContext(Dispatchers.IO) {
         val hasFine = ContextCompat.checkSelfPermission(
             context,
             Manifest.permission.ACCESS_FINE_LOCATION
@@ -197,7 +205,7 @@ class AndroidGeofenceSyncController @Inject constructor(
                     .setCircularRegion(
                         place.latitude,
                         place.longitude,
-                        place.radiusMeters.coerceIn(50, 2_000).toFloat()
+                        place.radiusMeters.coerceIn(TagPlace.MIN_RADIUS_METERS, TagPlace.MAX_RADIUS_METERS).toFloat()
                     )
                     .setExpirationDuration(Geofence.NEVER_EXPIRE)
                     .setTransitionTypes(transitionMask)
@@ -231,7 +239,7 @@ class AndroidGeofenceSyncController @Inject constructor(
                 lm.addProximityAlert(
                     place.latitude,
                     place.longitude,
-                    place.radiusMeters.coerceIn(50, 2_000).toFloat(),
+                    place.radiusMeters.coerceIn(TagPlace.MIN_RADIUS_METERS, TagPlace.MAX_RADIUS_METERS).toFloat(),
                     -1L,
                     pi
                 )

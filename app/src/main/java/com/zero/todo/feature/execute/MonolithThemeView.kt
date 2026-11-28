@@ -151,13 +151,13 @@ fun MonolithThemeView(
     val effortScale = when (activeTask?.estimatedMinutes) {
         EffortTier.MICRO.minutes -> 0.82f
         EffortTier.MEDIUM.minutes -> 1.04f
-        EffortTier.HEAVY.minutes -> 1.24f
+        EffortTier.HEAVY.minutes, EffortTier.EXTENDED.minutes -> 1.24f
         else -> 0.94f
     }
     val effortAlphaBoost = when (activeTask?.estimatedMinutes) {
         EffortTier.MICRO.minutes -> 0.16f
         EffortTier.MEDIUM.minutes -> 0.24f
-        EffortTier.HEAVY.minutes -> 0.34f
+        EffortTier.HEAVY.minutes, EffortTier.EXTENDED.minutes -> 0.34f
         else -> 0.20f
     }
     val flowBoost by animateFloatAsState(
@@ -784,7 +784,7 @@ private fun MonolithTaskActionSheet(
                 }
             }
 
-            // 5m / 25m / 1h Weight Adjustment
+            // 5m / 25m / 1h / 2h Weight Adjustment
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -808,8 +808,9 @@ private fun MonolithTaskActionSheet(
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = "${tier.shortCode} · ${stringResource(tier.labelRes)}",
+                            text = "${stringResource(tier.durationRes)} · ${stringResource(tier.labelRes)}",
                             style = tabular.dateCompact,
+                            textAlign = TextAlign.Center,
                             color = if (selected) SignalOrange else colors.textSecondary
                         )
                     }

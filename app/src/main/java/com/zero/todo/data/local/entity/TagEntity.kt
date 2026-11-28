@@ -19,5 +19,6 @@ data class TagEntity(
     val placeTriggerMode: String = "ENTER",
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis(),
-    val isDeleted: Boolean = false
+    val isDeleted: Boolean = false,
+    val sortOrder: Int? = null
 )

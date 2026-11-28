@@ -52,7 +52,8 @@ fun TagEntity.toDomain(places: List<TagPlace> = emptyList()): TagItem = TagItem(
     places = places,
     createdAt = createdAt,
     updatedAt = updatedAt,
-    isDeleted = isDeleted
+    isDeleted = isDeleted,
+    sortOrder = sortOrder
 )
 
 fun TagPlaceEntity.toDomain(): TagPlace = TagPlace(

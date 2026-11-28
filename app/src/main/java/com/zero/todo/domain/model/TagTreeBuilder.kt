@@ -13,6 +13,8 @@ data class TagNode(
 
 object TagTreeBuilder {
 
+    val siblingOrder = compareBy<TagItem>({ it.sortOrder ?: Int.MAX_VALUE }, { it.name.lowercase() }, { it.id })
+
     /**
      * Parses raw tag input such as `"#外出/便利店"` or `"客户/张三"` into clean path segments.
      */
@@ -24,7 +26,7 @@ object TagTreeBuilder {
             .filter { it.isNotEmpty() }
 
     /**
-     * Builds an alphabetical tree of active tags with aggregated descendant task counts and full paths.
+     * Builds the active tag tree with manual sibling order and alphabetical fallback.
      * Any tag whose parent is missing or deleted is safely promoted to root level.
      */
     fun buildTree(items: List<TagWithCount>): List<TagNode> {
@@ -41,7 +43,7 @@ object TagTreeBuilder {
                 val pid = tag.parentId
                 if (pid != null && pid != tag.id && pid in activeById) pid else null
             }
-            .mapValues { (_, list) -> list.sortedBy { it.name.lowercase() } }
+            .mapValues { (_, list) -> list.sortedWith(siblingOrder) }
 
         val visited = mutableSetOf<String>()
 

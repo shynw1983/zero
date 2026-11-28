@@ -7,6 +7,8 @@ import com.zero.todo.domain.model.TaskPriority
 import kotlinx.coroutines.flow.Flow
 import java.time.LocalDate
 
+data class TaskOccurrenceChange(val before: List<TaskItem>, val after: List<TaskItem>)
+
 interface TaskRepository {
     fun observeInboxTasks(): Flow<List<TaskItem>>
     fun observeTasksByFolder(folderId: String, includeSubfolders: Boolean = false): Flow<List<TaskItem>>
@@ -41,6 +43,8 @@ interface TaskRepository {
     suspend fun updateTask(taskId: String, edit: (TaskItem) -> TaskItem): TaskItem?
     suspend fun setTaskCompleted(taskId: String, isCompleted: Boolean)
     suspend fun completeTask(taskId: String, today: LocalDate = LocalDate.now()): List<TaskItem>?
+    suspend fun skipTaskOccurrence(expected: TaskItem, today: LocalDate): TaskOccurrenceChange?
+    suspend fun undoSkipTaskOccurrence(change: TaskOccurrenceChange): Boolean
 
     suspend fun reorderTask(
         taskId: String,

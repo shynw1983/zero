@@ -216,6 +216,49 @@ class TaskRepositoryImpl @Inject constructor(
             }
         }
 
+    override suspend fun skipTaskOccurrence(expected: TaskItem, today: LocalDate): TaskOccurrenceChange? =
+        database.withTransaction {
+            val taskId = expected.id
+            val task = taskDao.getTaskById(taskId)?.toDomain() ?: return@withTransaction null
+            if (task.isCompleted || task.dueDate != expected.dueDate) return@withTransaction null
+            val rule = RecurrenceRule.parse(task.recurrenceRule) ?: return@withTransaction null
+            val zone = ZoneId.systemDefault()
+            val todayStart = ZeroDateFormatter.startOfDayMillis(today, zone)
+            val anchor = task.dueDate ?: task.reminderAt ?: todayStart
+            var nextDue = rule.nextOccurrenceMillis(anchor, zone)
+            while (nextDue < todayStart) {
+                nextDue = rule.nextOccurrenceMillis(nextDue, zone)
+            }
+            val oldDate = Instant.ofEpochMilli(anchor).atZone(zone).toLocalDate()
+            val newDate = Instant.ofEpochMilli(nextDue).atZone(zone).toLocalDate()
+            val days = ChronoUnit.DAYS.between(oldDate, newDate)
+            fun shift(millis: Long?): Long? =
+                millis?.let { Instant.ofEpochMilli(it).atZone(zone).plusDays(days).toInstant().toEpochMilli() }
+
+            val before = listOf(task) + getDescendantSubtasksSnapshot(taskId)
+            val now = System.currentTimeMillis()
+            val after = before.map { current ->
+                current.copy(
+                    dueDate = if (current.id == taskId) nextDue else shift(current.dueDate),
+                    reminderAt = shift(current.reminderAt),
+                    isCompleted = false,
+                    completedAt = null,
+                    firstStepCompleted = false,
+                    updatedAt = now
+                )
+            }
+            after.forEach { taskDao.updateTask(it.toEntity()) }
+            TaskOccurrenceChange(before, after)
+        }
+
+    override suspend fun undoSkipTaskOccurrence(change: TaskOccurrenceChange): Boolean =
+        database.withTransaction {
+            if (change.after.any { taskDao.getTaskById(it.id) != it.toEntity() }) return@withTransaction false
+            val now = System.currentTimeMillis()
+            change.before.forEach { taskDao.updateTask(it.copy(updatedAt = now).toEntity()) }
+            true
+        }
+
     override suspend fun reorderTask(
         taskId: String,
         targetFolderId: String?,

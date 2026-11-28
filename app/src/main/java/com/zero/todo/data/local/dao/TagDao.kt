@@ -11,6 +11,8 @@ import com.zero.todo.data.local.entity.TagPlaceEntity
 import com.zero.todo.data.local.entity.TaskEntity
 import com.zero.todo.data.local.entity.TaskTagCrossRef
 import com.zero.todo.data.local.entity.TaskWithTags
+import com.zero.todo.data.repository.toDomain
+import com.zero.todo.domain.model.TagTreeBuilder
 import kotlinx.coroutines.flow.Flow
 
 data class TagWithTaskCountRow(
@@ -81,8 +83,30 @@ interface TagDao {
     @Query("UPDATE tags SET isExpanded = :isExpanded, updatedAt = :updatedAt WHERE id = :tagId AND isDeleted = 0")
     suspend fun updateTagExpanded(tagId: String, isExpanded: Boolean, updatedAt: Long)
 
-    @Query("UPDATE tags SET parentId = :newParentId, updatedAt = :updatedAt WHERE id = :tagId AND isDeleted = 0")
+    @Query("UPDATE tags SET parentId = :newParentId, sortOrder = NULL, updatedAt = :updatedAt WHERE id = :tagId AND isDeleted = 0 AND parentId IS NOT :newParentId")
     suspend fun moveTag(tagId: String, newParentId: String?, updatedAt: Long)
+
+    @Query("UPDATE tags SET sortOrder = :sortOrder, updatedAt = :updatedAt WHERE id = :tagId AND isDeleted = 0")
+    suspend fun updateTagSortOrder(tagId: String, sortOrder: Int, updatedAt: Long)
+
+    @Transaction
+    suspend fun moveTagInOrder(tagId: String, direction: Int, updatedAt: Long) {
+        if (direction != -1 && direction != 1) return
+        val tags = getActiveTagsSnapshot()
+        val tag = tags.firstOrNull { it.id == tagId } ?: return
+        val siblings = tags.asSequence()
+            .filter { it.parentId == tag.parentId }
+            .map { it.toDomain() }
+            .sortedWith(TagTreeBuilder.siblingOrder)
+            .toMutableList()
+        val index = siblings.indexOfFirst { it.id == tagId }
+        val target = index + direction
+        if (target !in siblings.indices) return
+        java.util.Collections.swap(siblings, index, target)
+        siblings.forEachIndexed { order, sibling ->
+            if (sibling.sortOrder != order) updateTagSortOrder(sibling.id, order, updatedAt)
+        }
+    }
 
     @Query("UPDATE tags SET isDeleted = 1, updatedAt = :updatedAt WHERE id = :tagId")
     suspend fun softDeleteTag(tagId: String, updatedAt: Long)

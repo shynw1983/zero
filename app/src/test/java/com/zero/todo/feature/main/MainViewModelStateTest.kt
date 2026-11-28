@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.res.Configuration
 import android.os.LocaleList
 import androidx.lifecycle.SavedStateHandle
+import androidx.lifecycle.viewModelScope
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.zero.todo.R
@@ -11,9 +12,19 @@ import com.zero.todo.core.common.RecurrenceRule
 import com.zero.todo.core.common.ZeroDateFormatter
 import com.zero.todo.core.designsystem.AppIconSwitcher
 import com.zero.todo.core.designsystem.ZeroAccent
+import com.zero.todo.core.geofence.GeofenceEvaluator
+import com.zero.todo.core.geofence.GeofenceSyncController
 import com.zero.todo.core.geofence.NoOpGeofenceSyncController
 import com.zero.todo.core.nlp.QuickInputParser
 import com.zero.todo.core.notification.NoOpReminderScheduler
+import com.zero.todo.data.ai.AiAudioPayload
+import com.zero.todo.data.ai.AiBreakdownDraft
+import com.zero.todo.data.ai.AiCapturedTaskDraft
+import com.zero.todo.data.ai.AiConfig
+import com.zero.todo.data.ai.AiEngine
+import com.zero.todo.data.ai.AiImagePayload
+import com.zero.todo.data.ai.AiWorkspaceContext
+import com.zero.todo.data.ai.ZeroAiEngine
 import com.zero.todo.data.backup.WebDavSyncManager
 import com.zero.todo.data.backup.ZeroBackupManager
 import com.zero.todo.data.local.ZeroDatabase
@@ -26,6 +37,8 @@ import com.zero.todo.domain.model.AntiMisclickMode
 import com.zero.todo.domain.model.AppLanguage
 import com.zero.todo.domain.model.ExecuteTheme
 import com.zero.todo.domain.model.FocusMode
+import com.zero.todo.domain.model.PlaceTriggerMode
+import com.zero.todo.domain.model.TaskItem
 import com.zero.todo.domain.model.TaskPriority
 import com.zero.todo.domain.model.TaskSortMode
 import com.zero.todo.domain.model.WorkspaceMode
@@ -33,14 +46,20 @@ import com.zero.todo.domain.usecase.GetFolderTreeUseCase
 import com.zero.todo.feature.folder.NavigationDestination
 import com.zero.todo.feature.tasklist.UndoType
 import com.zero.todo.widget.NoOpWidgetRefresher
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import kotlinx.coroutines.withTimeout
 import org.junit.After
@@ -109,7 +128,11 @@ class MainViewModelStateTest {
         }
     }
 
-    private fun newViewModel(savedStateHandle: SavedStateHandle = SavedStateHandle()): MainViewModel =
+    private fun newViewModel(
+        savedStateHandle: SavedStateHandle = SavedStateHandle(),
+        aiEngine: AiEngine = ZeroAiEngine(),
+        geofenceController: GeofenceSyncController = NoOpGeofenceSyncController
+    ): MainViewModel =
         MainViewModel(
             savedStateHandle = savedStateHandle,
             folderRepository = folderRepository,
@@ -119,13 +142,183 @@ class MainViewModelStateTest {
             userPreferencesRepository = preferencesRepository,
             backupManager = backupManager,
             webDavSyncManager = webDavSyncManager,
-            aiEngine = com.zero.todo.data.ai.ZeroAiEngine(),
+            aiEngine = aiEngine,
             reminderScheduler = NoOpReminderScheduler,
-            geofenceController = NoOpGeofenceSyncController,
+            geofenceController = geofenceController,
             widgetRefresher = NoOpWidgetRefresher,
             getFolderTreeUseCase = getFolderTreeUseCase,
             appIconSwitcher = iconSwitcher
         )
+
+    @Test
+    fun `opening a search result context selects its project or root task`() = runBlocking {
+        val project = folderRepository.createFolder("Project")
+        val parent = taskRepository.createTask("Main task", folderId = project.id)
+        val child = taskRepository.createTask("Child task", folderId = project.id, parentTaskId = parent.id)
+        val grandchild = taskRepository.createTask("Search result", folderId = project.id, parentTaskId = child.id)
+        val vm = newViewModel()
+        try {
+            vm.selectDestination(NavigationDestination.Today)
+            vm.setSearchOpen(true)
+            vm.updateSearchQuery(grandchild.title)
+            vm.selectTask(grandchild.id)
+
+            vm.openTaskContext(grandchild, openMainTask = true)
+            withTimeout(5_000L) {
+                vm.uiState.first {
+                    it.selectedDestination == NavigationDestination.FolderView(project.id) &&
+                        it.selectedTask?.id == parent.id && !it.isSearchOpen
+                }
+            }
+
+            vm.openTaskContext(grandchild, openMainTask = false)
+            withTimeout(5_000L) {
+                vm.uiState.first {
+                    it.selectedDestination == NavigationDestination.FolderView(project.id) && it.selectedTaskId == null
+                }
+            }
+            Unit
+        } finally {
+            vm.viewModelScope.cancel()
+        }
+    }
+
+    @Test
+    fun `late AI breakdown replies cannot replace another task or a newer retry`() = runTest {
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        preferencesRepository.setAiConfig(AiConfig(geminiApiKey = "unused-test-key"))
+        val engine = ControlledAiEngine()
+        val vm = newViewModel(aiEngine = engine)
+        val firstTask = TaskItem(id = "first", title = "First task")
+        val secondTask = TaskItem(id = "second", title = "Second task")
+        val secondDraft = AiBreakdownDraft(firstStep = "Start the second task")
+
+        try {
+            vm.openAiBreakdown(firstTask, "en")
+            runCurrent()
+            vm.closeAiBreakdown()
+            vm.openAiBreakdown(secondTask, "en")
+            val secondSession = vm.aiBreakdownState.value.sessionId
+            runCurrent()
+            vm.retryAiBreakdown(secondSession, "en")
+            runCurrent()
+
+            engine.breakdownReplies[0].complete(Result.success(AiBreakdownDraft(firstStep = "Wrong task")))
+            runCurrent()
+            assertEquals(secondTask, vm.aiBreakdownState.value.task)
+            assertTrue(vm.aiBreakdownState.value.isAnalyzing)
+            assertEquals(null, vm.aiBreakdownState.value.draft)
+
+            engine.breakdownReplies[2].complete(Result.success(secondDraft))
+            runCurrent()
+            val latest = vm.aiBreakdownState.value
+            assertEquals(secondDraft, latest.draft)
+            assertFalse(latest.isAnalyzing)
+
+            engine.breakdownReplies[1].complete(Result.failure(IllegalStateException("Old retry")))
+            runCurrent()
+            assertEquals(latest, vm.aiBreakdownState.value)
+        } finally {
+            vm.viewModelScope.cancel()
+            runCurrent()
+        }
+    }
+
+    @Test
+    fun `AI capture ignores callbacks from a closed dialog and replies to superseded requests`() = runTest {
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        val engine = ControlledAiEngine()
+        val vm = newViewModel(aiEngine = engine)
+        val latestDrafts = listOf(AiCapturedTaskDraft(title = "Current task"))
+
+        try {
+            vm.openAiCapture("Old capture", autoLaunchCamera = false, autoAnalyze = false)
+            val oldSession = vm.aiCaptureState.value.sessionId
+            vm.analyzeAiCapture(oldSession, "Old capture", image = null, languageTag = "en")
+            runCurrent()
+            vm.closeAiCapture()
+            vm.openAiCaptureFromShare("New capture", sharedImageUri = null)
+            val newSession = vm.aiCaptureState.value.sessionId
+            vm.analyzeAiCapture(oldSession, "Late image", image = null, languageTag = "en")
+            runCurrent()
+            assertEquals(1, engine.captureReplies.size)
+
+            vm.analyzeAiCapture(newSession, "First attempt", image = null, languageTag = "en")
+            runCurrent()
+            vm.analyzeAiCapture(newSession, "Second attempt", image = null, languageTag = "en")
+            runCurrent()
+            engine.captureReplies[2].complete(Result.success(latestDrafts))
+            runCurrent()
+            val latest = vm.aiCaptureState.value
+            assertEquals(latestDrafts, latest.results)
+            assertFalse(latest.isAnalyzing)
+
+            engine.captureReplies[1].complete(Result.success(listOf(AiCapturedTaskDraft(title = "Stale task"))))
+            engine.captureReplies[0].complete(Result.failure(IllegalStateException("Old capture")))
+            runCurrent()
+            assertEquals(latest, vm.aiCaptureState.value)
+        } finally {
+            vm.viewModelScope.cancel()
+            runCurrent()
+        }
+    }
+
+    @Test
+    fun `moving a child tag resyncs place registrations with its tasks in the new subtree`() = runBlocking {
+        val destination = tagRepository.createTag("Office")
+        tagRepository.updateTagPlaceConfig(destination.id, isPlaceTag = true, triggerMode = PlaceTriggerMode.ENTER)
+        val oldParent = tagRepository.createTag("Old parent")
+        val child = tagRepository.createTag("Errands", parentId = oldParent.id)
+        val task = taskRepository.createTask("Take the sample", placeTriggerOverride = PlaceTriggerMode.EXIT)
+        tagRepository.attachTagToTask(task.id, child.id)
+        val modes = Channel<PlaceTriggerMode>(Channel.UNLIMITED)
+        val geofenceController = object : GeofenceSyncController by NoOpGeofenceSyncController {
+            override suspend fun syncAllGeofences(): Int {
+                val overrides = database.tagDao().getActiveIncompleteTasksForTagTree(destination.id)
+                    .map { PlaceTriggerMode.fromStorageOrNull(it.placeTriggerOverride) }
+                modes.send(GeofenceEvaluator.aggregateModeForGeofence(PlaceTriggerMode.ENTER, overrides))
+                return 1
+            }
+        }
+        val vm = newViewModel(geofenceController = geofenceController)
+
+        try {
+            assertEquals(PlaceTriggerMode.ENTER, withTimeout(5_000L) { modes.receive() })
+            vm.moveTag(child.id, destination.id)
+            assertEquals(PlaceTriggerMode.BOTH, withTimeout(5_000L) { modes.receive() })
+            vm.moveTag(child.id, oldParent.id)
+            assertEquals(PlaceTriggerMode.ENTER, withTimeout(5_000L) { modes.receive() })
+        } finally {
+            vm.viewModelScope.cancel()
+        }
+    }
+
+    private class ControlledAiEngine : AiEngine {
+        val captureReplies = mutableListOf<CompletableDeferred<Result<List<AiCapturedTaskDraft>>>>()
+        val breakdownReplies = mutableListOf<CompletableDeferred<Result<AiBreakdownDraft>>>()
+
+        override suspend fun testConnection(config: AiConfig): Result<String> =
+            error("Unexpected connection test")
+
+        override suspend fun captureTasks(
+            config: AiConfig,
+            rawText: String,
+            image: AiImagePayload?,
+            audio: AiAudioPayload?,
+            context: AiWorkspaceContext
+        ): Result<List<AiCapturedTaskDraft>> =
+            CompletableDeferred<Result<List<AiCapturedTaskDraft>>>().also(captureReplies::add).await()
+
+        override suspend fun breakdownTask(
+            config: AiConfig,
+            taskTitle: String,
+            taskDescription: String,
+            existingFolderPath: String?,
+            existingTags: List<String>,
+            context: AiWorkspaceContext
+        ): Result<AiBreakdownDraft> =
+            CompletableDeferred<Result<AiBreakdownDraft>>().also(breakdownReplies::add).await()
+    }
 
     @Test
     fun `SavedStateHandle preserves selected folder, selected task, includeSubfolders, and quick input across recreation`() = runBlocking {

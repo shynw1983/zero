@@ -11,6 +11,7 @@ import com.zero.todo.data.repository.TaskRepositoryImpl
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
+import org.json.JSONObject
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -19,6 +20,7 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import java.io.File
 
 @RunWith(RobolectricTestRunner::class)
 class TagTreeAndHierarchyTest {
@@ -137,6 +139,74 @@ class TagTreeAndHierarchyTest {
         assertFalse(convTag.id in remainingTags)
         assertTrue(govTag.id in remainingTags)
         assertTrue(database.taskDao().getTaskById(taskMilk.id)?.isDeleted == false)
+    }
+
+    @Test
+    fun `manual order is per parent and survives backup and restore`() = runBlocking {
+        val parent = tagRepository.createTag("Parent")
+        val other = tagRepository.createTag("Other")
+        val alpha = tagRepository.createTag("Alpha", parentId = parent.id)
+        val zulu = tagRepository.createTag("Zulu", parentId = parent.id)
+        tagRepository.moveTagInOrder(zulu.id, -1)
+        tagRepository.moveTagInOrder(zulu.id, -1)
+        val backup = backupManager.exportJson()
+        backupManager.importJson(backup)
+        var tree = TagTreeBuilder.buildTree(tagRepository.observeActiveTagsWithCounts().first())
+        assertEquals(listOf(other.id, parent.id), tree.map { it.tag.id })
+        assertEquals(listOf(zulu.id, alpha.id), tree.last().children.map { it.tag.id })
+
+        val legacy = JSONObject(backup).apply {
+            put("schemaVersion", 4)
+            val tags = getJSONArray("tags")
+            for (index in 0 until tags.length()) tags.getJSONObject(index).remove("sortOrder")
+        }
+        backupManager.importJson(legacy.toString())
+        tree = TagTreeBuilder.buildTree(tagRepository.observeActiveTagsWithCounts().first())
+        assertEquals(listOf(alpha.id, zulu.id), tree.last().children.map { it.tag.id })
+    }
+
+    @Test
+    fun `v5 database migrates to v6 and keeps tag data and alphabetical fallback`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val name = "zero_tag_sort_migration.db"
+        val schema = File("schemas/com.zero.todo.data.local.ZeroDatabase/5.json")
+        val old = JSONObject(schema.readText()).getJSONObject("database")
+        val tables = old.getJSONArray("entities")
+        try {
+            context.openOrCreateDatabase(name, Context.MODE_PRIVATE, null).use { sqlite ->
+                for (index in 0 until tables.length()) {
+                    val entity = tables.getJSONObject(index)
+                    val tableName = entity.getString("tableName")
+                    sqlite.execSQL(entity.getString("createSql").replace("\${TABLE_NAME}", tableName))
+                    val indices = entity.getJSONArray("indices")
+                    for (indexId in 0 until indices.length()) {
+                        val sql = indices.getJSONObject(indexId).getString("createSql")
+                        sqlite.execSQL(sql.replace("\${TABLE_NAME}", tableName))
+                    }
+                }
+                val queries = old.getJSONArray("setupQueries")
+                for (index in 0 until queries.length()) sqlite.execSQL(queries.getString(index))
+                sqlite.execSQL(
+                    "INSERT INTO tags (id, name, isExpanded, isPlaceTag, placeTriggerMode, createdAt, updatedAt, isDeleted) " +
+                        "VALUES ('legacy', 'Office', 1, 1, 'EXIT', 1, 1, 0)"
+                )
+                sqlite.version = 5
+            }
+            val migrated = Room.databaseBuilder(context, ZeroDatabase::class.java, name)
+                .addMigrations(ZeroDatabase.MIGRATION_5_6)
+                .allowMainThreadQueries()
+                .build()
+            try {
+                val tag = runBlocking { checkNotNull(migrated.tagDao().getTagById("legacy")) }
+                assertEquals("Office", tag.name)
+                assertEquals("EXIT", tag.placeTriggerMode)
+                assertEquals(null, tag.sortOrder)
+            } finally {
+                migrated.close()
+            }
+        } finally {
+            context.deleteDatabase(name)
+        }
     }
 
     @Test

@@ -42,6 +42,7 @@ import com.zero.todo.core.designsystem.ZeroCapsuleShape
 import com.zero.todo.core.designsystem.ZeroMotion
 import com.zero.todo.core.designsystem.ZeroTheme
 import com.zero.todo.core.designsystem.hairlineBorder
+import com.zero.todo.data.repository.TaskOccurrenceChange
 import com.zero.todo.domain.model.TaskPlacementChange
 
 data class UndoBannerState(
@@ -51,14 +52,16 @@ data class UndoBannerState(
     val undoType: UndoType,
     val spawnedTaskId: String? = null,
     val placementChange: TaskPlacementChange? = null,
-    val durationMillis: Long = 3_000L
+    val durationMillis: Long = 3_000L,
+    val occurrenceChange: TaskOccurrenceChange? = null
 )
 
 enum class UndoType {
     REVERT_COMPLETE,
     REVERT_UNCOMPLETE,
     RESTORE_DELETED_TASK,
-    RESTORE_TASK_PLACEMENT
+    RESTORE_TASK_PLACEMENT,
+    RESTORE_TASK_OCCURRENCE
 }
 
 /**
@@ -101,6 +104,7 @@ fun UndoCapsule(
             UndoType.REVERT_UNCOMPLETE -> stringResource(R.string.undo_restored, activeBanner.taskTitle)
             UndoType.RESTORE_DELETED_TASK -> stringResource(R.string.undo_deleted, activeBanner.taskTitle)
             UndoType.RESTORE_TASK_PLACEMENT -> stringResource(R.string.undo_task_moved, activeBanner.taskTitle)
+            UndoType.RESTORE_TASK_OCCURRENCE -> stringResource(R.string.undo_task_occurrence_skipped, activeBanner.taskTitle)
         }
 
         Box(

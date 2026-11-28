@@ -24,6 +24,7 @@ interface TagRepository {
     suspend fun renameTag(tagId: String, newName: String)
     suspend fun setTagExpanded(tagId: String, isExpanded: Boolean)
     suspend fun moveTag(tagId: String, newParentId: String?): Boolean
+    suspend fun moveTagInOrder(tagId: String, direction: Int)
     suspend fun softDeleteTag(tagId: String)
 
     suspend fun updateTagPlaceConfig(tagId: String, isPlaceTag: Boolean, triggerMode: PlaceTriggerMode)

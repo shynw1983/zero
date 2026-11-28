@@ -4,15 +4,20 @@ import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.zero.todo.data.local.ZeroDatabase
+import com.zero.todo.data.local.dao.FolderDao
 import com.zero.todo.data.repository.FocusRepositoryImpl
 import com.zero.todo.data.repository.FolderRepositoryImpl
 import com.zero.todo.data.repository.TagRepositoryImpl
 import com.zero.todo.data.repository.TaskRepositoryImpl
 import com.zero.todo.domain.model.FocusMode
 import com.zero.todo.domain.model.TaskPriority
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withTimeout
 import org.json.JSONArray
 import org.json.JSONObject
 import org.junit.After
@@ -125,6 +130,46 @@ class ZeroBackupManagerTest {
 
         val restoredSessions = focusRepository.observeSessionsForTask(nestedTask.id).first()
         assertEquals(2, restoredSessions.size)
+    }
+
+    @Test
+    fun `export keeps folder references consistent while another transaction creates a task`() = runBlocking {
+        val folderRead = CompletableDeferred<Unit>()
+        val continueExport = CompletableDeferred<Unit>()
+        val folderDao = database.folderDao()
+        val exportManager = ZeroBackupManager(
+            database = database,
+            folderDao = object : FolderDao by folderDao {
+                override suspend fun getAllFoldersSnapshot() =
+                    folderDao.getAllFoldersSnapshot().also {
+                        assertTrue(database.inTransaction())
+                        folderRead.complete(Unit)
+                        continueExport.await()
+                    }
+            },
+            taskDao = database.taskDao(),
+            tagDao = database.tagDao(),
+            focusSessionDao = database.focusSessionDao()
+        )
+
+        withTimeout(5_000L) {
+            val export = async { exportManager.exportJson() }
+            folderRead.await()
+            val write = async(start = CoroutineStart.UNDISPATCHED) {
+                val folder = folderRepository.createFolder("Concurrent folder")
+                taskRepository.createTask("Concurrent task", folderId = folder.id)
+            }
+            continueExport.complete(Unit)
+
+            val snapshot = JSONObject(export.await())
+            assertEquals(0, snapshot.getJSONArray("folders").length())
+            assertEquals(0, snapshot.getJSONArray("tasks").length())
+
+            val task = write.await()
+            val nextSnapshot = JSONObject(backupManager.exportJson())
+            assertEquals(task.folderId, nextSnapshot.getJSONArray("folders").getJSONObject(0).getString("id"))
+            assertEquals(task.folderId, nextSnapshot.getJSONArray("tasks").getJSONObject(0).getString("folderId"))
+        }
     }
 
     @Test

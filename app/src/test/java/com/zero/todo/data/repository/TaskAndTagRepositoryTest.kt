@@ -3,10 +3,12 @@ package com.zero.todo.data.repository
 import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
+import com.zero.todo.core.common.ZeroDateFormatter
 import com.zero.todo.data.local.ZeroDatabase
 import com.zero.todo.domain.model.FocusMode
 import com.zero.todo.domain.model.TaskPriority
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -19,6 +21,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import java.time.LocalDate
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
@@ -45,6 +48,38 @@ class TaskAndTagRepositoryTest {
     @After
     fun tearDown() {
         database.close()
+    }
+
+    @Test
+    fun `skipping a missed occurrence advances its subtree and undo restores it`() = runBlocking {
+        val today = LocalDate.of(2026, 11, 28)
+        val previousDue = ZeroDateFormatter.startOfDayMillis(today.minusDays(3))
+        val todayDue = ZeroDateFormatter.startOfDayMillis(today)
+        val reminderOffset = 8 * 60 * 60_000L
+        val task = taskRepository.createTask(
+            title = "Daily",
+            recurrenceRule = "FREQ=DAILY",
+            dueDate = previousDue,
+            reminderAt = previousDue + reminderOffset,
+            estimatedMinutes = 120
+        )
+        val child = taskRepository.createTask("Step", parentTaskId = task.id, dueDate = previousDue)
+        taskRepository.setTaskCompleted(child.id, true)
+
+        val change = checkNotNull(taskRepository.skipTaskOccurrence(task, today))
+        val next = checkNotNull(taskRepository.getTaskById(task.id))
+        assertEquals(todayDue, next.dueDate)
+        assertEquals(todayDue + reminderOffset, next.reminderAt)
+        assertEquals(120, next.estimatedMinutes)
+        assertFalse(next.isCompleted)
+        val nextChild = checkNotNull(taskRepository.getTaskById(child.id))
+        assertEquals(todayDue, nextChild.dueDate)
+        assertFalse(nextChild.isCompleted)
+        assertNull(taskRepository.skipTaskOccurrence(task, today))
+
+        assertTrue(taskRepository.undoSkipTaskOccurrence(change))
+        assertEquals(previousDue, taskRepository.getTaskById(task.id)?.dueDate)
+        assertTrue(checkNotNull(taskRepository.getTaskById(child.id)).isCompleted)
     }
 
     @Test

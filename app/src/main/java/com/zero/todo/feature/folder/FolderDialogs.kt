@@ -1,6 +1,8 @@
 package com.zero.todo.feature.folder
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -24,6 +26,7 @@ import androidx.compose.material.icons.automirrored.rounded.DriveFileMove
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.ArrowDownward
 import androidx.compose.material.icons.rounded.ArrowUpward
+import androidx.compose.material.icons.rounded.SkipNext
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.CreateNewFolder
 import androidx.compose.material.icons.rounded.DeleteOutline
@@ -817,6 +820,8 @@ fun TagActionMenuDialog(
     onCreateSubtag: () -> Unit,
     onRename: () -> Unit,
     onMove: () -> Unit,
+    onMoveUp: (() -> Unit)? = null,
+    onMoveDown: (() -> Unit)? = null,
     onDelete: () -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -828,6 +833,7 @@ fun TagActionMenuDialog(
                 .clip(ZeroCardShape)
                 .background(colors.surfaceElevated)
                 .hairlineBorder(shape = ZeroCardShape)
+                .verticalScroll(rememberScrollState())
                 .padding(18.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
@@ -879,6 +885,22 @@ fun TagActionMenuDialog(
                     onMove()
                 }
             )
+            onMoveUp?.let { move ->
+                TactileMenuRow(
+                    icon = Icons.Rounded.ArrowUpward,
+                    label = stringResource(R.string.action_move_up),
+                    tint = colors.textPrimary,
+                    onClick = move
+                )
+            }
+            onMoveDown?.let { move ->
+                TactileMenuRow(
+                    icon = Icons.Rounded.ArrowDownward,
+                    label = stringResource(R.string.action_move_down),
+                    tint = colors.textPrimary,
+                    onClick = move
+                )
+            }
             TactileMenuRow(
                 icon = Icons.Rounded.DeleteOutline,
                 label = stringResource(R.string.action_delete_tag),
@@ -888,6 +910,45 @@ fun TagActionMenuDialog(
                     onDelete()
                 }
             )
+        }
+    }
+}
+
+@Composable
+internal fun TaskContextMenuDialog(
+    title: String,
+    onOpenProject: (() -> Unit)?,
+    onOpenMainTask: (() -> Unit)?,
+    onSkipOccurrence: (() -> Unit)?,
+    onDismiss: () -> Unit
+) {
+    val colors = ZeroTheme.colors
+    Dialog(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(ZeroCardShape)
+                .background(colors.surfaceElevated)
+                .hairlineBorder(shape = ZeroCardShape)
+                .padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleMedium,
+                color = colors.textPrimary,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+            onOpenProject?.let {
+                TactileMenuRow(Icons.AutoMirrored.Rounded.DriveFileMove, stringResource(R.string.task_open_project), colors.textPrimary, it)
+            }
+            onOpenMainTask?.let {
+                TactileMenuRow(Icons.Rounded.ArrowUpward, stringResource(R.string.task_open_main_task), colors.textPrimary, it)
+            }
+            onSkipOccurrence?.let {
+                TactileMenuRow(Icons.Rounded.SkipNext, stringResource(R.string.task_skip_occurrence), colors.textPrimary, it)
+            }
         }
     }
 }

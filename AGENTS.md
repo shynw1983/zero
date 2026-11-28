@@ -6,8 +6,8 @@
 3. **"交接" keyword**: When the user says “交接” (or “handoff”), immediately update `CONTEXT.md` following its existing template to reflect all work in the current conversation (including uncommitted in-progress work and blockers), commit and push it, then confirm briefly.
 4. Keep `AGENTS.md` and `CONTEXT.md` consistent (version numbers, DB version, key file paths).
 
-## 1. Current Product Baseline (ZERO v2.16.1 — Source of Truth)
-> **IMPORTANT**: `docs/PRD.md` reflects the initial v1.0 draft and is **outdated** on visual accents and layout. Always treat the current `v2.16.1` codebase, the rules below, and the root `CONTEXT.md` handoff guide as the authoritative source of truth.
+## 1. Current Product Baseline (ZERO v2.17.0 — Source of Truth)
+> **IMPORTANT**: `docs/PRD.md` reflects the initial v1.0 draft and is **outdated** on visual accents and layout. Always treat the current `v2.17.0` codebase, the rules below, and the root `CONTEXT.md` handoff guide as the authoritative source of truth.
 
 - **Aesthetic & Palette (NO Sci-Fi Neon)**:
   - Keep the Matte Obsidian Dark (`#09090B`) / Cool Paper Light (`#F7F7F9`) bases, `0.5.dp` hairline borders, and tabular monospace numbers (`tnum`).
@@ -51,8 +51,8 @@ Whenever adding or modifying ANY feature, screen, dialog, snackbar/capsule, widg
 - **In-Place Upgrade Signing**:
   - `app/build.gradle.kts` signs `release` builds with `signingConfigs.getByName("debug")` (using local `~/.android/debug.keystore`). **Do NOT change `signingConfig`** so installed APKs on the user's Android devices always upgrade in-place without losing data.
 - **Room Database & Backup Compatibility**:
-  - `ZeroDatabase` is currently at **`version = 5`** with `MIGRATION_1_2` … `MIGRATION_4_5` (latest schema: `app/schemas/com.zero.todo.data.local.ZeroDatabase/5.json`). `ZeroBackupManager.CURRENT_SCHEMA_VERSION = 4`.
-  - Any schema change MUST increment `version`, add a lossless `Migration` registered in `DatabaseModule.kt`, export the new schema JSON, and update `ZeroBackupManager.kt` backward-compatibly (supporting all v1..v4+ JSON backups). **NEVER enable `fallbackToDestructiveMigration()`.**
+  - ZERO v2.17.0 uses Room **`version = 6`** with `MIGRATION_1_2` … `MIGRATION_5_6` (latest schema: `app/schemas/com.zero.todo.data.local.ZeroDatabase/6.json`). `ZeroBackupManager.CURRENT_SCHEMA_VERSION = 5` supports restoring v1–v5 backups.
+  - Any schema change MUST increment `version`, add a lossless `Migration` registered in `DatabaseModule.kt`, export the new schema JSON, and update `ZeroBackupManager.kt` backward-compatibly (supporting JSON backups from v1 onward). **NEVER enable `fallbackToDestructiveMigration()`.**
 - **Robolectric + Room Async Tests**:
   - Do NOT combine `runTest` virtual time with `withTimeout` when awaiting Room Flows (Room executes on real background threads and causes instant false timeouts). Follow `MainViewModelStateTest.kt`: use `runBlocking` + `Dispatchers.setMain(Dispatchers.Default)` + real-time `withTimeout`.
 
@@ -65,6 +65,4 @@ Whenever adding or modifying ANY feature, screen, dialog, snackbar/capsule, widg
   3. Copy `app/build/outputs/apk/release/app-release.apk` to `/tmp/ZERO-v<VER>-release.apk`, compute `shasum -a 256`, push `main`, and publish via `gh release create v<VER> /tmp/ZERO-v<VER>-release.apk -R shynw1983/zero`.
 - **App Labs Release Portal**: `https://github.com/shynw1983/app-hub` (auto-deploys to `https://app-hub-eight-flax.vercel.app`).
   - **CRITICAL macOS Pitfall**: Do NOT run `git push`/`git fetch` inside `/Users/wushengyin/Desktop/VC/release-portal` (iCloud Desktop causes `fatal: mmap failed`). Always clone cleanly to `/tmp/app-hub-push`, update `data/apps.json` (`latestVersion`, `fileSize`, `fileName`, `downloadUrl`, `sha256`, `downloads`, `releases`), commit, push, and `rm -rf /tmp/app-hub-push`.
-- **Known Minor Cleanup**:
-  - `TaskDetailPane.kt:1041`: compiler warning "Condition is always 'true'" (harmless; clean up on the next edit of that file).
 - **Secrets**: NEVER commit `local.properties` or any `AIzaSy…` Maps API key (verify `git diff --cached | grep -E 'AIzaSy[0-9A-Za-z_-]{30,}'` prints nothing), and never stage `.codex-attachments/` or `.kotlin/`.

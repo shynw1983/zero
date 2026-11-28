@@ -582,4 +582,20 @@
     <string name="atlas_header_title">ATLAS · 3D マップ</string>
     <string name="atlas_toggle_compass_follow">方位連動カメラ切替</string>
     <string name="atlas_hold_short">長押し完了</string>
+    <string name="task_open_project">所属プロジェクトを開く</string>
+    <string name="task_open_main_task">親タスクの最上位を開く</string>
+    <string name="task_skip_occurrence">今回分をスキップ</string>
+    <string name="undo_task_occurrence_skipped">「%1$s」の今回分をスキップしました</string>
+    <string name="effort_extended">長時間</string>
+    <string name="effort_duration_5">5分</string>
+    <string name="effort_duration_25">25分</string>
+    <string name="effort_duration_60">1時間</string>
+    <string name="effort_duration_120">2時間</string>
+    <string name="place_actions">場所の操作</string>
+    <string name="place_enable">この場所を有効にする</string>
+    <string name="place_disable">この場所を一時停止</string>
+    <string name="place_radius_value">半径 %1$s</string>
+    <string name="place_radius_meters">%1$d m</string>
+    <string name="place_radius_kilometers">%1$d km</string>
+    <string name="place_coordinates_display">緯度 %1$.5f、経度 %2$.5f</string>
 </resources>

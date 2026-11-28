@@ -3,13 +3,13 @@
 > **给 AI 的强制指令**：
 > 1. **禁止全盘扫描项目**。先阅读本文件，仅根据下方列出的“当前涉及文件”按需读取代码。
 > 2. 忽略 `build/`、`app/build/`、`.gradle/`、`.kotlin/`、`.codex-attachments/` 等构建、缓存与附件目录。
-> 3. 修改代码前，先确认是否违反下方的“核心约束”（另见根目录 `AGENTS.md`，两者已同步至 v2.16.1）。
+> 3. 修改代码前，先确认是否违反下方的“核心约束”（另见根目录 `AGENTS.md`，两者已同步至 v2.17.0）。
 
 ---
 
 ## 1. 项目概况与技术栈
 * **项目名称**：ZERO（包名 `com.zero.todo`）
-* **当前发布版本**：`v2.16.1`（`versionCode = 50`）。发布提交使用 `git rev-parse 'v2.16.1^{commit}'` 查询，当前分支 HEAD 使用 `git rev-parse --short HEAD` 查询。
+* **当前发布版本**：`v2.17.0`（`versionCode = 51`）。发布提交使用 `git rev-parse 'v2.17.0^{commit}'` 查询，当前分支 HEAD 使用 `git rev-parse --short HEAD` 查询。
 * **核心定位**：为“强迫症 × 拖延症”打造的原生 Android 双态待办仪器 —— `NOW`（执行：单卡跑道/多执行主题）⇄ `VAULT`（整理库：无限目录树、日历、矩阵、标签、回收站、搜索），外加 30 秒闪电清仓、地点提醒、AI 智能提取/拆解。
 * **技术栈**：Kotlin + Jetpack Compose + Material 3 Adaptive、Hilt、Room（KSP）、Google Maps Compose（ATLAS 主题）、Google Play Services Geofencing、Robolectric 单元测试。`compileSdk = 35`，`minSdk = 26`。
 * **运行/构建命令**（本机默认 PATH 无 java，必须加前缀）：
@@ -18,7 +18,7 @@
     --no-daemon --max-workers=4 -Dorg.gradle.jvmargs="-Xmx4096m -XX:MaxMetaspaceSize=1024m"
   ```
   * 完整构建约 9 分钟；用 `--no-daemon` + 4G 堆可避免 R8 阶段 GC 卡死。
-  * 测试结果汇总：解析 `app/build/test-results/testDebugUnitTest/TEST-*.xml`（v2.16.1 基线：`TESTS=117 ERRORS=0 FAILURES=0 SKIPPED=0`）。
+  * 测试结果汇总：解析 `app/build/test-results/testDebugUnitTest/TEST-*.xml`（v2.17.0 基线：`TESTS=126 ERRORS=0 FAILURES=0 SKIPPED=0`）。
   * Android SDK：`/Users/wushengyin/Library/Android/sdk`。
 
 ## 2. 核心目录与关键文件（无需扫盘，直接定位）
@@ -29,9 +29,9 @@
   * `feature/main/MainViewModel.kt`（全局状态与几乎所有业务操作入口，体量很大，请按函数名定位读取）
 * **数据模型 / 状态管理**：
   * `domain/model/TaskItem.kt`（`TaskItem`、`TagItem`、`TagPlace`、`PlaceTriggerMode`、`FocusMode`）
-  * `data/local/ZeroDatabase.kt`（Room **`version = 5`**，`MIGRATION_1_2`..`MIGRATION_4_5`）
+  * `data/local/ZeroDatabase.kt`（Room **`version = 6`**，`MIGRATION_1_2`..`MIGRATION_5_6`）
   * `data/local/DatabaseModule.kt`（Hilt 注册迁移）、`data/local/entity/`（实体）、`data/repository/`（`TaskRepository(Impl)`、`EntityMappers.kt`）
-  * `data/backup/ZeroBackupManager.kt`（JSON 备份 `CURRENT_SCHEMA_VERSION = 4`，兼容 v1–v4；含 WebDAV）
+  * `data/backup/ZeroBackupManager.kt`（JSON 备份 `CURRENT_SCHEMA_VERSION = 5`，支持恢复 v1–v5）
   * `data/ai/`（AI 提供方调用）、`data/preferences/`（设置存储）
 * **核心 UI / 页面**：
   * 执行页：`feature/execute/ExecuteHostScreen.kt`（主题切换宿主）、`MonolithThemeView.kt`、`RunwayThemeView.kt`、`AtlasThemeView.kt`（3D 地图主题，含 GroundOverlay 高斯渐变光晕 + 60fps `AtlasSpatialMotionOverlay`）、`AtlasMapStyles.kt`、`AtlasQuestBuilder.kt`
@@ -42,7 +42,7 @@
   * 本地 NLP 快速输入解析：`core/nlp/`；日期/重复格式化：`core/common/`
 * **配置文件**：
   * `app/build.gradle.kts`（版本号、签名、`MAPS_API_KEY` 从 `local.properties` 注入 `manifestPlaceholders`）
-  * `app/schemas/com.zero.todo.data.local.ZeroDatabase/*.json`（Room 导出 schema，当前最新 `5.json`）
+  * `app/schemas/com.zero.todo.data.local.ZeroDatabase/*.json`（Room 导出 schema，当前最新 `6.json`）
   * 资源：`app/src/main/res/values{,-zh,-ja,-ko}/strings.xml`
 * **测试**：`app/src/test/java/com/zero/todo/`（含 `LocalizationCompletenessTest`、`MainViewModelStateTest`、`core/geofence/PlaceGeofenceTest.kt`）
 
@@ -56,14 +56,20 @@
 * [x] 4 语言（EN/ZH/JA/KO）完整本地化；WebDAV/JSON 备份；动态主题桌面图标与小组件
 * [x] 发布流水线：GitHub Release + App Labs 门户（`shynw1983/app-hub` → https://app-hub-eight-flax.vercel.app）
 * [x] **v2.16.1**：本地导入和 WebDAV 拉取在写入前校验备份结构，兼容 v1–v4；ATLAS 地点任务卡连续按住 300ms 完成一次，提前松手或取消会清零进度。
+* [x] **v2.17.0 修复**：AI 提取和拆解按当前会话处理结果，忽略过期回复；移动标签后刷新围栏注册；本地 JSON 和 WebDAV 上传从同一个 Room 事务读取六张表的快照。
+* [x] **v2.17.0 改进**：筛选结果长按打开项目或主任务；围栏半径最高 3 km；任务负荷增加 2 小时；同级标签手动排序并写入备份；已保存地点显示完整名称和地址；循环任务跳过本次可撤销；顶层任务在子任务后短右滑时自动对齐层级。
 
 ## 4. 当前进度与待解决问题
-* **当前进度**：v2.16.1 含两项 P1 修复，117 个单元测试通过，Release APK 构建成功，折叠屏真机验收待完成。
+* **当前进度**：v2.17.0 发布包含三项 P2 修复和七项改进。126 个单元测试通过，Release APK 构建成功，折叠屏真机验收待完成。
 * **当前涉及的核心文件**：
-  * `data/backup/ZeroBackupManager.kt`（按备份版本校验必需数组，再执行替换式恢复）
-  * `feature/main/MainViewModel.kt`、`feature/settings/SettingsOverlay.kt`（本地恢复和 WebDAV 拉取的四语错误提示）
+  * `data/backup/ZeroBackupManager.kt`（事务内读取备份快照、恢复前按版本校验）
+  * `feature/main/MainViewModel.kt`、`ZeroAdaptiveShell.kt`、`ZeroAppRoot.kt`（AI 会话与回调绑定）
+  * `core/geofence/GeofenceSyncController.kt`（串行刷新围栏注册；移动标签入口在 `MainViewModel.kt`）
+  * `feature/tasklist/TaskListHierarchy.kt`、`feature/main/ZeroAdaptiveShell.kt`（右滑层级、筛选任务菜单和撤销入口）
+  * `feature/folder/TagPlaceConfigDialog.kt`、`feature/taskdetail/TaskDetailPane.kt`（完整地点与 3 km、2 小时负荷）
+  * `data/local/dao/TagDao.kt`、`domain/model/TagTreeBuilder.kt`（同级标签排序）、`data/repository/TaskRepositoryImpl.kt`（循环跳过与事务撤销）
   * `feature/execute/AtlasThemeView.kt`（地点任务卡 300ms 长按与取消）
-  * 回归测试：`data/backup/ZeroBackupManagerTest.kt`、`feature/execute/AtlasHoldGestureTest.kt`（位于 `app/src/test/java/com/zero/todo/`）
+  * 回归测试：`data/backup/ZeroBackupManagerTest.kt`、`feature/main/MainViewModelStateTest.kt`、`feature/execute/AtlasHoldGestureTest.kt`（位于 `app/src/test/java/com/zero/todo/`）
 * **v2.16.0 发布涉及的核心文件**：
   * `core/geofence/GeofenceSyncController.kt`（`effectiveTriggerMode` / `shouldTriggerTask` / `aggregateModeForGeofence`）
   * `core/geofence/ZeroGeofenceReceiver.kt`（触发时按任务过滤 + 冷却）
@@ -73,7 +79,6 @@
   * `feature/ai/AiAssistantDialogs.kt`（AI 提取/拆解及预编辑）
   * `feature/tasklist/QuickInputCapsule.kt`（快速输入、语音识别回填）
 * **卡点 / 已知问题**：
-  * `TaskDetailPane.kt:1041` 编译警告 “Condition is always 'true'”（无功能影响，可顺手清理）。
   * 用户真机为折叠屏（日语系统界面），ATLAS 页需注意快速输入胶囊、Google 水印与任务卡片的遮挡问题（v2.14.2 已修过一次，改动该区域时需回归检查）。
 
 ## 5. 核心约束（绝对不能忘的规矩）
@@ -92,10 +97,10 @@
   * 发布门户：**不要**在 `/Users/wushengyin/Desktop/VC/release-portal`（iCloud 桌面）里执行 git push/fetch，必须 clone 到 `/tmp/app-hub-push` 修改 `data/apps.json` 后推送并删除临时目录。
 
 ## 6. 下一步计划（新对话直接从这里开始）
-1. 在折叠屏真机验收 v2.16.1：导入缺少必需数组的测试备份时，应用显示错误且保留任务；ATLAS 地点任务卡按满 300ms 完成一次，提前松手或取消时保留任务。
-2. 在 v2.16.1 上继续验收地点任务级触发时机、ATLAS 光晕深度和 AI/语音添加前编辑，根据反馈迭代。
+1. 在折叠屏真机验收升级与旧数据：检查 v5 → v6 迁移、旧备份恢复及标签排序往返。
+2. 验收地点进入/离开通知和 AI 弹窗切换，并继续复查 ATLAS 光晕与 AI/语音预编辑。
 3. 发布新版本时按流程：`app/build.gradle.kts` 递增 `versionCode`/`versionName` → 运行测试与 `assembleRelease` → 复制 APK 到 `/tmp/ZERO-v<VER>-release.apk` 并计算 `shasum -a 256` → 推送 `main` → `gh release create v<VER> ... -R shynw1983/zero` → 在 `/tmp/app-hub-push` 更新 `data/apps.json`（`latestVersion`、`updatedAt`、`fileSize`、`fileName`、`downloadUrl`、`sha256`、`downloads[0]`、`releases` 头部插入中文更新说明）→ 推送并验证 HTTP 200。
-4. 可选清理：`TaskDetailPane.kt:1041` 的恒真条件警告。
+4. 验收七项改进，重点检查日语折叠屏上的长按菜单、地点地址换行、2 小时负荷和循环任务撤销。
 5. 每次发布或改动数据库/架构后，同步更新本文件与 `AGENTS.md` 的版本号、数据库版本及关键文件说明。
 
 > 交接规则见 `AGENTS.md` 第 0 节：新对话开局自动先读本文件；每完成并提交一项工作即刷新本文件；用户说「交接」时立即更新、提交并推送。

@@ -582,4 +582,20 @@
     <string name="atlas_header_title">ATLAS · 3D 地图</string>
     <string name="atlas_toggle_compass_follow">开关朝向跟随视角</string>
     <string name="atlas_hold_short">长按完成</string>
+    <string name="task_open_project">打开所属项目</string>
+    <string name="task_open_main_task">打开主任务</string>
+    <string name="task_skip_occurrence">跳过本次</string>
+    <string name="undo_task_occurrence_skipped">已跳过「%1$s」本次</string>
+    <string name="effort_extended">长时</string>
+    <string name="effort_duration_5">5 分钟</string>
+    <string name="effort_duration_25">25 分钟</string>
+    <string name="effort_duration_60">1 小时</string>
+    <string name="effort_duration_120">2 小时</string>
+    <string name="place_actions">地点操作</string>
+    <string name="place_enable">启用地点</string>
+    <string name="place_disable">暂停地点</string>
+    <string name="place_radius_value">半径 %1$s</string>
+    <string name="place_radius_meters">%1$d 米</string>
+    <string name="place_radius_kilometers">%1$d 公里</string>
+    <string name="place_coordinates_display">纬度 %1$.5f，经度 %2$.5f</string>
 </resources>

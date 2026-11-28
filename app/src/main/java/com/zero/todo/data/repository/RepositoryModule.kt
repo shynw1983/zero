@@ -6,6 +6,8 @@ import com.zero.todo.core.geofence.AndroidGeofenceSyncController
 import com.zero.todo.core.geofence.GeofenceSyncController
 import com.zero.todo.core.notification.AlarmReminderScheduler
 import com.zero.todo.core.notification.ReminderScheduler
+import com.zero.todo.data.ai.AiEngine
+import com.zero.todo.data.ai.ZeroAiEngine
 import com.zero.todo.data.preferences.SharedPrefsUserPreferencesRepository
 import com.zero.todo.data.preferences.UserPreferencesRepository
 import com.zero.todo.widget.GlanceWidgetRefresher
@@ -51,6 +53,9 @@ abstract class RepositoryModule {
     @Binds
     @Singleton
     abstract fun bindGeofenceSyncController(impl: AndroidGeofenceSyncController): GeofenceSyncController
+
+    @Binds
+    abstract fun bindAiEngine(impl: ZeroAiEngine): AiEngine
 
     @Binds
     @Singleton

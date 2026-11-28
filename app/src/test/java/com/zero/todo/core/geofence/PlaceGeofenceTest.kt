@@ -282,7 +282,7 @@ class PlaceGeofenceTest {
             address = "B 街 3-4",
             latitude = 35.6812,
             longitude = 139.7671,
-            radiusMeters = 200
+            radiusMeters = 3_000
         )
         val branch3 = tagRepository.addTagPlace(
             tagId = convTag.id,
@@ -316,6 +316,7 @@ class PlaceGeofenceTest {
         assertEquals(3, activePlaces.size)
         assertTrue(activePlaces.any { it.id == branch1.id })
         assertTrue(activePlaces.any { it.id == branch2.id })
+        assertEquals(3_000, activePlaces.first { it.id == branch2.id }.radiusMeters)
         assertFalse(activePlaces.any { it.id == branch3.id })
 
         // Verify incomplete task query respects tag tree & excludes completed tasks
@@ -344,6 +345,7 @@ class PlaceGeofenceTest {
         assertTrue(restoredConv.isPlaceTag)
         assertEquals(PlaceTriggerMode.ENTER, restoredConv.placeTriggerMode)
         assertEquals(3, restoredConv.places.size)
+        assertEquals(3_000, restoredConv.places.first { it.id == branch2.id }.radiusMeters)
         assertEquals(PlaceTriggerMode.BOTH, restoredHome.placeTriggerMode)
         assertEquals(1, restoredHome.places.size)
     }
@@ -393,7 +395,7 @@ class PlaceGeofenceTest {
         assertEquals(PlaceTriggerMode.EXIT, loadedLeave?.placeTriggerOverride)
 
         val json = backupManager.exportJson()
-        assertEquals(4, JSONObject(json).getInt("schemaVersion"))
+        assertEquals(ZeroBackupManager.CURRENT_SCHEMA_VERSION, JSONObject(json).getInt("schemaVersion"))
         backupManager.importJson(json, replaceExisting = true)
 
         assertNull(taskRepository.getTaskById(arriveTask.id)?.placeTriggerOverride)

@@ -24,7 +24,7 @@ import com.zero.todo.data.local.entity.TaskTagCrossRef
         TaskTagCrossRef::class,
         FocusSessionEntity::class
     ],
-    version = 5,
+    version = 6,
     exportSchema = true
 )
 abstract class ZeroDatabase : RoomDatabase() {
@@ -80,6 +80,12 @@ abstract class ZeroDatabase : RoomDatabase() {
         val MIGRATION_4_5 = object : Migration(4, 5) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE tasks ADD COLUMN placeTriggerOverride TEXT DEFAULT NULL")
+            }
+        }
+
+        val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE tags ADD COLUMN sortOrder INTEGER")
             }
         }
     }

@@ -582,4 +582,20 @@
     <string name="atlas_header_title">ATLAS · 3D MAP</string>
     <string name="atlas_toggle_compass_follow">Toggle compass camera follow</string>
     <string name="atlas_hold_short">Hold</string>
+    <string name="task_open_project">Open project</string>
+    <string name="task_open_main_task">Open main task</string>
+    <string name="task_skip_occurrence">Skip this occurrence</string>
+    <string name="undo_task_occurrence_skipped">Skipped this occurrence of %1$s</string>
+    <string name="effort_extended">Extended</string>
+    <string name="effort_duration_5">5m</string>
+    <string name="effort_duration_25">25m</string>
+    <string name="effort_duration_60">1h</string>
+    <string name="effort_duration_120">2h</string>
+    <string name="place_actions">Location actions</string>
+    <string name="place_enable">Enable location</string>
+    <string name="place_disable">Pause location</string>
+    <string name="place_radius_value">Radius %1$s</string>
+    <string name="place_radius_meters">%1$d m</string>
+    <string name="place_radius_kilometers">%1$d km</string>
+    <string name="place_coordinates_display">Lat %1$.5f, long %2$.5f</string>
 </resources>

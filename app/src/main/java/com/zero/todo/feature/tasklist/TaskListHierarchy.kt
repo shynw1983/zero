@@ -26,11 +26,19 @@ internal fun buildTaskListRows(
             while (pending.isNotEmpty()) {
                 val (task, depth) = pending.removeLast()
                 if (!visited.add(task.id)) continue
-                val previous = lastOrNull()?.task
-                val indentParent = previous?.takeIf {
-                    it.id != task.parentTaskId && !isTaskDescendantOf(it, task.id, allTasksById)
+                val previous = lastOrNull()
+                val candidateParentId = if (previous?.task?.parentTaskId != null &&
+                    (task.parentTaskId == null || previous.depth > depth)
+                ) {
+                    previous.task.parentTaskId
+                } else {
+                    previous?.task?.id
                 }
-                add(TaskListRow(task, depth, indentParent?.id))
+                val indentParentId = candidateParentId?.takeIf { id ->
+                    id != task.id && id != task.parentTaskId &&
+                        allTasksById[id]?.let { !isTaskDescendantOf(it, task.id, allTasksById) } == true
+                }
+                add(TaskListRow(task, depth, indentParentId))
                 visibleChildren[task.id].orEmpty().asReversed().forEach { child ->
                     pending.addLast(child to depth + 1)
                 }

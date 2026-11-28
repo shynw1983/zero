@@ -1,7 +1,9 @@
 package com.zero.todo.feature.matrix
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -55,6 +57,7 @@ fun MatrixPane(
     onOpenDrawer: () -> Unit,
     onToggleTreePanel: () -> Unit,
     onSelectTask: (TaskItem) -> Unit,
+    onOpenTaskActions: ((TaskItem) -> Unit)? = null,
     onQuickAddWithPriority: (TaskPriority) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -134,6 +137,7 @@ fun MatrixPane(
                     tasks = p1,
                     selectedTaskId = selectedTaskId,
                     onSelectTask = onSelectTask,
+                    onOpenTaskActions = onOpenTaskActions,
                     onQuickAdd = { onQuickAddWithPriority(TaskPriority.URGENT) },
                     modifier = Modifier.weight(1f)
                 )
@@ -144,6 +148,7 @@ fun MatrixPane(
                     tasks = p2,
                     selectedTaskId = selectedTaskId,
                     onSelectTask = onSelectTask,
+                    onOpenTaskActions = onOpenTaskActions,
                     onQuickAdd = { onQuickAddWithPriority(TaskPriority.HIGH) },
                     modifier = Modifier.weight(1f)
                 )
@@ -161,6 +166,7 @@ fun MatrixPane(
                     tasks = p3,
                     selectedTaskId = selectedTaskId,
                     onSelectTask = onSelectTask,
+                    onOpenTaskActions = onOpenTaskActions,
                     onQuickAdd = { onQuickAddWithPriority(TaskPriority.MEDIUM) },
                     modifier = Modifier.weight(1f)
                 )
@@ -171,6 +177,7 @@ fun MatrixPane(
                     tasks = p4,
                     selectedTaskId = selectedTaskId,
                     onSelectTask = onSelectTask,
+                    onOpenTaskActions = onOpenTaskActions,
                     onQuickAdd = { onQuickAddWithPriority(TaskPriority.NONE) },
                     modifier = Modifier.weight(1f)
                 )
@@ -179,6 +186,7 @@ fun MatrixPane(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun QuadrantCard(
     priority: TaskPriority,
@@ -187,6 +195,7 @@ private fun QuadrantCard(
     tasks: List<TaskItem>,
     selectedTaskId: String?,
     onSelectTask: (TaskItem) -> Unit,
+    onOpenTaskActions: ((TaskItem) -> Unit)? = null,
     onQuickAdd: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -282,7 +291,11 @@ private fun QuadrantCard(
                                 shape = ZeroSmallShape,
                                 color = if (selected) colors.accent else colors.hairlineBorder
                             )
-                            .clickable { onSelectTask(task) }
+                            .combinedClickable(
+                                onClick = { onSelectTask(task) },
+                                onLongClick = onOpenTaskActions?.let { open -> { open(task) } },
+                                onLongClickLabel = stringResource(R.string.cd_task_actions)
+                            )
                             .padding(horizontal = 8.dp, vertical = 7.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {

@@ -63,7 +63,12 @@ data class TagPlace(
     val isEnabled: Boolean = true,
     val createdAt: Long = 0L,
     val updatedAt: Long = 0L
-)
+) {
+    companion object {
+        const val MIN_RADIUS_METERS = 50
+        const val MAX_RADIUS_METERS = 3_000
+    }
+}
 
 data class TagItem(
     val id: String,
@@ -76,7 +81,8 @@ data class TagItem(
     val places: List<TagPlace> = emptyList(),
     val createdAt: Long = 0L,
     val updatedAt: Long = 0L,
-    val isDeleted: Boolean = false
+    val isDeleted: Boolean = false,
+    val sortOrder: Int? = null
 )
 
 enum class FocusMode(val storageValue: String) {

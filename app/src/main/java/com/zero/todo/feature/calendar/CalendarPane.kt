@@ -2,7 +2,9 @@ package com.zero.todo.feature.calendar
 
 import androidx.annotation.StringRes
 import androidx.compose.foundation.background
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -117,6 +119,7 @@ fun CalendarPane(
     onToggleTaskComplete: (TaskItem) -> Unit,
     onDeleteTask: (TaskItem) -> Unit,
     onSelectTask: (TaskItem) -> Unit,
+    onOpenTaskActions: ((TaskItem) -> Unit)? = null,
     onSelectTag: (String) -> Unit,
     onQuickInputEdit: ((String) -> String) -> Unit,
     onQuickInputSubmit: () -> Unit,
@@ -295,6 +298,7 @@ fun CalendarPane(
                         onToggleTaskComplete = onToggleTaskComplete,
                         onDeleteTask = onDeleteTask,
                         onSelectTask = onSelectTask,
+                        onOpenTaskActions = onOpenTaskActions,
                         onSelectTag = onSelectTag,
                         modifier = Modifier.weight(1f)
                     )
@@ -312,6 +316,7 @@ fun CalendarPane(
                         taskSwipeActions = taskSwipeActions,
                         zoneId = zoneId,
                         onSelectTask = onSelectTask,
+                        onOpenTaskActions = onOpenTaskActions,
                         onToggleTaskComplete = onToggleTaskComplete,
                         onDeleteTask = onDeleteTask,
                         onSelectTag = onSelectTag,
@@ -527,6 +532,7 @@ private fun SelectedDayAgenda(
     onToggleTaskComplete: (TaskItem) -> Unit,
     onDeleteTask: (TaskItem) -> Unit,
     onSelectTask: (TaskItem) -> Unit,
+    onOpenTaskActions: ((TaskItem) -> Unit)? = null,
     onSelectTag: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -590,6 +596,7 @@ private fun SelectedDayAgenda(
                     onToggleComplete = onToggleTaskComplete,
                     onDeleteTask = onDeleteTask,
                     onSelectTask = onSelectTask,
+                    onOpenTaskActions = onOpenTaskActions,
                     onTagClick = onSelectTag,
                     modifier = Modifier.animateItem(placementSpec = ZeroMotion.IntOffsetSpring)
                 )
@@ -629,6 +636,7 @@ private fun DayTimelineSection(
     taskSwipeActions: TaskSwipeActions,
     zoneId: ZoneId,
     onSelectTask: (TaskItem) -> Unit,
+    onOpenTaskActions: ((TaskItem) -> Unit)? = null,
     onToggleTaskComplete: (TaskItem) -> Unit,
     onDeleteTask: (TaskItem) -> Unit,
     onSelectTag: (String) -> Unit,
@@ -714,6 +722,7 @@ private fun DayTimelineSection(
                             onToggleComplete = onToggleTaskComplete,
                             onDeleteTask = onDeleteTask,
                             onSelectTask = onSelectTask,
+                            onOpenTaskActions = onOpenTaskActions,
                             onTagClick = onSelectTag,
                         )
                     }
@@ -752,7 +761,8 @@ private fun DayTimelineSection(
                                     task = entry.task,
                                     selected = entry.task.id == selectedTaskId,
                                     timeText = Instant.ofEpochMilli(entry.startsAt).atZone(zoneId).format(timeFormatter),
-                                    onClick = { onSelectTask(entry.task) }
+                                    onClick = { onSelectTask(entry.task) },
+                                    onLongClick = onOpenTaskActions?.let { open -> { open(entry.task) } }
                                 )
                             }
                         }
@@ -763,8 +773,15 @@ private fun DayTimelineSection(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun TimedTaskRow(task: TaskItem, selected: Boolean, timeText: String, onClick: () -> Unit) {
+private fun TimedTaskRow(
+    task: TaskItem,
+    selected: Boolean,
+    timeText: String,
+    onClick: () -> Unit,
+    onLongClick: (() -> Unit)?
+) {
     val colors = ZeroTheme.colors
     Row(
         modifier = Modifier
@@ -772,7 +789,11 @@ private fun TimedTaskRow(task: TaskItem, selected: Boolean, timeText: String, on
             .clip(ZeroSmallShape)
             .background(if (selected) colors.accentSubtle else colors.surface)
             .hairlineBorder(shape = ZeroSmallShape, color = if (selected) colors.accent else colors.hairlineBorder)
-            .clickable(onClick = onClick)
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = onLongClick,
+                onLongClickLabel = stringResource(R.string.cd_task_actions)
+            )
             .padding(horizontal = 10.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp)

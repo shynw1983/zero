@@ -126,6 +126,10 @@ class TagRepositoryImpl @Inject constructor(
         }
     }
 
+    override suspend fun moveTagInOrder(tagId: String, direction: Int) {
+        tagDao.moveTagInOrder(tagId, direction, System.currentTimeMillis())
+    }
+
     override suspend fun updateTagPlaceConfig(
         tagId: String,
         isPlaceTag: Boolean,
@@ -155,7 +159,7 @@ class TagRepositoryImpl @Inject constructor(
             address = address.trim(),
             latitude = latitude,
             longitude = longitude,
-            radiusMeters = radiusMeters.coerceIn(50, 2_000),
+            radiusMeters = radiusMeters.coerceIn(TagPlace.MIN_RADIUS_METERS, TagPlace.MAX_RADIUS_METERS),
             isEnabled = true,
             createdAt = now,
             updatedAt = now
@@ -167,7 +171,7 @@ class TagRepositoryImpl @Inject constructor(
     override suspend fun updateTagPlace(place: TagPlace) {
         tagDao.upsertTagPlace(
             place.copy(
-                radiusMeters = place.radiusMeters.coerceIn(50, 2_000),
+                radiusMeters = place.radiusMeters.coerceIn(TagPlace.MIN_RADIUS_METERS, TagPlace.MAX_RADIUS_METERS),
                 updatedAt = System.currentTimeMillis()
             ).toEntity()
         )

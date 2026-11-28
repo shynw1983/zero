@@ -227,6 +227,9 @@ fun ZeroAppRoot(
             onReorderTask = viewModel::reorderTask,
             onIndentTask = viewModel::indentTask,
             onOutdentTask = viewModel::outdentTask,
+            onOpenTaskContext = viewModel::openTaskContext,
+            onSkipTaskOccurrence = viewModel::skipTaskOccurrence,
+            onMoveTagInOrder = viewModel::moveTagInOrder,
             onUpdateTaskTitleAndDescription = viewModel::updateTaskTitleAndDescription,
             onUpdateTaskPriority = viewModel::updateTaskPriority,
             onUpdateTaskDueDate = viewModel::updateTaskDueDate,
@@ -285,16 +288,16 @@ fun ZeroAppRoot(
             onTestAiConnection = viewModel::testAiConnection,
             onOpenAiCapture = viewModel::openAiCapture,
             onCloseAiCapture = viewModel::closeAiCapture,
-            onAnalyzeAiCapture = { text, image, audio ->
-                viewModel.analyzeAiCapture(text, image, audio, activeLanguageTag)
+            onAnalyzeAiCapture = { sessionId, text, image, audio ->
+                viewModel.analyzeAiCapture(sessionId, text, image, audio, activeLanguageTag)
             },
             onApplyAiCapturedTasks = viewModel::applyAiCapturedTasks,
             onOpenAiBreakdown = { task ->
                 viewModel.openAiBreakdown(task, activeLanguageTag)
             },
             onCloseAiBreakdown = viewModel::closeAiBreakdown,
-            onRetryAiBreakdown = {
-                viewModel.retryAiBreakdown(activeLanguageTag)
+            onRetryAiBreakdown = { sessionId ->
+                viewModel.retryAiBreakdown(sessionId, activeLanguageTag)
             },
             onApplyAiBreakdown = viewModel::applyAiBreakdown,
             onTestWebDav = viewModel::testWebDavConnection,

@@ -51,6 +51,7 @@ import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -132,6 +133,9 @@ import com.zero.todo.feature.folder.RenameFolderDialog
 import com.zero.todo.feature.folder.RenameTagDialog
 import com.zero.todo.feature.folder.SmartViewCounts
 import com.zero.todo.feature.folder.TagActionMenuDialog
+import com.zero.todo.feature.folder.TaskContextMenuDialog
+import com.zero.todo.core.common.RecurrenceRule
+import com.zero.todo.domain.model.TagTreeBuilder
 import com.zero.todo.feature.folder.TagPlaceConfigDialog
 import com.zero.todo.feature.matrix.MatrixPane
 import com.zero.todo.feature.execute.ExecuteHostScreen
@@ -144,6 +148,8 @@ import com.zero.todo.feature.taskdetail.TaskDetailPane
 import com.zero.todo.feature.taskdetail.TaskParentPickerDialog
 import com.zero.todo.feature.tasklist.TaskListPane
 import com.zero.todo.feature.tasklist.UndoBannerState
+import com.zero.todo.feature.tasklist.UndoCapsule
+import com.zero.todo.feature.tasklist.UndoType
 import com.zero.todo.feature.trash.TrashPane
 import com.zero.todo.feature.triage.TriageDeckOverlay
 import kotlinx.coroutines.launch
@@ -201,6 +207,9 @@ data class ZeroShellCallbacks(
     val onReorderTask: (task: TaskItem, parentTaskId: String?, beforeTaskId: String?) -> Unit = { _, _, _ -> },
     val onIndentTask: (TaskItem, String) -> Unit = { _, _ -> },
     val onOutdentTask: (TaskItem) -> Unit = {},
+    val onOpenTaskContext: (TaskItem, Boolean) -> Unit = { _, _ -> },
+    val onSkipTaskOccurrence: (TaskItem) -> Unit = {},
+    val onMoveTagInOrder: (String, Int) -> Unit = { _, _ -> },
     val onUpdateTaskTitleAndDescription: (task: TaskItem, title: String, description: String) -> Unit = { _, _, _ -> },
     val onUpdateTaskPriority: (task: TaskItem, priority: TaskPriority) -> Unit = { _, _ -> },
     val onUpdateTaskDueDate: (task: TaskItem, dueDateMillis: Long?, isAllDay: Boolean) -> Unit = { _, _, _ -> },
@@ -239,12 +248,19 @@ data class ZeroShellCallbacks(
     val onTestAiConnection: () -> Unit = {},
     val onOpenAiCapture: (initialText: String, autoLaunchCamera: Boolean, autoAnalyze: Boolean) -> Unit = { _, _, _ -> },
     val onCloseAiCapture: () -> Unit = {},
-    val onAnalyzeAiCapture: (text: String, image: AiImagePayload?, audio: AiAudioPayload?) -> Unit = { _, _, _ -> },
-    val onApplyAiCapturedTasks: (List<AiCapturedTaskDraft>) -> Unit = {},
+    val onAnalyzeAiCapture: (sessionId: Long, text: String, image: AiImagePayload?, audio: AiAudioPayload?) -> Unit = { _, _, _, _ -> },
+    val onApplyAiCapturedTasks: (sessionId: Long, drafts: List<AiCapturedTaskDraft>) -> Unit = { _, _ -> },
     val onOpenAiBreakdown: (TaskItem) -> Unit = {},
     val onCloseAiBreakdown: () -> Unit = {},
-    val onRetryAiBreakdown: () -> Unit = {},
-    val onApplyAiBreakdown: (task: TaskItem, firstStep: String?, estimatedMinutes: Int?, subtasks: List<AiSubtaskDraft>, checklistItems: List<String>) -> Unit = { _, _, _, _, _ -> },
+    val onRetryAiBreakdown: (sessionId: Long) -> Unit = {},
+    val onApplyAiBreakdown: (
+        sessionId: Long,
+        task: TaskItem,
+        firstStep: String?,
+        estimatedMinutes: Int?,
+        subtasks: List<AiSubtaskDraft>,
+        checklistItems: List<String>
+    ) -> Unit = { _, _, _, _, _, _ -> },
     val onUpdateWebDavConfig: (WebDavConfig) -> Unit = {},
     val onTestWebDav: () -> Unit = {},
     val onPushWebDav: () -> Unit = {},
@@ -643,6 +659,18 @@ fun ZeroAdaptiveShell(
                 }
             }
 
+            if (!isNowStage) {
+                UndoCapsule(
+                    banner = uiState.undoBanner?.takeIf { it.undoType == UndoType.RESTORE_TASK_OCCURRENCE },
+                    onUndo = callbacks.onUndo,
+                    onTimeout = callbacks.onUndoTimeout,
+                    modifier = Modifier
+                        .align(Alignment.CenterHorizontally)
+                        .widthIn(max = 520.dp)
+                        .padding(horizontal = 14.dp, vertical = 6.dp)
+                )
+            }
+
             // ZERO 2.0 Tactile Dual-State Hardware Switcher Bar (NOW <-> VAULT, 48dp touch height)
             ZeroTheme(
                 darkTheme = isNowStage || uiState.isDarkTheme,
@@ -770,24 +798,32 @@ fun ZeroAdaptiveShell(
     val availableFolderPaths = remember(uiState.folderFullPathById) {
         uiState.folderFullPathById.values.sorted()
     }
-    AiCaptureDialog(
-        state = aiCaptureState,
-        aiConfig = uiState.aiConfig,
-        availableFolderPaths = availableFolderPaths,
-        onDismiss = callbacks.onCloseAiCapture,
-        onOpenSettings = callbacks.onOpenSettings,
-        onAnalyze = callbacks.onAnalyzeAiCapture,
-        onApplyTasks = callbacks.onApplyAiCapturedTasks
-    )
+    key(aiCaptureState.sessionId) {
+        val sessionId = aiCaptureState.sessionId
+        AiCaptureDialog(
+            state = aiCaptureState,
+            aiConfig = uiState.aiConfig,
+            availableFolderPaths = availableFolderPaths,
+            onDismiss = callbacks.onCloseAiCapture,
+            onOpenSettings = callbacks.onOpenSettings,
+            onAnalyze = { text, image, audio -> callbacks.onAnalyzeAiCapture(sessionId, text, image, audio) },
+            onApplyTasks = { drafts -> callbacks.onApplyAiCapturedTasks(sessionId, drafts) }
+        )
+    }
 
-    AiBreakdownDialog(
-        state = aiBreakdownState,
-        aiConfig = uiState.aiConfig,
-        onDismiss = callbacks.onCloseAiBreakdown,
-        onOpenSettings = callbacks.onOpenSettings,
-        onRetry = callbacks.onRetryAiBreakdown,
-        onApply = callbacks.onApplyAiBreakdown
-    )
+    key(aiBreakdownState.sessionId) {
+        val sessionId = aiBreakdownState.sessionId
+        AiBreakdownDialog(
+            state = aiBreakdownState,
+            aiConfig = uiState.aiConfig,
+            onDismiss = callbacks.onCloseAiBreakdown,
+            onOpenSettings = callbacks.onOpenSettings,
+            onRetry = { callbacks.onRetryAiBreakdown(sessionId) },
+            onApply = { task, firstStep, minutes, subtasks, checklist ->
+                callbacks.onApplyAiBreakdown(sessionId, task, firstStep, minutes, subtasks, checklist)
+            }
+        )
+    }
 
     val menuFolder = folderMenuTarget
     if (menuFolder != null) {
@@ -865,6 +901,10 @@ fun ZeroAdaptiveShell(
 
     val menuTag = tagMenuTarget
     if (menuTag != null) {
+        val siblings = uiState.tagsWithCounts.map { it.tag }
+            .filter { it.parentId == menuTag.parentId }
+            .sortedWith(TagTreeBuilder.siblingOrder)
+        val index = siblings.indexOfFirst { it.id == menuTag.id }
         TagActionMenuDialog(
             tag = menuTag,
             displayTitle = "#${uiState.tagPathById[menuTag.id] ?: menuTag.name}",
@@ -872,6 +912,12 @@ fun ZeroAdaptiveShell(
             onCreateSubtag = { openCreateTagDialog(menuTag) },
             onRename = { renameTargetTag = menuTag },
             onMove = { moveTargetTag = menuTag },
+            onMoveUp = if (index > 0) ({ callbacks.onMoveTagInOrder(menuTag.id, -1) }) else null,
+            onMoveDown = if (index >= 0 && index < siblings.lastIndex) {
+                { callbacks.onMoveTagInOrder(menuTag.id, 1) }
+            } else {
+                null
+            },
             onDelete = { deleteTargetTag = menuTag },
             onDismiss = { tagMenuTarget = null }
         )
@@ -1086,6 +1132,15 @@ private fun CenterWorkspacePane(
     onRequestCreateFolder: (Folder?) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    var taskMenuTarget by remember(uiState.selectedDestination) { mutableStateOf<TaskItem?>(null) }
+    val paneUndo = uiState.undoBanner?.takeUnless { it.undoType == UndoType.RESTORE_TASK_OCCURRENCE }
+    val openTaskMenu: (TaskItem) -> Unit = { task ->
+        if (task.folderId != null || task.parentTaskId != null ||
+            (!task.isCompleted && RecurrenceRule.parse(task.recurrenceRule) != null)
+        ) {
+            taskMenuTarget = task
+        }
+    }
     when (val dest = uiState.selectedDestination) {
         NavigationDestination.Calendar -> {
             CalendarPane(
@@ -1102,7 +1157,7 @@ private fun CenterWorkspacePane(
                 parsedQuickInput = uiState.parsedQuickInput,
                 folderSuggestions = uiState.folderSuggestions,
                 continuousEntryEnabled = uiState.continuousEntryEnabled,
-                undoBanner = uiState.undoBanner,
+                undoBanner = paneUndo,
                 quickInputFocusRequester = quickInputFocusRequester,
                 showDrawerButton = showDrawerButton,
                 showTreeToggleButton = showTreeToggleButton,
@@ -1113,6 +1168,7 @@ private fun CenterWorkspacePane(
                 onToggleTaskComplete = callbacks.onToggleTaskComplete,
                 onDeleteTask = callbacks.onDeleteTask,
                 onSelectTask = { task -> callbacks.onSelectTask(task.id) },
+                onOpenTaskActions = openTaskMenu,
                 onSelectTag = { tagId -> callbacks.onSelectDestination(NavigationDestination.TagView(tagId)) },
                 onQuickInputEdit = callbacks.onQuickInputEdit,
                 onQuickInputSubmit = callbacks.onQuickInputSubmit,
@@ -1135,6 +1191,7 @@ private fun CenterWorkspacePane(
                 onOpenDrawer = onOpenDrawer,
                 onToggleTreePanel = callbacks.onToggleMediumTreeExpanded,
                 onSelectTask = { task -> callbacks.onSelectTask(task.id) },
+                onOpenTaskActions = openTaskMenu,
                 onQuickAddWithPriority = callbacks.onPrefillQuickInputPriority,
                 modifier = modifier
             )
@@ -1196,7 +1253,7 @@ private fun CenterWorkspacePane(
                 parsedQuickInput = uiState.parsedQuickInput,
                 folderSuggestions = uiState.folderSuggestions,
                 continuousEntryEnabled = uiState.continuousEntryEnabled,
-                undoBanner = uiState.undoBanner,
+                undoBanner = paneUndo,
                 quickInputFocusRequester = quickInputFocusRequester,
                 showDrawerButton = showDrawerButton,
                 showTreeToggleButton = showTreeToggleButton,
@@ -1216,6 +1273,7 @@ private fun CenterWorkspacePane(
                 onDeleteTask = callbacks.onDeleteTask,
                 onIndentTask = callbacks.onIndentTask,
                 onOutdentTask = callbacks.onOutdentTask,
+                onOpenTaskActions = openTaskMenu,
                 onSelectTask = { task -> callbacks.onSelectTask(task.id) },
                 onReorderTask = callbacks.onReorderTask,
                 onQuickInputEdit = callbacks.onQuickInputEdit,
@@ -1229,6 +1287,33 @@ private fun CenterWorkspacePane(
                 modifier = modifier
             )
         }
+    }
+
+    taskMenuTarget?.let { task ->
+        TaskContextMenuDialog(
+            title = task.title,
+            onOpenProject = task.folderId?.let {
+                {
+                    taskMenuTarget = null
+                    callbacks.onOpenTaskContext(task, false)
+                }
+            },
+            onOpenMainTask = task.parentTaskId?.let {
+                {
+                    taskMenuTarget = null
+                    callbacks.onOpenTaskContext(task, true)
+                }
+            },
+            onSkipOccurrence = if (!task.isCompleted && RecurrenceRule.parse(task.recurrenceRule) != null) {
+                {
+                    taskMenuTarget = null
+                    callbacks.onSkipTaskOccurrence(task)
+                }
+            } else {
+                null
+            },
+            onDismiss = { taskMenuTarget = null }
+        )
     }
 }
 
@@ -1275,6 +1360,7 @@ private fun BoundTaskDetailPane(
             onNavigateBack()
         },
         onDeleteTask = callbacks.onDeleteTask,
+        onSkipOccurrence = callbacks.onSkipTaskOccurrence,
         onOpenAiBreakdown = callbacks.onOpenAiBreakdown,
         tagPathById = uiState.tagPathById,
         allTags = uiState.tagsWithCounts.map { it.tag },
