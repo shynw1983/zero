@@ -6,8 +6,8 @@
 3. **"交接" keyword**: When the user says “交接” (or “handoff”), immediately update `CONTEXT.md` following its existing template to reflect all work in the current conversation (including uncommitted in-progress work and blockers), commit and push it, then confirm briefly.
 4. Keep `AGENTS.md` and `CONTEXT.md` consistent (version numbers, DB version, key file paths).
 
-## 1. Current Product Baseline (ZERO v2.19.0 — Source of Truth)
-> **IMPORTANT**: `docs/PRD.md` reflects the initial v1.0 draft and is **outdated** on visual accents and layout. Always treat the current `v2.19.0` codebase, the rules below, and the root `CONTEXT.md` handoff guide as the authoritative source of truth.
+## 1. Current Product Baseline (ZERO v2.19.1 — Source of Truth)
+> **IMPORTANT**: `docs/PRD.md` reflects the initial v1.0 draft and is **outdated** on visual accents and layout. Always treat the current `v2.19.1` codebase, the rules below, and the root `CONTEXT.md` handoff guide as the authoritative source of truth.
 
 - **Aesthetic & Palette (NO Sci-Fi Neon)**:
   - Keep the Matte Obsidian Dark (`#09090B`) / Cool Paper Light (`#F7F7F9`) bases, `0.5.dp` hairline borders, and tabular monospace numbers (`tnum`).
@@ -54,7 +54,7 @@ Whenever adding or modifying ANY feature, screen, dialog, snackbar/capsule, widg
 - **In-Place Upgrade Signing**:
   - `app/build.gradle.kts` signs `release` builds with `signingConfigs.getByName("debug")` (using local `~/.android/debug.keystore`). **Do NOT change `signingConfig`** so installed APKs on the user's Android devices always upgrade in-place without losing data.
 - **Room Database & Backup Compatibility**:
-  - ZERO v2.19.0 uses Room **`version = 6`** with `MIGRATION_1_2` … `MIGRATION_5_6` (latest schema: `app/schemas/com.zero.todo.data.local.ZeroDatabase/6.json`). `ZeroBackupManager.CURRENT_SCHEMA_VERSION = 5` supports restoring v1–v5 backups.
+  - ZERO v2.19.1 uses Room **`version = 6`** with `MIGRATION_1_2` … `MIGRATION_5_6` (latest schema: `app/schemas/com.zero.todo.data.local.ZeroDatabase/6.json`). `ZeroBackupManager.CURRENT_SCHEMA_VERSION = 5` supports restoring v1–v5 backups.
   - Any schema change MUST increment `version`, add a lossless `Migration` registered in `DatabaseModule.kt`, export the new schema JSON, and update `ZeroBackupManager.kt` backward-compatibly (supporting JSON backups from v1 onward). **NEVER enable `fallbackToDestructiveMigration()`.**
 - **Robolectric + Room Async Tests**:
   - Do NOT combine `runTest` virtual time with `withTimeout` when awaiting Room Flows (Room executes on real background threads and causes instant false timeouts). Follow `MainViewModelStateTest.kt`: use `runBlocking` + `Dispatchers.setMain(Dispatchers.Default)` + real-time `withTimeout`.
