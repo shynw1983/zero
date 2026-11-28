@@ -62,6 +62,7 @@ Whenever adding or modifying ANY feature, screen, dialog, snackbar/capsule, widg
 ---
 
 ## 4. Release & Software Portal Publishing Workflow
+- **Default release timing**: Publish each requested ZERO feature or fix in the same turn once it is complete and verified. If the user redirects the work before publication, follow the new direction first.
 - **App Repo**: `https://github.com/shynw1983/zero` (`gh` CLI is authenticated as `shynw1983`).
   1. Increment `versionCode` and `versionName` in `app/build.gradle.kts`.
   2. Run `JAVA_HOME=/opt/homebrew/opt/openjdk@17 ./gradlew testDebugUnitTest assembleRelease`.
