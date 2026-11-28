@@ -1,14 +1,14 @@
 # ZERO Project Engineering Rules & Handoff Guide (AGENTS.md)
 
-## 1. Current Product Baseline (ZERO v2.0.0 — Source of Truth)
-> **IMPORTANT**: `docs/PRD.md` reflects the initial v1.0 draft and is **outdated** on visual accents and layout. Always treat the current `v2.0.0` codebase and the rules below as the authoritative source of truth.
+## 1. Current Product Baseline (ZERO v2.16.0 — Source of Truth)
+> **IMPORTANT**: `docs/PRD.md` reflects the initial v1.0 draft and is **outdated** on visual accents and layout. Always treat the current `v2.16.0` codebase, the rules below, and the root `CONTEXT.md` handoff guide as the authoritative source of truth.
 
 - **Aesthetic & Palette (NO Sci-Fi Neon)**:
   - Keep the Matte Obsidian Dark (`#09090B`) / Cool Paper Light (`#F7F7F9`) bases, `0.5.dp` hairline borders, and tabular monospace numbers (`tnum`).
-  - Use the 4 calm, Dark/Light-adaptive accents in `ZeroColors.kt`: `SlateBlue` (default), `Monochrome`, `Sage`, `WarmClay`. **Do NOT revert to `#FF4D00` / `#00E5FF` neon colors.**
+  - Use the 4 calm, Dark/Light-adaptive accents in `ZeroColors.kt`: `SlateBlue` (default), `Monochrome`, `Sage`, `WarmClay`. **Do NOT revert to `#FF4D00` / `#00E5FF` neon colors.** (Sole user-approved exception: the ATLAS execution theme's borderless burnt-orange `0xFFE54300` gradient glows in `AtlasThemeView.kt` — keep them seamless, feathered, and calmly "breathing", never hard-edged or bullet-like.)
   - System status bar and navigation bar icon contrast MUST dynamically follow `isDarkTheme` (`ZeroAppRoot.kt` via `WindowCompat.getInsetsController`).
 - **Dual-State Core Architecture (`NOW` ⇄ `VAULT`)**:
-  - Bottom `48.dp` tactile switcher toggles between `WorkspaceMode.NOW` (`NowRunwayScreen.kt` — single active task card, 0.3s hold-to-complete, guilt-free skip, First Tiny Step -> Forward Momentum Stopwatch flow, Day Capacity Ruler) and `WorkspaceMode.VAULT` (infinite folder tree, calendar, matrix, tags, trash, global search, sort).
+  - Bottom `48.dp` tactile switcher toggles between `WorkspaceMode.NOW` (`feature/execute/ExecuteHostScreen.kt` hosting the swappable execution themes `MonolithThemeView.kt` / `RunwayThemeView.kt` / `AtlasThemeView.kt` — single active task card, 0.3s hold-to-complete, guilt-free skip, First Tiny Step -> Forward Momentum Stopwatch flow, Day Capacity Ruler) and `WorkspaceMode.VAULT` (infinite folder tree, calendar, matrix, tags, trash, global search, sort).
   - Full-screen `TriageDeckOverlay.kt` ("30s Triage") clears Inbox & Overdue backlog via single-card swipe/buttons.
 - **Multi-Form-Factor Layout (`ZeroAdaptiveShell.kt`)**:
   - **Compact (<600dp)**: Single pane + left modal drawer (`ListDetailPaneScaffold`).
@@ -45,8 +45,8 @@ Whenever adding or modifying ANY feature, screen, dialog, snackbar/capsule, widg
 - **In-Place Upgrade Signing**:
   - `app/build.gradle.kts` signs `release` builds with `signingConfigs.getByName("debug")` (using local `~/.android/debug.keystore`). **Do NOT change `signingConfig`** so installed APKs on the user's Android devices always upgrade in-place without losing data.
 - **Room Database & Backup Compatibility**:
-  - `ZeroDatabase` is currently at **`version = 2`** with `MIGRATION_1_2` (`app/schemas/com.zero.todo.data.local.ZeroDatabase/2.json`).
-  - Any schema change MUST increment `version`, add a lossless `Migration` registered in `DatabaseModule.kt`, and update `ZeroBackupManager.kt` backward-compatibly (supporting v1/v2+ JSON backups). **NEVER enable `fallbackToDestructiveMigration()`.**
+  - `ZeroDatabase` is currently at **`version = 5`** with `MIGRATION_1_2` … `MIGRATION_4_5` (latest schema: `app/schemas/com.zero.todo.data.local.ZeroDatabase/5.json`). `ZeroBackupManager.CURRENT_SCHEMA_VERSION = 4`.
+  - Any schema change MUST increment `version`, add a lossless `Migration` registered in `DatabaseModule.kt`, export the new schema JSON, and update `ZeroBackupManager.kt` backward-compatibly (supporting all v1..v4+ JSON backups). **NEVER enable `fallbackToDestructiveMigration()`.**
 - **Robolectric + Room Async Tests**:
   - Do NOT combine `runTest` virtual time with `withTimeout` when awaiting Room Flows (Room executes on real background threads and causes instant false timeouts). Follow `MainViewModelStateTest.kt`: use `runBlocking` + `Dispatchers.setMain(Dispatchers.Default)` + real-time `withTimeout`.
 
@@ -60,4 +60,5 @@ Whenever adding or modifying ANY feature, screen, dialog, snackbar/capsule, widg
 - **App Labs Release Portal**: `https://github.com/shynw1983/app-hub` (auto-deploys to `https://app-hub-eight-flax.vercel.app`).
   - **CRITICAL macOS Pitfall**: Do NOT run `git push`/`git fetch` inside `/Users/wushengyin/Desktop/VC/release-portal` (iCloud Desktop causes `fatal: mmap failed`). Always clone cleanly to `/tmp/app-hub-push`, update `data/apps.json` (`latestVersion`, `fileSize`, `fileName`, `downloadUrl`, `sha256`, `downloads`, `releases`), commit, push, and `rm -rf /tmp/app-hub-push`.
 - **Known Minor Cleanup**:
-  - `NowRunwayScreen.kt`: replace deprecated `Icons.Rounded.OpenInNew` with `Icons.AutoMirrored.Rounded.OpenInNew` on the next code edit.
+  - `TaskDetailPane.kt:1041`: compiler warning "Condition is always 'true'" (harmless; clean up on the next edit of that file).
+- **Secrets**: NEVER commit `local.properties` or any `AIzaSy…` Maps API key (verify `git diff --cached | grep -E 'AIzaSy[0-9A-Za-z_-]{30,}'` prints nothing), and never stage `.codex-attachments/` or `.kotlin/`.
