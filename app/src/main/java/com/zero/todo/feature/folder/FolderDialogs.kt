@@ -24,7 +24,6 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.DriveFileMove
 import androidx.compose.material.icons.rounded.Add
-import androidx.compose.material.icons.rounded.ArrowDownward
 import androidx.compose.material.icons.rounded.ArrowUpward
 import androidx.compose.material.icons.rounded.SkipNext
 import androidx.compose.material.icons.rounded.Check
@@ -34,8 +33,6 @@ import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Folder
 import androidx.compose.material.icons.rounded.Inbox
 import androidx.compose.material.icons.rounded.LocationOn
-import androidx.compose.material.icons.rounded.SwapVert
-import androidx.compose.material.icons.rounded.Tag
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -70,7 +67,6 @@ import com.zero.todo.domain.model.Folder
 import com.zero.todo.domain.model.FolderNode
 import com.zero.todo.domain.model.ProjectFolderColors
 import com.zero.todo.domain.model.TagItem
-import com.zero.todo.domain.model.TagNode
 import com.zero.todo.domain.model.TagTreeBuilder
 
 @Composable
@@ -414,222 +410,6 @@ fun DeleteFolderConfirmDialog(
 }
 
 /**
- * Dialog to reorganize a folder: reorder among siblings (Up / Down) OR re-parent under Root /
- * any non-descendant parent folder.
- */
-@Composable
-fun MoveFolderDialog(
-    folder: Folder,
-    folderTree: List<FolderNode>,
-    onMoveOrder: (folderId: String, direction: Int) -> Unit,
-    onMoveToParent: (folderId: String, targetParentId: String?) -> Unit,
-    onDismiss: () -> Unit
-) {
-    val colors = ZeroTheme.colors
-
-    // Exclude the folder itself and all its descendants to prevent invalid cycles.
-    val validTargets = remember(folder.id, folderTree) {
-        buildList {
-            fun walk(nodes: List<FolderNode>) {
-                for (node in nodes) {
-                    if (node.folder.id == folder.id) continue
-                    add(node)
-                    walk(node.children)
-                }
-            }
-            walk(folderTree)
-        }
-    }
-
-    Dialog(onDismissRequest = onDismiss) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(ZeroCardShape)
-                .background(colors.surfaceElevated)
-                .hairlineBorder(shape = ZeroCardShape)
-                .padding(18.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Text(
-                text = stringResource(R.string.dialog_organize_folder_title, folder.name),
-                style = MaterialTheme.typography.titleMedium,
-                color = colors.textPrimary,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-
-            // Reorder among siblings
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Row(
-                    modifier = Modifier
-                        .weight(1f)
-                        .clip(ZeroSmallShape)
-                        .background(colors.surface)
-                        .hairlineBorder(shape = ZeroSmallShape)
-                        .clickable { onMoveOrder(folder.id, -1) }
-                        .padding(horizontal = 10.dp, vertical = 8.dp),
-                    horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.ArrowUpward,
-                        contentDescription = null,
-                        tint = colors.textSecondary,
-                        modifier = Modifier.size(15.dp)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = stringResource(R.string.action_move_up),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = colors.textPrimary
-                    )
-                }
-                Row(
-                    modifier = Modifier
-                        .weight(1f)
-                        .clip(ZeroSmallShape)
-                        .background(colors.surface)
-                        .hairlineBorder(shape = ZeroSmallShape)
-                        .clickable { onMoveOrder(folder.id, 1) }
-                        .padding(horizontal = 10.dp, vertical = 8.dp),
-                    horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.ArrowDownward,
-                        contentDescription = null,
-                        tint = colors.textSecondary,
-                        modifier = Modifier.size(15.dp)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = stringResource(R.string.action_move_down),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = colors.textPrimary
-                    )
-                }
-            }
-
-            Text(
-                text = stringResource(R.string.dialog_move_folder_parent_hint),
-                style = MaterialTheme.typography.labelSmall,
-                color = colors.textMuted
-            )
-
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(max = 260.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                item(key = "parent_root") {
-                    val isCurrent = folder.parentId == null
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(ZeroSmallShape)
-                            .background(if (isCurrent) colors.accentSubtle else colors.surface)
-                            .hairlineBorder(
-                                shape = ZeroSmallShape,
-                                color = if (isCurrent) colors.accent else colors.hairlineBorder
-                            )
-                            .clickable {
-                                onMoveToParent(folder.id, null)
-                                onDismiss()
-                            }
-                            .padding(horizontal = 12.dp, vertical = 9.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = stringResource(R.string.folder_root_level),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = if (isCurrent) colors.accent else colors.textPrimary,
-                            modifier = Modifier.weight(1f)
-                        )
-                        if (isCurrent) {
-                            Icon(
-                                imageVector = Icons.Rounded.Check,
-                                contentDescription = null,
-                                tint = colors.accent,
-                                modifier = Modifier.size(15.dp)
-                            )
-                        }
-                    }
-                }
-
-                items(items = validTargets, key = { it.folder.id }) { node ->
-                    val isCurrent = node.folder.id == folder.parentId
-                    val indent = ZeroDimens.TreeIndentPerLevel * node.depth.coerceAtMost(ZeroDimens.MaxVisibleTreeDepth)
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(ZeroSmallShape)
-                            .background(if (isCurrent) colors.accentSubtle else colors.surface)
-                            .hairlineBorder(
-                                shape = ZeroSmallShape,
-                                color = if (isCurrent) colors.accent else colors.hairlineBorder
-                            )
-                            .clickable {
-                                onMoveToParent(folder.id, node.folder.id)
-                                onDismiss()
-                            }
-                            .padding(start = 12.dp + indent, end = 12.dp, top = 9.dp, bottom = 9.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.Folder,
-                            contentDescription = null,
-                            tint = if (isCurrent) colors.accent else colors.textSecondary,
-                            modifier = Modifier.size(15.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = node.folder.name,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = if (isCurrent) colors.accent else colors.textPrimary,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f)
-                        )
-                        if (isCurrent) {
-                            Icon(
-                                imageVector = Icons.Rounded.Check,
-                                contentDescription = null,
-                                tint = colors.accent,
-                                modifier = Modifier.size(15.dp)
-                            )
-                        }
-                    }
-                }
-            }
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End
-            ) {
-                Box(
-                    modifier = Modifier
-                        .clip(ZeroSmallShape)
-                        .hairlineBorder(shape = ZeroSmallShape)
-                        .clickable(onClick = onDismiss)
-                        .padding(horizontal = 14.dp, vertical = 8.dp)
-                ) {
-                    Text(
-                        text = stringResource(R.string.action_close),
-                        style = MaterialTheme.typography.labelLarge,
-                        color = colors.textSecondary
-                    )
-                }
-            }
-        }
-    }
-}
-
-/**
  * Touch-friendly 50dp action menu for managing a Folder (replaces cramped 22dp row icons).
  */
 @Composable
@@ -640,7 +420,6 @@ fun FolderActionMenuDialog(
     onSelectColor: ((String?) -> Unit)? = null,
     onCreateSubfolder: () -> Unit,
     onRename: () -> Unit,
-    onOrganize: () -> Unit,
     onDelete: () -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -730,15 +509,6 @@ fun FolderActionMenuDialog(
                 }
             )
             TactileMenuRow(
-                icon = Icons.Rounded.SwapVert,
-                label = stringResource(R.string.cd_organize_folder),
-                tint = colors.textPrimary,
-                onClick = {
-                    onDismiss()
-                    onOrganize()
-                }
-            )
-            TactileMenuRow(
                 icon = Icons.Rounded.DeleteOutline,
                 label = stringResource(R.string.cd_delete_folder),
                 tint = colors.priorityUrgent,
@@ -810,7 +580,7 @@ fun FolderColorSwatchRow(
 }
 
 /**
- * Touch-friendly 50dp action menu for managing a Tag (Create Sub-tag / Rename / Move / Delete).
+ * Touch-friendly 50dp action menu for managing a tag.
  */
 @Composable
 fun TagActionMenuDialog(
@@ -819,9 +589,6 @@ fun TagActionMenuDialog(
     onConfigurePlace: () -> Unit = {},
     onCreateSubtag: () -> Unit,
     onRename: () -> Unit,
-    onMove: () -> Unit,
-    onMoveUp: (() -> Unit)? = null,
-    onMoveDown: (() -> Unit)? = null,
     onDelete: () -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -876,31 +643,6 @@ fun TagActionMenuDialog(
                     onRename()
                 }
             )
-            TactileMenuRow(
-                icon = Icons.AutoMirrored.Rounded.DriveFileMove,
-                label = stringResource(R.string.action_move_tag),
-                tint = colors.textPrimary,
-                onClick = {
-                    onDismiss()
-                    onMove()
-                }
-            )
-            onMoveUp?.let { move ->
-                TactileMenuRow(
-                    icon = Icons.Rounded.ArrowUpward,
-                    label = stringResource(R.string.action_move_up),
-                    tint = colors.textPrimary,
-                    onClick = move
-                )
-            }
-            onMoveDown?.let { move ->
-                TactileMenuRow(
-                    icon = Icons.Rounded.ArrowDownward,
-                    label = stringResource(R.string.action_move_down),
-                    tint = colors.textPrimary,
-                    onClick = move
-                )
-            }
             TactileMenuRow(
                 icon = Icons.Rounded.DeleteOutline,
                 label = stringResource(R.string.action_delete_tag),
@@ -1058,173 +800,6 @@ fun CreateTagDialog(
                         text = stringResource(R.string.action_create),
                         style = MaterialTheme.typography.labelLarge,
                         color = if (canSave) colors.onAccent else colors.textMuted
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun MoveTagDialog(
-    tag: TagItem,
-    allTags: List<TagItem>,
-    displayPath: String = tag.name,
-    onDismiss: () -> Unit,
-    onMoveToParent: (tagId: String, targetParentId: String?) -> Unit
-) {
-    val colors = ZeroTheme.colors
-    val blockedIds = remember(tag.id, allTags) {
-        TagTreeBuilder.collectDescendantIds(tag.id, allTags) + tag.id
-    }
-    val validTargets = remember(allTags, blockedIds) {
-        val dummyCounts = allTags.map { com.zero.todo.data.repository.TagWithCount(it, 0) }
-        val roots = TagTreeBuilder.buildTree(dummyCounts)
-        buildList<TagNode> {
-            fun walk(nodes: List<TagNode>) {
-                for (n in nodes) {
-                    if (n.tag.id !in blockedIds) {
-                        add(n)
-                        walk(n.children)
-                    }
-                }
-            }
-            walk(roots)
-        }
-    }
-
-    Dialog(onDismissRequest = onDismiss) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(ZeroCardShape)
-                .background(colors.surfaceElevated)
-                .hairlineBorder(shape = ZeroCardShape)
-                .padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Text(
-                text = stringResource(R.string.dialog_move_tag_title, "#$displayPath"),
-                style = MaterialTheme.typography.titleMedium,
-                color = colors.textPrimary,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            Text(
-                text = stringResource(R.string.dialog_move_tag_hint),
-                style = MaterialTheme.typography.labelMedium,
-                color = colors.textMuted
-            )
-
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(max = 260.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                item(key = "tag_root_level") {
-                    val isCurrent = tag.parentId == null
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(ZeroSmallShape)
-                            .background(if (isCurrent) colors.accentSubtle else colors.surface)
-                            .hairlineBorder(
-                                shape = ZeroSmallShape,
-                                color = if (isCurrent) colors.accent else colors.hairlineBorder
-                            )
-                            .clickable {
-                                onMoveToParent(tag.id, null)
-                                onDismiss()
-                            }
-                            .padding(horizontal = 12.dp, vertical = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.Tag,
-                            contentDescription = null,
-                            tint = if (isCurrent) colors.accent else colors.textSecondary,
-                            modifier = Modifier.size(15.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = stringResource(R.string.dialog_move_tag_root),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = if (isCurrent) colors.accent else colors.textPrimary,
-                            modifier = Modifier.weight(1f)
-                        )
-                        if (isCurrent) {
-                            Icon(
-                                imageVector = Icons.Rounded.Check,
-                                contentDescription = null,
-                                tint = colors.accent,
-                                modifier = Modifier.size(15.dp)
-                            )
-                        }
-                    }
-                }
-
-                items(items = validTargets, key = { it.tag.id }) { node ->
-                    val isCurrent = node.tag.id == tag.parentId
-                    val indent = ZeroDimens.TreeIndentPerLevel * node.depth.coerceAtMost(ZeroDimens.MaxVisibleTreeDepth)
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(ZeroSmallShape)
-                            .background(if (isCurrent) colors.accentSubtle else colors.surface)
-                            .hairlineBorder(
-                                shape = ZeroSmallShape,
-                                color = if (isCurrent) colors.accent else colors.hairlineBorder
-                            )
-                            .clickable {
-                                onMoveToParent(tag.id, node.tag.id)
-                                onDismiss()
-                            }
-                            .padding(start = 12.dp + indent, end = 12.dp, top = 9.dp, bottom = 9.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.Tag,
-                            contentDescription = null,
-                            tint = if (isCurrent) colors.accent else colors.textSecondary,
-                            modifier = Modifier.size(15.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = node.tag.name,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = if (isCurrent) colors.accent else colors.textPrimary,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f)
-                        )
-                        if (isCurrent) {
-                            Icon(
-                                imageVector = Icons.Rounded.Check,
-                                contentDescription = null,
-                                tint = colors.accent,
-                                modifier = Modifier.size(15.dp)
-                            )
-                        }
-                    }
-                }
-            }
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End
-            ) {
-                Box(
-                    modifier = Modifier
-                        .clip(ZeroSmallShape)
-                        .hairlineBorder(shape = ZeroSmallShape)
-                        .clickable(onClick = onDismiss)
-                        .padding(horizontal = 14.dp, vertical = 8.dp)
-                ) {
-                    Text(
-                        text = stringResource(R.string.action_close),
-                        style = MaterialTheme.typography.labelLarge,
-                        color = colors.textSecondary
                     )
                 }
             }

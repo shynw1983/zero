@@ -253,16 +253,10 @@
     <string name="action_reschedule_today">오늘로 미루기</string>
     <string name="action_delete">삭제</string>
     <string name="action_close">닫기</string>
-    <string name="action_move_up">위로</string>
-    <string name="action_move_down">아래로</string>
     <string name="action_restore">복원</string>
     <string name="action_delete_forever">영구 삭제</string>
     <string name="dialog_delete_folder_title">\"%1$s\" 삭제할까요?</string>
     <string name="dialog_delete_folder_message">이 폴더와 하위 폴더가 삭제됩니다. 내부 할 일은 안전하게 받은함으로 이동됩니다.</string>
-    <string name="dialog_organize_folder_title">\"%1$s\" 정리</string>
-    <string name="dialog_move_folder_parent_hint">상위 폴더로 이동</string>
-    <string name="folder_root_level">최상위 (루트)</string>
-    <string name="cd_organize_folder">폴더 순서 및 계층 이동</string>
     <string name="cd_task_sort">작업 정렬 순서</string>
     <string name="cd_search_tasks">할 일 검색</string>
     <string name="search_placeholder">할 일, 메모, #태그, /폴더 검색…</string>
@@ -405,13 +399,9 @@
     <string name="cd_create_root_tag">새 태그</string>
     <string name="tags_empty_hint">#상위/하위 입력 또는 + 로 계층 태그 추가</string>
     <string name="action_create_subtag">하위 태그 만들기</string>
-    <string name="action_move_tag">상위 태그로 이동</string>
     <string name="dialog_create_tag_title">새 태그</string>
     <string name="dialog_create_subtag_title">#%1$s 하위 태그 만들기</string>
     <string name="dialog_create_tag_placeholder">이름 또는 경로 (예: 외출/편의점)</string>
-    <string name="dialog_move_tag_title">%1$s 이동</string>
-    <string name="dialog_move_tag_root">최상위 태그</string>
-    <string name="dialog_move_tag_hint">새 상위 태그 선택</string>
 
     <!-- v2.6.0: 리마인더 및 푸시 알림 설정 -->
     <string name="notif_channel_briefing">일일 브리핑</string>

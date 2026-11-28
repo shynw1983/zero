@@ -253,16 +253,10 @@
     <string name="action_reschedule_today">今日へ移動</string>
     <string name="action_delete">削除</string>
     <string name="action_close">閉じる</string>
-    <string name="action_move_up">上へ</string>
-    <string name="action_move_down">下へ</string>
     <string name="action_restore">復元</string>
     <string name="action_delete_forever">完全削除</string>
     <string name="dialog_delete_folder_title">「%1$s」を削除しますか？</string>
     <string name="dialog_delete_folder_message">このフォルダとサブフォルダが削除されます。中のタスクは安全に受信箱へ移動されます。</string>
-    <string name="dialog_organize_folder_title">「%1$s」を整理</string>
-    <string name="dialog_move_folder_parent_hint">親フォルダへ移動</string>
-    <string name="folder_root_level">最上位（ルート）</string>
-    <string name="cd_organize_folder">フォルダの並び替え・階層移動</string>
     <string name="cd_task_sort">タスクの並べ替え</string>
     <string name="cd_search_tasks">タスクを検索</string>
     <string name="search_placeholder">タスク・メモ・#タグ・/フォルダを検索…</string>
@@ -405,13 +399,9 @@
     <string name="cd_create_root_tag">タグを追加</string>
     <string name="tags_empty_hint">#親/子 を入力または + で階層タグを作成</string>
     <string name="action_create_subtag">サブタグを作成</string>
-    <string name="action_move_tag">親タグを変更</string>
     <string name="dialog_create_tag_title">新しいタグ</string>
     <string name="dialog_create_subtag_title">#%1$s のサブタグを作成</string>
     <string name="dialog_create_tag_placeholder">名前またはパス（例：外出/コンビニ）</string>
-    <string name="dialog_move_tag_title">%1$s を移動</string>
-    <string name="dialog_move_tag_root">最上位タグ</string>
-    <string name="dialog_move_tag_hint">移動先の親タグを選択</string>
 
     <!-- v2.6.0: リマインダー＆プッシュ通知設定 -->
     <string name="notif_channel_briefing">デイリーブリーフィング</string>

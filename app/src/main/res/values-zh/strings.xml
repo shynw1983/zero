@@ -253,16 +253,10 @@
     <string name="action_reschedule_today">顺延到今天</string>
     <string name="action_delete">删除</string>
     <string name="action_close">关闭</string>
-    <string name="action_move_up">上移</string>
-    <string name="action_move_down">下移</string>
     <string name="action_restore">恢复</string>
     <string name="action_delete_forever">彻底删除</string>
     <string name="dialog_delete_folder_title">删除「%1$s」？</string>
     <string name="dialog_delete_folder_message">将删除此文件夹及其子文件夹，其中的任务会安全移回「收集箱」，不会丢失。</string>
-    <string name="dialog_organize_folder_title">整理「%1$s」</string>
-    <string name="dialog_move_folder_parent_hint">移动到上级文件夹</string>
-    <string name="folder_root_level">顶级目录（根层级）</string>
-    <string name="cd_organize_folder">整理或调整文件夹层级</string>
     <string name="cd_task_sort">任务排序</string>
     <string name="cd_search_tasks">搜索任务</string>
     <string name="search_placeholder">搜索任务标题、备注、#标签、/目录…</string>
@@ -405,13 +399,9 @@
     <string name="cd_create_root_tag">新建标签</string>
     <string name="tags_empty_hint">输入 #一级/二级 或点 + 创建层级标签</string>
     <string name="action_create_subtag">新建子标签</string>
-    <string name="action_move_tag">移动到上级标签</string>
     <string name="dialog_create_tag_title">新建标签</string>
     <string name="dialog_create_subtag_title">在 #%1$s 下新建子标签</string>
     <string name="dialog_create_tag_placeholder">名称或路径（例：外出/便利店）</string>
-    <string name="dialog_move_tag_title">移动 %1$s</string>
-    <string name="dialog_move_tag_root">顶层标签</string>
-    <string name="dialog_move_tag_hint">选择新的上级标签</string>
 
     <!-- v2.6.0: 提醒与消息推送中心 -->
     <string name="notif_channel_briefing">每日规划与复盘</string>

@@ -47,6 +47,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -124,11 +125,15 @@ fun FolderTreePanel(
     val target = drag.target(folderRows, tagRows)
     val targetIndent = ZeroDimens.TreeIndentPerLevel *
         (target?.markerDepth ?: 0).coerceAtMost(ZeroDimens.MaxVisibleTreeDepth)
+    val destination = target?.let { Triple(it.parentId, it.precedingId, it.followingId) }
+    LaunchedEffect(drag, destination) {
+        if (destination != null) drag.tickForDropTarget()
+    }
 
     fun drop(tree: SidebarTree, id: String) {
-        val destination = drag.target(folderRows, tagRows) ?: return
+        val dropTarget = drag.target(folderRows, tagRows) ?: return
         val place = if (tree == SidebarTree.FOLDERS) onPlaceFolder else onPlaceTag
-        place(id, destination.parentId, destination.precedingId, destination.followingId)
+        place(id, dropTarget.parentId, dropTarget.precedingId, dropTarget.followingId)
     }
 
     Column(

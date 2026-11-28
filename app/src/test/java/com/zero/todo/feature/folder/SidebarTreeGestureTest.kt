@@ -6,14 +6,19 @@ import android.view.MotionEvent
 import android.view.View
 import androidx.activity.ComponentActivity
 import androidx.compose.runtime.BroadcastFrameClock
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Recomposer
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.hapticfeedback.HapticFeedback
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.ViewRootForTest
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getAllSemanticsNodes
 import androidx.compose.ui.semantics.getOrNull
 import com.zero.todo.core.designsystem.ZeroAccent
+import com.zero.todo.core.designsystem.ZeroHaptics
 import com.zero.todo.core.designsystem.ZeroTheme
 import com.zero.todo.data.repository.TagWithCount
 import com.zero.todo.domain.model.Folder
@@ -46,8 +51,11 @@ class SidebarTreeGestureTest {
             TagWithCount(TagItem("d", name = "Label D"), 0)
         )
         val drops = mutableListOf<Drop>()
+        val feedback = mutableListOf<HapticFeedbackType>()
         var menuOpened = 0
-        withSidebar(folders, tags, onOpenMenu = { menuOpened++ }, onDrop = { drops += it }) { view ->
+        withSidebar(
+            folders, tags, onOpenMenu = { menuOpened++ }, onDrop = { drops += it }, onHapticFeedback = { feedback += it }
+        ) { view ->
             val folderY = view.titleBounds("Project A").center.y
             val secondFolderY = view.titleBounds("Project B").center.y
             val tagY = view.titleBounds("Label C").center.y
@@ -71,6 +79,37 @@ class SidebarTreeGestureTest {
                 drops
             )
             assertEquals(1, menuOpened)
+            assertEquals(emptyList<HapticFeedbackType>(), feedback)
+        }
+    }
+
+    @Test
+    fun `drag pickup and a new valid landing position each give one light tick`() {
+        val folders = listOf(Folder("a", name = "Project A"), Folder("b", name = "Project B"))
+        val feedback = mutableListOf<HapticFeedbackType>()
+        val tick = HapticFeedbackType.TextHandleMove
+        withSidebar(folders, onDrop = {}, hapticsEnabled = true, onHapticFeedback = { feedback += it }) { view ->
+            val x = view.width - 36f
+            val startY = view.titleBounds("Project A").center.y
+            val targetY = view.titleBounds("Project B").center.y
+            val downTime = SystemClock.uptimeMillis()
+            view.touch(downTime, MotionEvent.ACTION_DOWN, x, startY)
+            assertEquals(emptyList<HapticFeedbackType>(), feedback)
+            view.touch(downTime, MotionEvent.ACTION_MOVE, x, startY + 18f)
+            assertEquals(listOf(tick), feedback)
+
+            advance(80)
+            view.touch(downTime, MotionEvent.ACTION_MOVE, x, targetY)
+            advance(20)
+            assertEquals(listOf(tick, tick), feedback)
+
+            advance(80)
+            view.touch(downTime, MotionEvent.ACTION_MOVE, x, targetY + 2f)
+            advance(20)
+            view.touch(downTime, MotionEvent.ACTION_MOVE, x, startY)
+            advance(20)
+            view.touch(downTime, MotionEvent.ACTION_CANCEL, x, startY)
+            assertEquals(listOf(tick, tick), feedback)
         }
     }
 
@@ -103,6 +142,8 @@ class SidebarTreeGestureTest {
         tags: List<TagWithCount> = emptyList(),
         onOpenMenu: () -> Unit = {},
         onDrop: (Drop) -> Unit,
+        hapticsEnabled: Boolean = false,
+        onHapticFeedback: (HapticFeedbackType) -> Unit = {},
         check: (ComposeView) -> Unit
     ) {
         val folderTree = FolderTreeBuilder.build(folders)
@@ -113,36 +154,44 @@ class SidebarTreeGestureTest {
         val recomposition = CoroutineScope(uiContext).launch { recomposer.runRecomposeAndApplyChanges() }
         try {
             val activity = controller.get()
+            ZeroHaptics.resolveVibrator(activity.applicationContext)?.let { shadowOf(it).setHasVibrator(false) }
+            val hapticFeedback = object : HapticFeedback {
+                override fun performHapticFeedback(hapticFeedbackType: HapticFeedbackType) {
+                    onHapticFeedback(hapticFeedbackType)
+                }
+            }
             val view = ComposeView(activity).apply {
                 setParentCompositionContext(recomposer)
                 setContent {
-                    ZeroTheme(hapticsEnabled = false) {
-                        FolderTreePanel(
-                            folderTree = folderTree,
-                            tagsWithCounts = tags,
-                            selectedDestination = NavigationDestination.Inbox,
-                            smartViewCounts = SmartViewCounts(),
-                            triageCount = 0,
-                            includeSubfolders = false,
-                            isDarkTheme = true,
-                            activeAccent = ZeroAccent.SlateBlue,
-                            onSelectDestination = {},
-                            onOpenTriage = {},
-                            onToggleFolderExpanded = { _, _ -> },
-                            onRequestCreateFolder = {},
-                            onRequestFolderMenu = { onOpenMenu() },
-                            onRequestTagMenu = { onOpenMenu() },
-                            onPlaceFolder = { id, parent, preceding, following ->
-                                onDrop(Drop(SidebarTree.FOLDERS, id, parent, preceding, following))
-                            },
-                            onPlaceTag = { id, parent, preceding, following ->
-                                onDrop(Drop(SidebarTree.TAGS, id, parent, preceding, following))
-                            },
-                            onToggleIncludeSubfolders = {},
-                            onToggleTheme = {},
-                            onToggleAccent = {},
-                            onOpenSettings = {}
-                        )
+                    ZeroTheme(hapticsEnabled = hapticsEnabled) {
+                        CompositionLocalProvider(LocalHapticFeedback provides hapticFeedback) {
+                            FolderTreePanel(
+                                folderTree = folderTree,
+                                tagsWithCounts = tags,
+                                selectedDestination = NavigationDestination.Inbox,
+                                smartViewCounts = SmartViewCounts(),
+                                triageCount = 0,
+                                includeSubfolders = false,
+                                isDarkTheme = true,
+                                activeAccent = ZeroAccent.SlateBlue,
+                                onSelectDestination = {},
+                                onOpenTriage = {},
+                                onToggleFolderExpanded = { _, _ -> },
+                                onRequestCreateFolder = {},
+                                onRequestFolderMenu = { onOpenMenu() },
+                                onRequestTagMenu = { onOpenMenu() },
+                                onPlaceFolder = { id, parent, preceding, following ->
+                                    onDrop(Drop(SidebarTree.FOLDERS, id, parent, preceding, following))
+                                },
+                                onPlaceTag = { id, parent, preceding, following ->
+                                    onDrop(Drop(SidebarTree.TAGS, id, parent, preceding, following))
+                                },
+                                onToggleIncludeSubfolders = {},
+                                onToggleTheme = {},
+                                onToggleAccent = {},
+                                onOpenSettings = {}
+                            )
+                        }
                     }
                 }
             }

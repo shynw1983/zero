@@ -1066,21 +1066,6 @@ class MainViewModel @Inject constructor(
         }
     }
 
-    fun moveTag(tagId: String, newParentId: String?) {
-        viewModelScope.launch {
-            if (tagRepository.moveTag(tagId, newParentId)) {
-                widgetRefresher.refreshAll()
-                geofenceController.syncAllGeofences()
-            }
-        }
-    }
-
-    fun moveTagInOrder(tagId: String, direction: Int) {
-        viewModelScope.launch {
-            tagRepository.moveTagInOrder(tagId, direction)
-        }
-    }
-
     fun placeTag(tagId: String, parentId: String?, precedingId: String?, followingId: String?) {
         viewModelScope.launch {
             if (tagRepository.moveTagBetween(tagId, parentId, precedingId, followingId)) {
@@ -1371,47 +1356,12 @@ class MainViewModel @Inject constructor(
         }
     }
 
-    fun moveFolderToParent(folderId: String, targetParentId: String?) {
-        viewModelScope.launch {
-            runCatching {
-                val targetSiblings = findChildrenInTree(uiState.value.folderTree, targetParentId)
-                folderRepository.moveFolderToIndex(
-                    folderId = folderId,
-                    targetParentId = targetParentId,
-                    targetIndex = targetSiblings.size
-                )
-                if (targetParentId != null) {
-                    folderRepository.setFolderExpanded(targetParentId, true)
-                }
-            }
-        }
-    }
-
     fun placeFolder(folderId: String, parentId: String?, precedingId: String?, followingId: String?) {
         viewModelScope.launch {
             try {
                 folderRepository.reorderFolderBetween(folderId, parentId, precedingId, followingId)
             } catch (_: IllegalArgumentException) {
                 // The source or target disappeared after the drag began.
-            }
-        }
-    }
-
-    fun moveFolderOrder(folderId: String, direction: Int) {
-        viewModelScope.launch {
-            runCatching {
-                val folder = folderRepository.getFolderById(folderId) ?: return@launch
-                val siblings = findChildrenInTree(uiState.value.folderTree, folder.parentId)
-                val currentIdx = siblings.indexOfFirst { it.folder.id == folderId }
-                if (currentIdx == -1) return@launch
-                val targetIdx = (currentIdx + direction).coerceIn(0, siblings.lastIndex)
-                if (targetIdx != currentIdx) {
-                    folderRepository.moveFolderToIndex(
-                        folderId = folderId,
-                        targetParentId = folder.parentId,
-                        targetIndex = targetIdx
-                    )
-                }
             }
         }
     }
@@ -1852,19 +1802,6 @@ class MainViewModel @Inject constructor(
             }
         }
         return parentId
-    }
-
-    private fun findChildrenInTree(tree: List<FolderNode>, parentId: String?): List<FolderNode> {
-        if (parentId == null) return tree
-        fun search(nodes: List<FolderNode>): List<FolderNode>? {
-            for (node in nodes) {
-                if (node.folder.id == parentId) return node.children
-                val found = search(node.children)
-                if (found != null) return found
-            }
-            return null
-        }
-        return search(tree).orEmpty()
     }
 
     private fun buildBreadcrumbs(folderId: String, folderById: Map<String, Folder>): List<Folder> {

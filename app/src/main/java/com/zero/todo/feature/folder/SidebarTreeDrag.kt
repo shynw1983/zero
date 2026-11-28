@@ -1,5 +1,6 @@
 package com.zero.todo.feature.folder
 
+import android.os.SystemClock
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
@@ -20,6 +21,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -49,12 +51,19 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.zero.todo.R
+import com.zero.todo.core.designsystem.ZeroHaptics
 import com.zero.todo.core.designsystem.ZeroSmallShape
 import com.zero.todo.core.designsystem.ZeroTheme
 import com.zero.todo.core.designsystem.hairlineBorder
+import com.zero.todo.core.designsystem.rememberZeroHaptics
 import kotlin.math.roundToInt
 
-internal class SidebarTreeDrag(private val listState: LazyListState) {
+private const val MIN_REORDER_TICK_INTERVAL_MS = 60L
+
+internal class SidebarTreeDrag(
+    private val listState: LazyListState,
+    private val haptics: State<ZeroHaptics>
+) {
     private data class DraggedRow(
         val tree: SidebarTree,
         val id: String,
@@ -64,6 +73,7 @@ internal class SidebarTreeDrag(private val listState: LazyListState) {
 
     private var source by mutableStateOf<DraggedRow?>(null)
     private var fingerInRoot by mutableStateOf(Offset.Zero)
+    private var lastHapticAt = 0L
     var listCoordinates by mutableStateOf<LayoutCoordinates?>(null)
 
     val activeTree get() = source?.tree
@@ -76,6 +86,7 @@ internal class SidebarTreeDrag(private val listState: LazyListState) {
         if (source != null) return
         fingerInRoot = finger
         source = DraggedRow(tree, id, label, pin?.pin())
+        tick()
     }
 
     fun move(tree: SidebarTree, id: String, finger: Offset) {
@@ -87,6 +98,17 @@ internal class SidebarTreeDrag(private val listState: LazyListState) {
         val finished = source
         source = null
         finished?.pin?.release()
+    }
+
+    fun tickForDropTarget() {
+        if (source != null && SystemClock.uptimeMillis() - lastHapticAt >= MIN_REORDER_TICK_INTERVAL_MS) {
+            tick()
+        }
+    }
+
+    private fun tick() {
+        lastHapticAt = SystemClock.uptimeMillis()
+        haptics.value.reorderTick()
     }
 
     fun positionInList(): Offset? {
@@ -116,7 +138,8 @@ internal class SidebarTreeDrag(private val listState: LazyListState) {
 
 @Composable
 internal fun rememberSidebarTreeDrag(listState: LazyListState): SidebarTreeDrag {
-    val drag = remember(listState) { SidebarTreeDrag(listState) }
+    val haptics = rememberUpdatedState(rememberZeroHaptics())
+    val drag = remember(listState) { SidebarTreeDrag(listState, haptics) }
     val density = LocalDensity.current
     val edge = with(density) { 48.dp.toPx() }
     val maxScroll = with(density) { 14.dp.toPx() }

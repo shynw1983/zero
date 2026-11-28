@@ -126,8 +126,6 @@ import com.zero.todo.feature.folder.DeleteFolderConfirmDialog
 import com.zero.todo.feature.folder.DeleteTagConfirmDialog
 import com.zero.todo.feature.folder.FolderActionMenuDialog
 import com.zero.todo.feature.folder.FolderTreePanel
-import com.zero.todo.feature.folder.MoveFolderDialog
-import com.zero.todo.feature.folder.MoveTagDialog
 import com.zero.todo.feature.folder.NavigationDestination
 import com.zero.todo.feature.folder.RenameFolderDialog
 import com.zero.todo.feature.folder.RenameTagDialog
@@ -135,7 +133,6 @@ import com.zero.todo.feature.folder.SmartViewCounts
 import com.zero.todo.feature.folder.TagActionMenuDialog
 import com.zero.todo.feature.folder.TaskContextMenuDialog
 import com.zero.todo.core.common.RecurrenceRule
-import com.zero.todo.domain.model.TagTreeBuilder
 import com.zero.todo.feature.folder.TagPlaceConfigDialog
 import com.zero.todo.feature.matrix.MatrixPane
 import com.zero.todo.feature.execute.ExecuteHostScreen
@@ -174,7 +171,6 @@ data class ZeroShellCallbacks(
     val onTriageMoveToFolder: (TaskItem, String) -> Unit = { _, _ -> },
     val onCreateTag: (name: String, parentId: String?) -> Unit = { _, _ -> },
     val onToggleTagExpanded: (tagId: String, isExpanded: Boolean) -> Unit = { _, _ -> },
-    val onMoveTag: (tagId: String, newParentId: String?) -> Unit = { _, _ -> },
     val onRenameTag: (tagId: String, newName: String) -> Unit = { _, _ -> },
     val onDeleteTag: (tagId: String) -> Unit = {},
     val onUpdateTagPlaceConfig: (tagId: String, isPlaceTag: Boolean, triggerMode: PlaceTriggerMode) -> Unit = { _, _, _ -> },
@@ -199,8 +195,6 @@ data class ZeroShellCallbacks(
     val onCreateFolder: (name: String, parentId: String?, colorHex: String?) -> Unit = { _, _, _ -> },
     val onRenameFolder: (folderId: String, newName: String) -> Unit = { _, _ -> },
     val onUpdateFolderColor: (folderId: String, colorHex: String?) -> Unit = { _, _ -> },
-    val onMoveFolderOrder: (folderId: String, direction: Int) -> Unit = { _, _ -> },
-    val onMoveFolderToParent: (folderId: String, targetParentId: String?) -> Unit = { _, _ -> },
     val onPlaceFolder: (String, String?, String?, String?) -> Unit = { _, _, _, _ -> },
     val onPlaceTag: (String, String?, String?, String?) -> Unit = { _, _, _, _ -> },
     val onDeleteFolder: (folderId: String) -> Unit = {},
@@ -211,7 +205,6 @@ data class ZeroShellCallbacks(
     val onOutdentTask: (TaskItem) -> Unit = {},
     val onOpenTaskContext: (TaskItem, Boolean) -> Unit = { _, _ -> },
     val onSkipTaskOccurrence: (TaskItem) -> Unit = {},
-    val onMoveTagInOrder: (String, Int) -> Unit = { _, _ -> },
     val onUpdateTaskTitleAndDescription: (task: TaskItem, title: String, description: String) -> Unit = { _, _, _ -> },
     val onUpdateTaskPriority: (task: TaskItem, priority: TaskPriority) -> Unit = { _, _ -> },
     val onUpdateTaskDueDate: (task: TaskItem, dueDateMillis: Long?, isAllDay: Boolean) -> Unit = { _, _, _ -> },
@@ -307,13 +300,11 @@ fun ZeroAdaptiveShell(
     var showCreateFolderDialog by remember { mutableStateOf(false) }
     var folderMenuTarget by remember { mutableStateOf<Folder?>(null) }
     var renameTargetFolder by remember { mutableStateOf<Folder?>(null) }
-    var organizeTargetFolder by remember { mutableStateOf<Folder?>(null) }
     var deleteTargetFolder by remember { mutableStateOf<Folder?>(null) }
 
     var tagMenuTarget by remember { mutableStateOf<TagItem?>(null) }
     var createTagParent by remember { mutableStateOf<TagItem?>(null) }
     var showCreateTagDialog by remember { mutableStateOf(false) }
-    var moveTargetTag by remember { mutableStateOf<TagItem?>(null) }
     var renameTargetTag by remember { mutableStateOf<TagItem?>(null) }
     var deleteTargetTag by remember { mutableStateOf<TagItem?>(null) }
     var placeConfigTargetTagId by remember { mutableStateOf<String?>(null) }
@@ -410,20 +401,12 @@ fun ZeroAdaptiveShell(
                             renameTargetFolder = null
                             true
                         }
-                        organizeTargetFolder != null -> {
-                            organizeTargetFolder = null
-                            true
-                        }
                         deleteTargetFolder != null -> {
                             deleteTargetFolder = null
                             true
                         }
                         showCreateTagDialog -> {
                             showCreateTagDialog = false
-                            true
-                        }
-                        moveTargetTag != null -> {
-                            moveTargetTag = null
                             true
                         }
                         renameTargetTag != null -> {
@@ -836,7 +819,6 @@ fun ZeroAdaptiveShell(
             onSelectColor = { hex -> callbacks.onUpdateFolderColor(menuFolder.id, hex) },
             onCreateSubfolder = { openCreateFolderDialog(menuFolder) },
             onRename = { renameTargetFolder = menuFolder },
-            onOrganize = { organizeTargetFolder = menuFolder },
             onDelete = { deleteTargetFolder = menuFolder },
             onDismiss = { folderMenuTarget = null }
         )
@@ -865,17 +847,6 @@ fun ZeroAdaptiveShell(
         )
     }
 
-    val folderToOrganize = organizeTargetFolder
-    if (folderToOrganize != null) {
-        MoveFolderDialog(
-            folder = folderToOrganize,
-            folderTree = uiState.folderTree,
-            onMoveOrder = callbacks.onMoveFolderOrder,
-            onMoveToParent = callbacks.onMoveFolderToParent,
-            onDismiss = { organizeTargetFolder = null }
-        )
-    }
-
     val folderToDelete = deleteTargetFolder
     if (folderToDelete != null) {
         DeleteFolderConfirmDialog(
@@ -888,7 +859,6 @@ fun ZeroAdaptiveShell(
         )
     }
 
-    // Tag Global Management Action Sheet + Dialogs (Create Sub-tag / Rename / Move / Delete Tag)
     if (showCreateTagDialog) {
         CreateTagDialog(
             parentTag = createTagParent,
@@ -903,23 +873,12 @@ fun ZeroAdaptiveShell(
 
     val menuTag = tagMenuTarget
     if (menuTag != null) {
-        val siblings = uiState.tagsWithCounts.map { it.tag }
-            .filter { it.parentId == menuTag.parentId }
-            .sortedWith(TagTreeBuilder.siblingOrder)
-        val index = siblings.indexOfFirst { it.id == menuTag.id }
         TagActionMenuDialog(
             tag = menuTag,
             displayTitle = "#${uiState.tagPathById[menuTag.id] ?: menuTag.name}",
             onConfigurePlace = { placeConfigTargetTagId = menuTag.id },
             onCreateSubtag = { openCreateTagDialog(menuTag) },
             onRename = { renameTargetTag = menuTag },
-            onMove = { moveTargetTag = menuTag },
-            onMoveUp = if (index > 0) ({ callbacks.onMoveTagInOrder(menuTag.id, -1) }) else null,
-            onMoveDown = if (index >= 0 && index < siblings.lastIndex) {
-                { callbacks.onMoveTagInOrder(menuTag.id, 1) }
-            } else {
-                null
-            },
             onDelete = { deleteTargetTag = menuTag },
             onDismiss = { tagMenuTarget = null }
         )
@@ -941,20 +900,6 @@ fun ZeroAdaptiveShell(
             onResyncGeofences = callbacks.onResyncGeofences,
             onTestPlaceReminder = callbacks.onTestPlaceReminder,
             onDismiss = { placeConfigTargetTagId = null }
-        )
-    }
-
-    val tagToMove = moveTargetTag
-    if (tagToMove != null) {
-        MoveTagDialog(
-            tag = tagToMove,
-            allTags = uiState.tagsWithCounts.map { it.tag },
-            displayPath = uiState.tagPathById[tagToMove.id] ?: tagToMove.name,
-            onDismiss = { moveTargetTag = null },
-            onMoveToParent = { tagId, newParentId ->
-                moveTargetTag = null
-                callbacks.onMoveTag(tagId, newParentId)
-            }
         )
     }
 

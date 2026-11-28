@@ -253,16 +253,10 @@
     <string name="action_reschedule_today">Move to Today</string>
     <string name="action_delete">Delete</string>
     <string name="action_close">Close</string>
-    <string name="action_move_up">Move Up</string>
-    <string name="action_move_down">Move Down</string>
     <string name="action_restore">Restore</string>
     <string name="action_delete_forever">Delete permanently</string>
     <string name="dialog_delete_folder_title">Delete \"%1$s\"?</string>
     <string name="dialog_delete_folder_message">This folder and its sub-folders will be removed. Contained tasks will be safely moved back to Inbox.</string>
-    <string name="dialog_organize_folder_title">Organize \"%1$s\"</string>
-    <string name="dialog_move_folder_parent_hint">Move under parent folder</string>
-    <string name="folder_root_level">Top Level (Root)</string>
-    <string name="cd_organize_folder">Organize or reorder folder</string>
     <string name="cd_task_sort">Task sort order</string>
     <string name="cd_search_tasks">Search tasks</string>
     <string name="search_placeholder">Search tasks, notes, #tags, /folders…</string>
@@ -405,13 +399,9 @@
     <string name="cd_create_root_tag">Create tag</string>
     <string name="tags_empty_hint">Type #group/name or tap + to add nested tags</string>
     <string name="action_create_subtag">New Sub-tag</string>
-    <string name="action_move_tag">Move to Parent Tag</string>
     <string name="dialog_create_tag_title">New Tag</string>
     <string name="dialog_create_subtag_title">Sub-tag under #%1$s</string>
     <string name="dialog_create_tag_placeholder">Name or path (e.g. Outing/Errand)</string>
-    <string name="dialog_move_tag_title">Move %1$s</string>
-    <string name="dialog_move_tag_root">Top Level</string>
-    <string name="dialog_move_tag_hint">Choose new parent tag</string>
 
     <!-- v2.6.0: Notifications & Reminders Control Center -->
     <string name="notif_channel_briefing">Daily Briefing</string>

@@ -264,7 +264,7 @@ class MainViewModelStateTest {
     }
 
     @Test
-    fun `moving a child tag resyncs place registrations with its tasks in the new subtree`() = runBlocking {
+    fun `dropping a child tag resyncs place registrations with its tasks in the new subtree`() = runBlocking {
         val destination = tagRepository.createTag("Office")
         tagRepository.updateTagPlaceConfig(destination.id, isPlaceTag = true, triggerMode = PlaceTriggerMode.ENTER)
         val oldParent = tagRepository.createTag("Old parent")
@@ -284,9 +284,9 @@ class MainViewModelStateTest {
 
         try {
             assertEquals(PlaceTriggerMode.ENTER, withTimeout(5_000L) { modes.receive() })
-            vm.moveTag(child.id, destination.id)
+            vm.placeTag(child.id, destination.id, precedingId = null, followingId = null)
             assertEquals(PlaceTriggerMode.BOTH, withTimeout(5_000L) { modes.receive() })
-            vm.moveTag(child.id, oldParent.id)
+            vm.placeTag(child.id, oldParent.id, precedingId = null, followingId = null)
             assertEquals(PlaceTriggerMode.ENTER, withTimeout(5_000L) { modes.receive() })
         } finally {
             vm.viewModelScope.cancel()
