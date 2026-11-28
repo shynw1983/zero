@@ -1,5 +1,11 @@
 # ZERO Project Engineering Rules & Handoff Guide (AGENTS.md)
 
+## 0. Conversation Handoff Protocol (MANDATORY)
+1. **New conversation start**: Before doing anything else, read the root `CONTEXT.md` first. Do NOT scan the whole project; read only the files listed in its "当前涉及的核心文件" / key-file sections, on demand. Ignore `build/`, `.gradle/`, `.kotlin/`, `.codex-attachments/`.
+2. **Auto-refresh after every completed unit of work**: Whenever a feature, fix, or release is finished and committed, refresh `CONTEXT.md` in the same turn — update「已完成功能」「当前涉及的核心文件」「卡点 / 已知 Bug」「下一步计划」(and version/DB version if changed) — keep it concise, and commit it together with (or right after) the code change.
+3. **"交接" keyword**: When the user says “交接” (or “handoff”), immediately update `CONTEXT.md` following its existing template to reflect all work in the current conversation (including uncommitted in-progress work and blockers), commit and push it, then confirm briefly.
+4. Keep `AGENTS.md` and `CONTEXT.md` consistent (version numbers, DB version, key file paths).
+
 ## 1. Current Product Baseline (ZERO v2.16.0 — Source of Truth)
 > **IMPORTANT**: `docs/PRD.md` reflects the initial v1.0 draft and is **outdated** on visual accents and layout. Always treat the current `v2.16.0` codebase, the rules below, and the root `CONTEXT.md` handoff guide as the authoritative source of truth.
 

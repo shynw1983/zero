@@ -90,3 +90,5 @@
 2. 发布新版本时按流程：`app/build.gradle.kts` 递增 `versionCode`/`versionName` → 运行测试与 `assembleRelease` → 复制 APK 到 `/tmp/ZERO-v<VER>-release.apk` 并计算 `shasum -a 256` → 推送 `main` → `gh release create v<VER> ... -R shynw1983/zero` → 在 `/tmp/app-hub-push` 更新 `data/apps.json`（`latestVersion`、`updatedAt`、`fileSize`、`fileName`、`downloadUrl`、`sha256`、`downloads[0]`、`releases` 头部插入中文更新说明）→ 推送并验证 HTTP 200。
 3. 可选清理：`TaskDetailPane.kt:1041` 的恒真条件警告。
 4. 每次发布或改动数据库/架构后，同步更新本文件与 `AGENTS.md` 的版本号、数据库版本及关键文件说明。
+
+> 交接规则见 `AGENTS.md` 第 0 节：新对话开局自动先读本文件；每完成并提交一项工作即刷新本文件；用户说「交接」时立即更新并提交。
