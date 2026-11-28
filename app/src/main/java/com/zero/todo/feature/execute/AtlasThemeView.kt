@@ -136,6 +136,7 @@ import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
 import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.GoogleMap
+import com.google.android.gms.maps.GoogleMapOptions
 import com.google.android.gms.maps.MapView
 import com.google.android.gms.maps.MapsInitializer
 import com.google.android.gms.maps.model.BitmapDescriptor
@@ -165,6 +166,7 @@ import kotlin.math.hypot
 import kotlin.math.pow
 
 private const val PLAYER_MARKER_TAG = "__zero_player__"
+private const val ATLAS_LOCATION_GRACE_MS = 2_500L
 private const val ATLAS_HOLD_DURATION_MS = 300L
 private const val ATLAS_HOLD_PROGRESS_INTERVAL_MS = 16L
 
@@ -204,8 +206,15 @@ fun AtlasThemeView(
                 ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
         )
     }
-    var userLat by remember { mutableStateOf<Double?>(null) }
-    var userLng by remember { mutableStateOf<Double?>(null) }
+    var userLocation by remember { mutableStateOf<LatLng?>(null) }
+    val userLat = userLocation?.latitude
+    val userLng = userLocation?.longitude
+    var waitingForInitialLocation by remember { mutableStateOf(hasLocationPermission) }
+    LaunchedEffect(waitingForInitialLocation, userLocation) {
+        if (!waitingForInitialLocation) return@LaunchedEffect
+        if (userLocation == null) delay(ATLAS_LOCATION_GRACE_MS)
+        waitingForInitialLocation = false
+    }
     var compassBearing by remember { mutableFloatStateOf(0f) }
 
     var is3DMode by remember { mutableStateOf(true) }
@@ -215,7 +224,6 @@ fun AtlasThemeView(
     var showAnywhereSheet by remember { mutableStateOf(false) }
 
     var googleMapRef by remember { mutableStateOf<GoogleMap?>(null) }
-    var hasInitialCameraCentered by remember { mutableStateOf(false) }
     var playerMarkerRef by remember { mutableStateOf<Marker?>(null) }
     var headingOverlayRef by remember { mutableStateOf<GroundOverlay?>(null) }
     var cameraMoveTick by remember { mutableLongStateOf(0L) }
@@ -283,8 +291,7 @@ fun AtlasThemeView(
 
         val initJob = scope.launch {
             PlaceSearchEngine.fetchCurrentLocation(context)?.let { (lat, lng) ->
-                userLat = lat
-                userLng = lng
+                if (userLocation == null) userLocation = LatLng(lat, lng)
             }
         }
 
@@ -302,8 +309,7 @@ fun AtlasThemeView(
             val callback = object : LocationCallback() {
                 override fun onLocationResult(result: LocationResult) {
                     val loc = result.lastLocation ?: return
-                    userLat = loc.latitude
-                    userLng = loc.longitude
+                    userLocation = LatLng(loc.latitude, loc.longitude)
                 }
             }
             val request = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 4_000L)
@@ -319,8 +325,7 @@ fun AtlasThemeView(
             val manager = context.getSystemService(LocationManager::class.java)
             val listener = object : LocationListener {
                 override fun onLocationChanged(location: Location) {
-                    userLat = location.latitude
-                    userLng = location.longitude
+                    userLocation = LatLng(location.latitude, location.longitude)
                 }
             }
             listOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER).forEach { provider ->
@@ -400,12 +405,24 @@ fun AtlasThemeView(
         }
     }
 
-    val mapView = remember {
-        runCatching { MapsInitializer.initialize(context, MapsInitializer.Renderer.LATEST) {} }
-        MapView(context)
+    val taskLocation = snapshot.markers.firstOrNull()?.place?.let { LatLng(it.latitude, it.longitude) }
+    val startupTarget = atlasStartupCameraTarget(userLocation, taskLocation, waitingForInitialLocation)
+    val mapWithInitialSource = if (startupTarget != null) {
+        remember {
+            runCatching { MapsInitializer.initialize(context, MapsInitializer.Renderer.LATEST) {} }
+            val options = GoogleMapOptions().camera(startupTarget.cameraPosition(is3DMode))
+            MapView(context, options) to startupTarget.source
+        }
+    } else {
+        null
     }
+    val mapView = mapWithInitialSource?.first
+    var appliedCameraSource by remember(mapView) { mutableStateOf(mapWithInitialSource?.second) }
+    var applied3DMode by remember(mapView) { mutableStateOf(is3DMode) }
+    var hasCameraInteraction by remember(mapView) { mutableStateOf(false) }
 
     DisposableEffect(lifecycleOwner, mapView) {
+        if (mapView == null) return@DisposableEffect onDispose {}
         var stage = 0
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
@@ -475,6 +492,7 @@ fun AtlasThemeView(
         orbitParallax: Boolean = false
     ) {
         val gMap = googleMapRef ?: return
+        hasCameraInteraction = true
         val targetZoom = zoom ?: if (is3DMode) 17.2f else 15.2f
         val curBearing = gMap.cameraPosition.bearing
         val targetBearing = when {
@@ -491,51 +509,25 @@ fun AtlasThemeView(
         gMap.animateCamera(CameraUpdateFactory.newCameraPosition(cam), if (orbitParallax) 650 else 480, null)
     }
 
-    // Cinematic 3D fly-in swoop on first entry
-    LaunchedEffect(googleMapRef, userLat, userLng, snapshot.markers.firstOrNull()?.place?.id) {
+    LaunchedEffect(googleMapRef, userLocation, taskLocation, waitingForInitialLocation, is3DMode) {
         val gMap = googleMapRef ?: return@LaunchedEffect
-        if (hasInitialCameraCentered) return@LaunchedEffect
-        val hasFix = userLat != null || snapshot.markers.isNotEmpty()
-        val lat = userLat ?: snapshot.markers.firstOrNull()?.place?.latitude ?: 35.6812
-        val lng = userLng ?: snapshot.markers.firstOrNull()?.place?.longitude ?: 139.7671
-        if (!hasFix) {
-            val overview = CameraPosition.Builder()
-                .target(LatLng(lat, lng))
-                .zoom(13.2f)
-                .tilt(24f)
-                .bearing(0f)
+        // Upgrade a fallback once a better target arrives, unless the user has taken over the map.
+        val target = if (hasCameraInteraction) null else atlasStartupCameraTarget(
+            userLocation, taskLocation, waitingForInitialLocation, appliedCameraSource
+        )
+        if (target != null) {
+            gMap.moveCamera(CameraUpdateFactory.newCameraPosition(target.cameraPosition(is3DMode)))
+            appliedCameraSource = target.source
+        } else if (applied3DMode != is3DMode) {
+            val cur = gMap.cameraPosition
+            val updated = CameraPosition.Builder(cur)
+                .tilt(if (is3DMode) 62f else 0f)
+                .bearing(if (is3DMode && cur.bearing == 0f) 22f else if (!is3DMode) 0f else cur.bearing)
+                .zoom(if (is3DMode) cur.zoom.coerceAtLeast(16.7f) else cur.zoom.coerceAtMost(15.6f))
                 .build()
-            gMap.moveCamera(CameraUpdateFactory.newCameraPosition(overview))
-            return@LaunchedEffect
+            gMap.animateCamera(CameraUpdateFactory.newCameraPosition(updated), 420, null)
         }
-
-        val startCam = CameraPosition.Builder()
-            .target(LatLng(lat, lng))
-            .zoom(14.8f)
-            .tilt(22f)
-            .bearing(0f)
-            .build()
-        gMap.moveCamera(CameraUpdateFactory.newCameraPosition(startCam))
-        delay(60L)
-        val landCam = CameraPosition.Builder()
-            .target(LatLng(lat, lng))
-            .zoom(if (is3DMode) 17.2f else 15.2f)
-            .tilt(if (is3DMode) 62f else 0f)
-            .bearing(if (is3DMode) 22f else 0f)
-            .build()
-        gMap.animateCamera(CameraUpdateFactory.newCameraPosition(landCam), 1050, null)
-        hasInitialCameraCentered = true
-    }
-
-    LaunchedEffect(googleMapRef, is3DMode) {
-        val gMap = googleMapRef ?: return@LaunchedEffect
-        val cur = gMap.cameraPosition
-        val updated = CameraPosition.Builder(cur)
-            .tilt(if (is3DMode) 62f else 0f)
-            .bearing(if (is3DMode && cur.bearing == 0f) 22f else if (!is3DMode) 0f else cur.bearing)
-            .zoom(if (is3DMode) cur.zoom.coerceAtLeast(16.7f) else cur.zoom.coerceAtMost(15.6f))
-            .build()
-        gMap.animateCamera(CameraUpdateFactory.newCameraPosition(updated), 420, null)
+        applied3DMode = is3DMode
     }
 
     val accentArgb = colors.accent.toArgb()
@@ -700,42 +692,56 @@ fun AtlasThemeView(
         }
 
         // 1. Live 3D Architectural Google Map Surface
-        AndroidView(
-            factory = {
-                mapView.getMapAsync { gMap ->
-                    gMap.isBuildingsEnabled = true
-                    gMap.isTrafficEnabled = false
-                    gMap.uiSettings.apply {
-                        isCompassEnabled = false
-                        isMapToolbarEnabled = false
-                        isMyLocationButtonEnabled = false
-                        isTiltGesturesEnabled = true
-                        isRotateGesturesEnabled = true
-                        isZoomControlsEnabled = false
-                    }
-                    gMap.setOnCameraMoveListener { cameraMoveTick++ }
-                    gMap.setOnCameraIdleListener { cameraMoveTick++ }
-                    gMap.setOnMarkerClickListener { clicked ->
-                        val id = clicked.tag as? String
-                        if (id != null && id != PLAYER_MARKER_TAG) {
-                            haptics.reorderTick()
-                            selectedPlaceId = id
-                            animateCameraTo(
-                                lat = clicked.position.latitude,
-                                lng = clicked.position.longitude,
-                                orbitParallax = true
-                            )
-                            true
-                        } else {
-                            false
+        if (mapView != null) {
+            AndroidView(
+                factory = {
+                    mapView.getMapAsync { gMap ->
+                        gMap.isBuildingsEnabled = true
+                        gMap.isTrafficEnabled = false
+                        gMap.uiSettings.apply {
+                            isCompassEnabled = false
+                            isMapToolbarEnabled = false
+                            isMyLocationButtonEnabled = false
+                            isTiltGesturesEnabled = true
+                            isRotateGesturesEnabled = true
+                            isZoomControlsEnabled = false
                         }
+                        gMap.setOnCameraMoveStartedListener { reason ->
+                            if (reason == GoogleMap.OnCameraMoveStartedListener.REASON_GESTURE) {
+                                hasCameraInteraction = true
+                            }
+                        }
+                        gMap.setOnCameraMoveListener { cameraMoveTick++ }
+                        gMap.setOnCameraIdleListener { cameraMoveTick++ }
+                        gMap.setOnMarkerClickListener { clicked ->
+                            val id = clicked.tag as? String
+                            if (id != null && id != PLAYER_MARKER_TAG) {
+                                haptics.reorderTick()
+                                selectedPlaceId = id
+                                animateCameraTo(
+                                    lat = clicked.position.latitude,
+                                    lng = clicked.position.longitude,
+                                    orbitParallax = true
+                                )
+                                true
+                            } else {
+                                false
+                            }
+                        }
+                        googleMapRef = gMap
                     }
-                    googleMapRef = gMap
-                }
-                mapView
-            },
-            modifier = Modifier.fillMaxSize()
-        )
+                    mapView
+                },
+                modifier = Modifier.fillMaxSize()
+            )
+        } else {
+            Text(
+                text = stringResource(R.string.place_fetching_location),
+                style = MaterialTheme.typography.labelMedium,
+                color = secondaryText,
+                modifier = Modifier.align(Alignment.Center)
+            )
+        }
 
         // 2. 60fps GPU Spatial Motion Layer (Continuous Luminous Ribbon + Borderless Breathing Glows)
         AtlasSpatialMotionOverlay(
@@ -1002,16 +1008,14 @@ fun AtlasThemeView(
                     )
                     return@AtlasControlDock
                 }
-                val curLat = userLat
-                val curLng = userLng
-                if (curLat != null && curLng != null) {
-                    animateCameraTo(curLat, curLng)
+                val location = userLocation
+                if (location != null) {
+                    animateCameraTo(location.latitude, location.longitude)
                 } else {
                     scope.launch {
                         PlaceSearchEngine.fetchCurrentLocation(context)?.let { (lat, lng) ->
-                            userLat = lat
-                            userLng = lng
-                            animateCameraTo(lat, lng)
+                            val resolvedLocation = userLocation ?: LatLng(lat, lng).also { userLocation = it }
+                            animateCameraTo(resolvedLocation.latitude, resolvedLocation.longitude)
                         }
                     }
                 }
