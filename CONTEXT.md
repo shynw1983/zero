@@ -3,13 +3,13 @@
 > **给 AI 的强制指令**：
 > 1. **禁止全盘扫描项目**。先阅读本文件，仅根据下方列出的“当前涉及文件”按需读取代码。
 > 2. 忽略 `build/`、`app/build/`、`.gradle/`、`.kotlin/`、`.codex-attachments/` 等构建、缓存与附件目录。
-> 3. 修改代码前，先确认是否违反下方的“核心约束”（另见根目录 `AGENTS.md`，两者已同步至 v2.19.2）。
+> 3. 修改代码前，先确认是否违反下方的“核心约束”（另见根目录 `AGENTS.md`，两者已同步至 v2.19.3）。
 
 ---
 
 ## 1. 项目概况与技术栈
 * **项目名称**：ZERO（包名 `com.zero.todo`）
-* **当前发布版本**：`v2.19.2`（`versionCode = 56`）。发布提交使用 `git rev-parse 'v2.19.2^{commit}'` 查询，当前分支 HEAD 使用 `git rev-parse --short HEAD` 查询。
+* **当前发布版本**：`v2.19.3`（`versionCode = 57`）。发布提交使用 `git rev-parse 'v2.19.3^{commit}'` 查询，当前分支 HEAD 使用 `git rev-parse --short HEAD` 查询。
 * **核心定位**：为“强迫症 × 拖延症”打造的原生 Android 双态待办仪器 —— `NOW`（执行：单卡跑道/多执行主题）⇄ `VAULT`（整理库：无限目录树、日历、矩阵、标签、回收站、搜索），外加 30 秒闪电清仓、地点提醒、AI 智能提取/拆解。
 * **技术栈**：Kotlin + Jetpack Compose + Material 3 Adaptive、Hilt、Room（KSP）、Google Maps SDK 与 Mapbox Maps SDK（ATLAS 主题）、Google Play Services Geofencing、Robolectric 单元测试。`compileSdk = 35`，`minSdk = 26`。
 * **运行/构建命令**（本机默认 PATH 无 java，必须加前缀）：
@@ -18,7 +18,7 @@
     --no-daemon --max-workers=4 -Dorg.gradle.jvmargs="-Xmx4096m -XX:MaxMetaspaceSize=1024m"
   ```
   * v2.19.0 完整构建约 14 分钟，含 Mapbox SDK、R8 和资源压缩。发布构建使用 `--no-daemon` 和 4G 堆。
-  * 测试结果汇总：解析 `app/build/test-results/testDebugUnitTest/TEST-*.xml`（v2.19.2 基线：`TESTS=145 ERRORS=0 FAILURES=0 SKIPPED=0`）。
+  * 测试结果汇总：解析 `app/build/test-results/testDebugUnitTest/TEST-*.xml`（v2.19.3 基线：`TESTS=145 ERRORS=0 FAILURES=0 SKIPPED=0`）。
   * Android SDK：`/Users/wushengyin/Library/Android/sdk`。
 
 ## 2. 核心目录与关键文件（无需扫盘，直接定位）
@@ -64,12 +64,11 @@
 * [x] **v2.19.0 ATLAS 地图设置**：执行主题选择中可选 Google 地图或 Mapbox，Mapbox 提供标准与卫星样式。首次启用需在应用内填写 `pk.` 开头的公开令牌，地图选项保存在本机。两种地图共用任务、路线、定位和日夜切换入口。
 * [x] **v2.19.1 ATLAS Mapbox 地名语言**：标准和卫星底图使用 ZERO 的有效语言配置，应用选择「跟随系统」时使用系统语言。中文按语言脚本或地区转为 Mapbox 支持的 `zh-Hans` / `zh-Hant`。
 * [x] **v2.19.2 VAULT 侧栏返回**：窄屏和折叠双栏的侧栏处于打开过程中或已打开时，系统返回先关闭侧栏。再次返回时按原有顺序退出任务详情或离开应用。
-* [x] **ATLAS Google 夜间底图**：地面和加载背景使用哑光黑，建筑、水域与不同级别道路用中性灰区分，浅灰地名搭配焦橙任务光晕。
+* [x] **v2.19.3 ATLAS Google 夜间底图**：地面和加载背景使用哑光黑，建筑、水域与不同级别道路用中性灰区分，浅灰地名搭配焦橙任务光晕。
 
 ## 4. 当前进度与待解决问题
-* **当前进度**：v2.19.2 已发布到 GitHub Release 和 App Labs。145 项测试通过，含 2 项 VAULT 侧栏返回回归测试。Release APK 通过签名和 16 KB ZIP 对齐验证，签名与 v2.19.1 一致。公开 APK 返回 HTTP 200，内容与本地逐字节一致，门户 SHA-256 已核对。
-* **发布记录**：应用标签 `v2.19.2` 指向 `cb0c02d`，APK 为 95,948,390 字节。App Labs 生产部署来自 `shynw1983/app-hub` 的 `a892866`，Vercel 状态 `READY`。[GitHub Release](https://github.com/shynw1983/zero/releases/tag/v2.19.2) · [App Labs](https://app-hub-eight-flax.vercel.app)
-* **夜间配色验证**：本地 145 项测试通过，Google 夜间 JSON 解析及地名、主干道、高速和水域标签的颜色对比度检查通过。
+* **当前进度**：v2.19.3 已发布到 GitHub Release 和 App Labs。145 项测试以及 Google 夜间样式 JSON 和地名对比度检查通过。Release APK 通过签名和 16 KB ZIP 对齐验证，签名与 v2.19.2 一致。公开 APK 返回 HTTP 200，内容与本地逐字节一致，门户 SHA-256 已核对。
+* **发布记录**：应用标签 `v2.19.3` 指向 `c9bbbde`，APK 为 95,948,390 字节。App Labs 生产部署来自 `shynw1983/app-hub` 的 `66a8d15`，Vercel 状态 `READY`。[GitHub Release](https://github.com/shynw1983/zero/releases/tag/v2.19.3) · [App Labs](https://app-hub-eight-flax.vercel.app)
 * **当前涉及的核心文件**：
   * `feature/execute/AtlasMapStyles.kt`（Google 夜间黑灰配色）、`ExecuteHostScreen.kt`、`feature/main/ZeroAdaptiveShell.kt`（ATLAS 夜间加载背景）。
   * `feature/main/ZeroAdaptiveShell.kt`（窄屏和折叠双栏抽屉的系统返回）；回归测试 `feature/main/VaultDrawerBackTest.kt`。
@@ -121,10 +120,10 @@
 
 ## 6. 下一步计划（新对话直接从这里开始）
 
-ZERO 的功能或修复完成并通过验证后，同一轮按既有流程发布。用户在发布前转向新任务时，优先按新指示处理。
+本轮 ZERO 功能或修复完成并通过验证后，按既有流程在同一轮发布。途中用户转向新任务时，优先按新指示处理。
 
 1. 在日语折叠屏上分别验收外屏抽屉与展开双栏的系统返回手势、文件夹和标签拖动、轻振及长按菜单。
-2. 原地升级到 v2.19.2，验收旧数据与备份，覆盖从 Room v5 迁移及标签排序往返。
+2. 原地升级到 v2.19.3，验收旧数据与备份，覆盖从 Room v5 迁移及标签排序往返。
 3. 在折叠屏外屏和展开状态验收 ATLAS 的 Google 夜间黑灰配色、Mapbox 样式和应用语言切换、冷启动首帧、定位晚到时居中及光晕，再回归地点通知、地址换行、2 小时负荷、循环任务撤销和 AI 弹窗。
 4. 发布新版本时按流程：`app/build.gradle.kts` 递增 `versionCode`/`versionName` → 运行测试与 `assembleRelease` → 复制 APK 到 `/tmp/ZERO-v<VER>-release.apk` 并计算 `shasum -a 256` → 推送 `main` → `gh release create v<VER> ... -R shynw1983/zero` → 在 `/tmp/app-hub-push` 更新 `data/apps.json`（`latestVersion`、`updatedAt`、`fileSize`、`fileName`、`downloadUrl`、`sha256`、`downloads[0]`、`releases` 头部插入中文更新说明）→ 推送并验证 HTTP 200。
 5. 每次发布或改动数据库/架构后，同步更新本文件与 `AGENTS.md` 的版本号、数据库版本及关键文件说明。
