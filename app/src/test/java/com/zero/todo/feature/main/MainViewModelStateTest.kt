@@ -49,11 +49,15 @@ import com.zero.todo.widget.NoOpWidgetRefresher
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.job
+import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -89,6 +93,7 @@ class MainViewModelStateTest {
     private lateinit var backupManager: ZeroBackupManager
     private lateinit var webDavSyncManager: WebDavSyncManager
     private lateinit var getFolderTreeUseCase: GetFolderTreeUseCase
+    private val viewModelJobs = mutableListOf<Job>()
 
     @Before
     fun setUp() {
@@ -114,9 +119,14 @@ class MainViewModelStateTest {
     }
 
     @After
-    fun tearDown() {
-        database.close()
-        Dispatchers.resetMain()
+    fun tearDown() = runBlocking {
+        try {
+            viewModelJobs.forEach { it.cancel() }
+            withTimeout(5_000L) { viewModelJobs.joinAll() }
+        } finally {
+            database.close()
+            Dispatchers.resetMain()
+        }
     }
 
     private val iconSwitcher = RecordingIconSwitcher()
@@ -148,7 +158,7 @@ class MainViewModelStateTest {
             widgetRefresher = NoOpWidgetRefresher,
             getFolderTreeUseCase = getFolderTreeUseCase,
             appIconSwitcher = iconSwitcher
-        )
+        ).also { viewModelJobs += it.viewModelScope.coroutineContext.job }
 
     @Test
     fun `opening a search result context selects its project or root task`() = runBlocking {
@@ -219,8 +229,7 @@ class MainViewModelStateTest {
             runCurrent()
             assertEquals(latest, vm.aiBreakdownState.value)
         } finally {
-            vm.viewModelScope.cancel()
-            runCurrent()
+            vm.viewModelScope.coroutineContext.job.cancelAndJoin()
         }
     }
 
@@ -258,8 +267,7 @@ class MainViewModelStateTest {
             runCurrent()
             assertEquals(latest, vm.aiCaptureState.value)
         } finally {
-            vm.viewModelScope.cancel()
-            runCurrent()
+            vm.viewModelScope.coroutineContext.job.cancelAndJoin()
         }
     }
 

@@ -76,6 +76,7 @@
   * `data/local/dao/TagDao.kt`、`domain/model/TagTreeBuilder.kt`（同级标签排序）、`data/repository/TaskRepositoryImpl.kt`（循环跳过与事务撤销）
   * `feature/execute/AtlasThemeView.kt`（地点任务卡 300ms 长按与取消）
   * 回归测试：`data/backup/ZeroBackupManagerTest.kt`、`feature/main/MainViewModelStateTest.kt`、`feature/execute/AtlasHoldGestureTest.kt`（位于 `app/src/test/java/com/zero/todo/`）
+    `MainViewModelStateTest.kt` 在关闭 Room 前等待 ViewModel 后台查询结束，避免测试之间的退出竞态。
 * **v2.16.0 发布涉及的核心文件**：
   * `core/geofence/GeofenceSyncController.kt`（`effectiveTriggerMode` / `shouldTriggerTask` / `aggregateModeForGeofence`）
   * `core/geofence/ZeroGeofenceReceiver.kt`（触发时按任务过滤 + 冷却）
