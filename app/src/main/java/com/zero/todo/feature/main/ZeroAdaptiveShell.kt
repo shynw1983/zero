@@ -451,7 +451,6 @@ fun ZeroAdaptiveShell(
     val shellBackgroundColor by animateColorAsState(
         targetValue = when {
             isNowAtlas && !isAtlasMapDark -> Color(0xFFEAEDF3)
-            isNowAtlas && isAtlasMapDark -> Color(0xFF0F141E)
             isNowStage -> MonolithBlack
             else -> colors.background
         },

@@ -173,7 +173,7 @@ fun ExecuteHostScreen(
         Box(
             modifier = modifier
                 .fillMaxSize()
-                .background(if (isAtlasMapDark) Color(0xFF0F141E) else Color(0xFFEAEDF3))
+                .background(if (isAtlasMapDark) MonolithBlack else Color(0xFFEAEDF3))
                 .imePadding()
         ) {
             // Layer 0 & 1: Architectural Full-Screen 3D Google Map + Minimal Editorial HUD
